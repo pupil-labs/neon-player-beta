@@ -1,0 +1,15 @@
+# Changes here will be overwritten by Copier
+_commit: 18d4dd9
+_src_path: git@github.com:pupil-labs/pl-template.git
+author_email: info@pupil-labs.com
+author_fullname: Pupil Labs GmbH
+author_username: pupil-labs
+copyright_license: MIT
+debug_module: false
+project_description: ""
+project_name: Neon Player
+python_package_distribution_name: pupil-labs-neon-player
+python_package_import_name: neon_player
+repository_name: pl-neon-player
+repository_namespace: pupil-labs
+repository_provider: github.com

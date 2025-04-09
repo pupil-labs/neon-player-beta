@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="128"
+   height="128"
+   viewBox="0 0 33.866666 33.866666"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
+   sodipodi:docname="play.svg"
+   xml:space="preserve"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><sodipodi:namedview
+     id="namedview1"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="px"
+     inkscape:zoom="2.7482099"
+     inkscape:cx="50.578378"
+     inkscape:cy="42.755104"
+     inkscape:window-width="2512"
+     inkscape:window-height="1412"
+     inkscape:window-x="48"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1"
+     showguides="true" /><defs
+     id="defs1" /><g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"><rect
+       style="opacity:1;fill:#000000;fill-opacity:0;stroke:none;stroke-width:2.11667;stroke-dasharray:none;paint-order:stroke markers fill"
+       id="rect6"
+       width="89.009964"
+       height="73.821106"
+       x="-18.781919"
+       y="-13.882288" /><path
+       style="fill:none;stroke:none;stroke-width:2.11666663;paint-order:stroke markers fill;stroke-dasharray:none;fill-opacity:0.48965517;opacity:1"
+       d="M 16.933333,1.714624 A 15.218462,15.218462 0 0 0 1.714624,16.933333 15.218462,15.218462 0 0 0 16.933333,32.152042 15.218462,15.218462 0 0 0 32.152042,16.933333 15.218462,15.218462 0 0 0 16.933333,1.714624 Z"
+       id="path2" /><path
+       style="opacity:1;fill:#ffffff;fill-opacity:0.733333;stroke:none;stroke-width:2.11667;stroke-dasharray:none;paint-order:stroke markers fill"
+       d="m 9.8577122,5.9902571 9.4775898,5.4712319 9.476976,5.471844 -9.476976,5.471845 -9.4775898,5.471232 V 16.933333 Z"
+       id="path4" /></g></svg>
