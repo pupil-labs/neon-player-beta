@@ -6,6 +6,7 @@ from PySide6.QtCore import (
     QPoint,
     QSize,
     Qt,
+    QTimer,
 )
 from PySide6.QtGui import (
     QAction,
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QMenuBar,
     QMessageBox,
+    QProgressBar,
     QWidget,
 )
 
@@ -42,6 +44,13 @@ class MainWindow(QMainWindow):
 
         self.video_widget = VideoRenderWidget()
         self.setCentralWidget(self.video_widget)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setValue(0)
+
+        self.statusBar().addWidget(self.progress_bar)
 
         self.register_action(
             "&Help/&Online Documentation", on_triggered=self.on_documentation_action
@@ -153,6 +162,9 @@ class MainWindow(QMainWindow):
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.video_widget.on_recording_loaded(recording)
 
+    def set_progress(self, value):
+        self.progress_bar.setValue(100 * value)
+
 
 class VideoRenderWidget(QOpenGLWidget):
     def __init__(self, parent: typing.Optional[QWidget] = None) -> None:
@@ -187,8 +199,7 @@ class VideoRenderWidget(QOpenGLWidget):
             return
 
         app = neon_player.instance()
-        for plugin in app.plugins:
-            plugin.render(painter, self.ts)
+        app.render_to(painter)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)

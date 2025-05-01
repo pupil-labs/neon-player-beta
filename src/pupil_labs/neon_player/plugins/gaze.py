@@ -148,7 +148,7 @@ class AnnulusViz(GazeVisualization):
             if self.recording.scene.width:
                 offset[0] = offset_x * self.recording.scene.width
             if self.recording.scene.height:
-                offset[1] = offset_x * self.recording.scene.height
+                offset[1] = offset_y * self.recording.scene.height
 
         for gaze in gazes:
             center = QPointF(gaze.x + offset[0], gaze.y + offset[1])
@@ -206,7 +206,7 @@ class CrosshairViz(GazeVisualization):
             if self.recording.scene.width:
                 offset[0] = offset_x * self.recording.scene.width
             if self.recording.scene.height:
-                offset[1] = offset_x * self.recording.scene.height
+                offset[1] = offset_y * self.recording.scene.height
 
         for gaze in gazes:
             center = QPointF(gaze.x + offset[0], gaze.y + offset[1])

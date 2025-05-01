@@ -19,3 +19,16 @@ def qimage_from_frame(frame: Optional[np.ndarray]) -> QImage:
     bytes_per_line = channel * width
 
     return QImage(frame.data, width, height, bytes_per_line, image_format)
+
+
+def ndarray_from_qimage(image: QImage) -> Optional[np.ndarray]:
+    if image.isNull():
+        return None
+
+    if image.format() == QImage.Format.Format_Grayscale8:
+        return np.array(image.bits()).reshape((image.height(), image.width()))
+
+    elif image.format() == QImage.Format.Format_BGR888:
+        return np.array(image.bits()).reshape((image.height(), image.width(), 3))
+
+    return None

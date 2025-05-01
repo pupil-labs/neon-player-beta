@@ -1,10 +1,13 @@
+import functools
 from typing import ClassVar
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
 from qt_property_widgets.utilities import PersistentPropertiesMixin
+from qt_property_widgets.utilities import action as object_action
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player.bg_worker import BGWorker, ProgressUpdate
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -38,3 +41,25 @@ def instance():  # type: ignore
     from pupil_labs.neon_player.app import NeonPlayerApp
 
     return NeonPlayerApp.instance()
+
+
+def action(func=None):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        if isinstance(result, BGWorker):
+            app = instance()
+            app.start_bg_worker(result)
+
+        return result
+
+    return object_action(wrapper)
+
+
+__all__ = [
+    "BGWorker",
+    "Plugin",
+    "ProgressUpdate",
+    "action",
+    "instance",
+]

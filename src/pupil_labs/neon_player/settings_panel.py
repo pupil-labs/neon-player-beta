@@ -95,15 +95,6 @@ class Expander(QWidget):
 
         widget: QWidget = content_widget
 
-        content_widget_layout = content_widget.layout()
-        if content_widget_layout is not None and content_widget_layout.count() == 0:
-            content_widget = None
-
-        if isinstance(content_widget, PropertyForm):
-            prop_form: PropertyForm = content_widget
-            if prop_form.form_layout.count() == 0:
-                content_widget = None
-
         widget.setContentsMargins(20, 0, 0, 20)
         self.content_widget = widget
 
@@ -173,5 +164,7 @@ class SettingsPanel(QWidget):
         else:
             self.plugin_class_expanders[kls].toggle_button.setChecked(True)
             form = PropertyForm(instance)
+            if not form.has_widgets:
+                form = None
 
         self.plugin_class_expanders[kls].set_content_widget(form)

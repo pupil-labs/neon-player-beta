@@ -32,6 +32,7 @@ class PlaybackControlsPlugin(neon_player.Plugin):
 
         app = neon_player.instance()
         app.playback_state_changed.connect(self.on_playback_state_changed)
+        app.position_changed.connect(self.on_app_position_changed)
 
         self.play_button = QPushButton(
             QIcon(pkg_resources.resource_filename(__name__, "play.svg")), ""
@@ -89,10 +90,9 @@ class PlaybackControlsPlugin(neon_player.Plugin):
                 QIcon(pkg_resources.resource_filename(__name__, "play.svg"))
             )
 
-    def render(self, painter: QPainter, time_in_recording: int) -> None:
+    def on_app_position_changed(self, time_in_recording: int) -> None:
         if self.recording is None:
             return
-
         elapsed_time_ns = time_in_recording - self.recording.start_ts
         self.progress_slider.setValue(int(elapsed_time_ns / 1e3))
 

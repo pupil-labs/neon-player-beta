@@ -1,19 +1,22 @@
+import argparse
 import importlib.util
 import json
+import multiprocessing as mp
 import sys
 import time
+import traceback
 import typing
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QPalette
+from PySide6.QtCore import QThread, QTimer, Signal
+from PySide6.QtGui import QAction, QColor, QPainter, QPalette
 from PySide6.QtWidgets import (
     QApplication,
 )
 from qt_property_widgets.utilities import ComplexEncoder
 
 from pupil_labs import neon_recording as nr
-from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player import BGWorker, Plugin
 
 from .settings import GeneralSettings
 from .ui import MainWindow
@@ -21,6 +24,7 @@ from .ui import MainWindow
 
 class NeonPlayerApp(QApplication):
     playback_state_changed = Signal(bool)
+    position_changed = Signal(object)
 
     def __init__(self, argv: list[str]) -> None:
         super().__init__(argv)
@@ -32,6 +36,7 @@ class NeonPlayerApp(QApplication):
         self.recording: typing.Optional[nr.NeonRecording] = None
         self.playback_start_anchor = 0
         self.current_ts = 0
+        self.bg_workers = []
 
         self.refresh_timer = QTimer(self)
         self.refresh_timer.setInterval(0)
@@ -48,19 +53,25 @@ class NeonPlayerApp(QApplication):
             print("Failed to load settings", exc)
             self.settings = GeneralSettings()
 
+        parser = argparse.ArgumentParser()
+        parser.add_argument(
+            'recording',
+            nargs='?',
+            default=None,
+            help=""
+        )
+        args = parser.parse_args()
+
+        self.main_window = MainWindow()
+
         for plugin_class in Plugin.known_classes:
             enabled = plugin_class.__name__ in self.settings.enabled_plugin_names
             if enabled:
                 state = self.settings.plugin_states.get(plugin_class.__name__, {})
-                QTimer.singleShot(
-                    1, lambda p=plugin_class, s=state: self.toggle_plugin(p, True, s)
-                )
+                self.toggle_plugin(plugin_class, True, state)
 
-        self.main_window = MainWindow()
-        self.settings.changed.connect(self.save_settings)
-
-        if len(argv) > 1:
-            QTimer.singleShot(1, lambda: self.load(Path(argv[1])))
+        if args.recording:
+            QTimer.singleShot(1, lambda: self.load(Path(args.recording)))
 
     def load_settings(self) -> typing.Any:
         settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
@@ -74,6 +85,7 @@ class NeonPlayerApp(QApplication):
             json.dump(data, f, cls=ComplexEncoder)
 
     def find_plugins(self, path: Path) -> None:
+        sys.path.append(str(path))
         for d in path.iterdir():
             if d.is_file() and d.suffix != ".py":
                 continue
@@ -99,23 +111,30 @@ class NeonPlayerApp(QApplication):
 
             except Exception as exc:
                 print("Failed to load plugin", d, exc)
+                traceback.print_exc()
 
     def toggle_plugin(
-        self, kls: type[Plugin], enabled: bool, state: typing.Optional[dict]
+        self, kls: type[Plugin], enabled: bool, state: typing.Optional[dict] = None,
     ) -> typing.Optional[Plugin]:
         if enabled:
-            if state is None:
-                state = self.settings.plugin_states.get(kls.__name__, {})
+            try:
+                if state is None:
+                    state = self.settings.plugin_states.get(kls.__name__, {})
 
-            plugin: Plugin = kls.from_dict(state)
+                plugin: Plugin = kls.from_dict(state)
 
-            self.plugins_by_class[kls] = plugin
-            self.main_window.settings_panel.set_plugin_instance(kls, plugin)
+                self.plugins_by_class[kls] = plugin
+                self.main_window.settings_panel.set_plugin_instance(kls, plugin)
 
-            plugin.changed.connect(lambda: self.on_plugin_changed(plugin))
+                plugin.changed.connect(lambda: self.on_plugin_changed(plugin))
 
-            if self.recording:
-                plugin.on_recording_loaded(self.recording)
+                if self.recording:
+                    plugin.on_recording_loaded(self.recording)
+            except Exception as exc:
+                print("Failed to enable plugin", kls, exc)
+                traceback.print_exc()
+                return None
+
         else:
             plugin = self.plugins_by_class[kls]
 
@@ -197,6 +216,8 @@ class NeonPlayerApp(QApplication):
             self.refresh_timer.stop()
             self.playback_state_changed.emit(self.refresh_timer.isActive())
 
+        self.position_changed.emit(self.current_ts)
+
     def seek_to(self, ts: int) -> None:
         if self.recording is None:
             return
@@ -205,6 +226,57 @@ class NeonPlayerApp(QApplication):
         self.current_ts = ts
         self.playback_start_anchor = now - (ts - self.recording.start_ts)
         self.main_window.set_time_in_recording(ts)
+
+        self.position_changed.emit(self.current_ts)
+
+    def render_to(self, painter: QPainter, ts: typing.Optional[int] = None) -> None:
+        if ts is None:
+            ts = self.current_ts
+
+        for plugin in self.plugins:
+            plugin.render(painter, ts)
+
+    def export_all(self):
+        for plugin in self.plugins:
+            if hasattr(plugin, "run_export"):
+                plugin.run_export()
+
+    def start_bg_worker(self, bg_worker: BGWorker):
+        self.bg_workers.append(bg_worker)
+        bg_worker.qt_helper.progress_changed.connect(self.update_progress)
+        bg_worker.qt_helper.finished.connect(lambda: self._on_bg_worker_done(bg_worker))
+        bg_worker.start()
+        return
+
+        print("start bg worker from", QThread.currentThread())
+
+        thread = QThread()
+        print("new thread", thread)
+
+        self.bg_workers.append((bg_worker, thread))
+        bg_worker.moveToThread(thread)
+
+        thread.started.connect(lambda: QTimer.singleShot(1, bg_worker._run))
+        thread.finished.connect(thread.deleteLater)
+        bg_worker.finished.connect(lambda: self._on_bg_worker_done(bg_worker))
+        bg_worker.progress_changed.connect(self.update_progress)
+
+        thread.start()
+
+        return thread
+
+    def _on_bg_worker_done(self, worker):
+        self.bg_workers.remove(worker)
+
+    def update_progress(self, v=None):
+        if len(self.bg_workers) == 0:
+            progress = 1
+        else:
+            progress = sum(
+                [worker.progress for worker in self.bg_workers]
+            ) / len(self.bg_workers)
+
+        self.main_window.set_progress(progress)
 
     @property
     def is_playing(self) -> bool:
@@ -217,4 +289,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    mp.set_start_method("spawn")
     main()
