@@ -2,7 +2,7 @@ from typing import Optional
 
 import pkg_resources
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QIcon, QPainter
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QGridLayout,
     QPushButton,

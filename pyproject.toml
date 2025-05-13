@@ -19,7 +19,10 @@ classifiers = [
 ]
 
 dependencies = [
+    "av>=14.3.0",
     "numpy",
+    "opencv-python>=4.11.0.86",
+    "pandas>=2.2.3",
     "pupil-labs-neon-recording>=1.0.1",
     "pyside6>=6.9.0",
     "qt-property-widgets",
@@ -71,7 +74,7 @@ dev-dependencies = [
 ]
 
 [tool.uv.sources]
-qt-property-widgets = { git = "https://github.com/domstoppable/qt-property-widgets" }
+qt-property-widgets = { path = "../qt-property-widgets" }
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]

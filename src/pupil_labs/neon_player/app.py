@@ -8,7 +8,7 @@ import traceback
 import typing
 from pathlib import Path
 
-from PySide6.QtCore import QThread, QTimer, Signal
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QPainter, QPalette
 from PySide6.QtWidgets import (
     QApplication,
@@ -16,8 +16,9 @@ from PySide6.QtWidgets import (
 from qt_property_widgets.utilities import ComplexEncoder
 
 from pupil_labs import neon_recording as nr
-from pupil_labs.neon_player import BGWorker, Plugin
+from pupil_labs.neon_player import Plugin
 
+from .job_manager import JobManager
 from .settings import GeneralSettings
 from .ui import MainWindow
 
@@ -36,11 +37,11 @@ class NeonPlayerApp(QApplication):
         self.recording: typing.Optional[nr.NeonRecording] = None
         self.playback_start_anchor = 0
         self.current_ts = 0
-        self.bg_workers = []
 
         self.refresh_timer = QTimer(self)
         self.refresh_timer.setInterval(0)
         self.refresh_timer.timeout.connect(self.poll)
+        self.job_manager = JobManager()
 
         # Iterate through all modules within plugins and register them
         self.find_plugins(Path(__file__).parent / "plugins")
@@ -54,12 +55,7 @@ class NeonPlayerApp(QApplication):
             self.settings = GeneralSettings()
 
         parser = argparse.ArgumentParser()
-        parser.add_argument(
-            'recording',
-            nargs='?',
-            default=None,
-            help=""
-        )
+        parser.add_argument("recording", nargs="?", default=None, help="")
         args = parser.parse_args()
 
         self.main_window = MainWindow()
@@ -114,7 +110,10 @@ class NeonPlayerApp(QApplication):
                 traceback.print_exc()
 
     def toggle_plugin(
-        self, kls: type[Plugin], enabled: bool, state: typing.Optional[dict] = None,
+        self,
+        kls: type[Plugin],
+        enabled: bool,
+        state: typing.Optional[dict] = None,
     ) -> typing.Optional[Plugin]:
         if enabled:
             try:
@@ -236,47 +235,10 @@ class NeonPlayerApp(QApplication):
         for plugin in self.plugins:
             plugin.render(painter, ts)
 
-    def export_all(self):
+    def export_all(self) -> None:
         for plugin in self.plugins:
             if hasattr(plugin, "run_export"):
                 plugin.run_export()
-
-    def start_bg_worker(self, bg_worker: BGWorker):
-        self.bg_workers.append(bg_worker)
-        bg_worker.qt_helper.progress_changed.connect(self.update_progress)
-        bg_worker.qt_helper.finished.connect(lambda: self._on_bg_worker_done(bg_worker))
-        bg_worker.start()
-        return
-
-        print("start bg worker from", QThread.currentThread())
-
-        thread = QThread()
-        print("new thread", thread)
-
-        self.bg_workers.append((bg_worker, thread))
-        bg_worker.moveToThread(thread)
-
-        thread.started.connect(lambda: QTimer.singleShot(1, bg_worker._run))
-        thread.finished.connect(thread.deleteLater)
-        bg_worker.finished.connect(lambda: self._on_bg_worker_done(bg_worker))
-        bg_worker.progress_changed.connect(self.update_progress)
-
-        thread.start()
-
-        return thread
-
-    def _on_bg_worker_done(self, worker):
-        self.bg_workers.remove(worker)
-
-    def update_progress(self, v=None):
-        if len(self.bg_workers) == 0:
-            progress = 1
-        else:
-            progress = sum(
-                [worker.progress for worker in self.bg_workers]
-            ) / len(self.bg_workers)
-
-        self.main_window.set_progress(progress)
 
     @property
     def is_playing(self) -> bool:

@@ -6,7 +6,6 @@ from PySide6.QtCore import (
     QPoint,
     QSize,
     Qt,
-    QTimer,
 )
 from PySide6.QtGui import (
     QAction,
@@ -19,17 +18,19 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
+    QLabel,
     QMainWindow,
     QMenu,
     QMenuBar,
     QMessageBox,
-    QProgressBar,
     QWidget,
 )
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.settings_panel import SettingsPanel
 from pupil_labs.neon_recording import NeonRecording
+
+from .console import ConsoleWindow
 
 QtShortcutType = typing.Optional[
     typing.Union[QKeySequence, QKeyCombination, QKeySequence.StandardKey, str, int]
@@ -45,12 +46,11 @@ class MainWindow(QMainWindow):
         self.video_widget = VideoRenderWidget()
         self.setCentralWidget(self.video_widget)
 
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(100)
-        self.progress_bar.setValue(0)
+        self.job_status_label = QLabel()
 
-        self.statusBar().addWidget(self.progress_bar)
+        self.statusBar().addWidget(self.job_status_label)
+
+        self.console_window = ConsoleWindow()
 
         self.register_action(
             "&Help/&Online Documentation", on_triggered=self.on_documentation_action
@@ -59,6 +59,8 @@ class MainWindow(QMainWindow):
 
         self.register_action("&File/&Open", "Ctrl+o", self.on_open_action)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
+
+        self.register_action("&View/&Console", "Ctrl+Alt+c", self.console_window.show)
 
         self.play_action = self.register_action(
             "&Playback/&Play\\Pause", "Space", self.on_play_action
@@ -161,9 +163,6 @@ class MainWindow(QMainWindow):
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.video_widget.on_recording_loaded(recording)
-
-    def set_progress(self, value):
-        self.progress_bar.setValue(100 * value)
 
 
 class VideoRenderWidget(QOpenGLWidget):
