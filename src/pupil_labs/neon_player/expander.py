@@ -35,7 +35,9 @@ class Expander(QWidget):
         self.grid_layout = QGridLayout(self)
         self.grid_layout.setVerticalSpacing(0)
         self.grid_layout.setContentsMargins(0, 0, 0, 0)
-        self.grid_layout.addWidget(self.expander_button, 0, 0, 1, 1, Qt.AlignmentFlag.AlignLeft)
+        self.grid_layout.addWidget(
+            self.expander_button, 0, 0, 1, 1, Qt.AlignmentFlag.AlignLeft
+        )
         self.grid_layout.addWidget(self.header_line, 0, 2, 1, 1)
 
         self.expander_button.toggled.connect(lambda _: self.on_expand_toggled())

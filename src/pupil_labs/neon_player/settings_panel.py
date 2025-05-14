@@ -17,7 +17,7 @@ from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.expander import Expander
 
 
-class JobExpander(Expander):
+class PluginExpander(Expander):
     toggled = Signal(bool)
 
     def __init__(self, parent: T.Optional[QWidget] = None, title: str = "") -> None:
@@ -58,7 +58,7 @@ class SettingsPanel(QWidget):
                     widget = layout_item.widget()
                     widget.deleteLater()
 
-        expander = JobExpander(title="General Settings")
+        expander = PluginExpander(title="General Settings")
         general_settings_form = PropertyForm(app.settings)
         expander.set_content_widget(general_settings_form)
         expander.toggle_button.setChecked(True)
@@ -73,7 +73,7 @@ class SettingsPanel(QWidget):
             else:
                 label = plugin_class.__name__
 
-            expander = JobExpander(title=label)
+            expander = PluginExpander(title=label)
             expander.toggled.connect(
                 lambda enabled, kls=plugin_class: app.toggle_plugin(kls, enabled)
             )
