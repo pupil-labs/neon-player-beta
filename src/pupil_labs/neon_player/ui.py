@@ -9,6 +9,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QAction,
+    QColorConstants,
     QKeySequence,
     QPainter,
     QPaintEvent,
@@ -190,6 +191,7 @@ class VideoRenderWidget(QOpenGLWidget):
         painter.setRenderHints(
             QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
         )
+        painter.fillRect(0, 0, self.width(), self.height(), QColorConstants.Black)
 
         painter.translate(self.offset)
         painter.scale(self.scale, self.scale)
