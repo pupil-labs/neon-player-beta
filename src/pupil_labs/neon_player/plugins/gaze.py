@@ -12,7 +12,7 @@ from qt_property_widgets.utilities import PersistentPropertiesMixin, property_pa
 
 import pupil_labs.neon_recording as nr
 from pupil_labs import neon_player
-from pupil_labs.neon_player import BGWorker, action
+from pupil_labs.neon_player import action
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.stream.gaze_stream import GazeArray
 
@@ -86,7 +86,7 @@ def find_ranged_index(
 
 def bg_export(recording_path: Path, destination: Path) -> None:
     recording = nr.open(recording_path)
-    if not recording.calibration:
+    if recording.calibration is None:
         scene_camera_matrix = np.array([
             [892.1746128870618, 0.0, 829.7903330088201],
             [0.0, 891.4721112020742, 606.9965952706247],
@@ -147,6 +147,7 @@ def bg_export(recording_path: Path, destination: Path) -> None:
 
     export_file = destination / "gaze.csv"
     gaze.to_csv(export_file, index=False)
+
     logging.info(f"Wrote {export_file}")
 
 
@@ -191,9 +192,9 @@ class GazeDataPlugin(neon_player.Plugin):
             viz.render(painter, gazes, self._offset_x, self._offset_y)  # type: ignore
 
     @action
-    def export(self, destination: Path = Path()) -> BGWorker:
+    def export(self, destination: Path = Path()) -> None:
         app = neon_player.instance()
-        return BGWorker(
+        app.job_manager.create_job(
             "Export Gaze Data", bg_export, app.recording._rec_dir, destination
         )
 

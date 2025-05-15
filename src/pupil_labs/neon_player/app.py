@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 from qt_property_widgets.utilities import ComplexEncoder
 
+from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin
 
@@ -36,20 +37,17 @@ def setup_logging() -> None:
     logger.setLevel(logging.INFO)
 
     # Create formatters
-    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-
-    file_formatter = logging.Formatter(log_format)
-    console_formatter = logging.Formatter(log_format)
+    log_formatter = logging.Formatter(neon_player.LOG_FORMAT_STRING)
 
     # File handler with rotation (10MB per file, keep 5 backups)
     file_handler = logging.handlers.RotatingFileHandler(
         log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
     )
-    file_handler.setFormatter(file_formatter)
+    file_handler.setFormatter(log_formatter)
 
     # Console handler
     console_handler = logging.StreamHandler()
-    console_handler.setFormatter(console_formatter)
+    console_handler.setFormatter(log_formatter)
 
     # Add handlers
     logger.addHandler(file_handler)

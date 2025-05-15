@@ -27,8 +27,7 @@ class QTextEditLogger(logging.Handler):
 
     def __init__(self) -> None:
         super().__init__()
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        self.setFormatter(formatter)
+        self.setFormatter(logging.Formatter(neon_player.LOG_FORMAT_STRING))
         self._buffer: list[str] = []
         self._text_edit: QTextEdit | None = None
 
@@ -83,6 +82,7 @@ class JobProgressBar(QWidget):
         self.setLayout(self.main_layout)
 
         self.progress_bar = QProgressBar()
+        self.progress_bar.setValue(0)
         self.main_layout.addWidget(self.progress_bar)
 
         self.cancel_button = QToolButton()

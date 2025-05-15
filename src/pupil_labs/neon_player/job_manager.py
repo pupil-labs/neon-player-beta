@@ -1,7 +1,9 @@
+import inspect
 import logging
 import multiprocessing as mp
 import multiprocessing.connection
 import multiprocessing.synchronize
+import traceback
 import typing as T
 
 from PySide6.QtCore import QObject, QTimer, Signal
@@ -86,7 +88,7 @@ class BGWorker:
         self,
         pipe: mp.connection.Connection,
         cancel_event: mp.synchronize.Event,
-        generator: T.Callable[..., T.Generator],
+        func: T.Callable[..., T.Generator],
         *args: T.Any,
         **kwargs: T.Any,
     ) -> None:
@@ -97,13 +99,18 @@ class BGWorker:
         as well as raising their own exceptions in the background task.
         """
         try:
-            for datum in generator(*args, **kwargs):
-                if cancel_event.is_set():
-                    raise EarlyCancellationError("Task was cancelled")  # noqa: TRY301
+            if inspect.isgeneratorfunction(func):
+                for datum in func(*args, **kwargs):
+                    if cancel_event.is_set():
+                        raise EarlyCancellationError("Task was cancelled")  # noqa: TRY301
 
-                pipe.send(datum)
+                    pipe.send(datum)
 
-            pipe.send(StopIteration())
+                pipe.send(StopIteration())
+            else:
+                result = func(*args, **kwargs)
+                pipe.send(result)
+                pipe.send(StopIteration())
 
         except BrokenPipeError:
             pass
@@ -112,7 +119,7 @@ class BGWorker:
             pipe.send(exc)
 
         except Exception as exc:
-            pipe.send(exc)
+            pipe.send(traceback.TracebackException.from_exception(exc))
 
         finally:
             pipe.close()
@@ -129,13 +136,13 @@ class BGWorker:
                 self.qt_helper.finished.emit()
                 return
 
-            elif isinstance(datum, Exception):
-                if isinstance(datum, EarlyCancellationError):
-                    self.qt_helper.canceled.emit()
+            if isinstance(datum, EarlyCancellationError):
+                self.qt_helper.canceled.emit()
 
-                else:
-                    # @TODO: log this exception rather than raise it
-                    raise datum
+            elif isinstance(datum, traceback.TracebackException):
+                logging.error(
+                    f"Job error [{self}]: {datum} - " + "".join(datum.format())
+                )
 
             elif isinstance(datum, ProgressUpdate):
                 self.progress = datum.progress
@@ -182,7 +189,7 @@ class JobManager(QObject):
         self, name: str, generator: T.Callable, *args: T.Any, **kwargs: T.Any
     ) -> BGWorker:
         worker = BGWorker(name, generator, *args, **kwargs)
-        logging.info(f"JobManager: created job {worker}")
+        logging.info(f"Job created [{worker.id}] {worker.name}")
         self.add_job(worker)
         worker.start()
         self.job_started.emit(worker)
@@ -204,10 +211,10 @@ class JobManager(QObject):
         self.update_progress()
 
         if canceled:
-            logging.warning(f"JobManager: job canceled {bg_worker}")
+            logging.warning(f"Job canceled [{bg_worker.id}] {bg_worker.name}")
             self.job_canceled.emit(bg_worker)
         else:
-            logging.info(f"JobManager: job finished {bg_worker}")
+            logging.info(f"Job finished [{bg_worker.id}] {bg_worker.name}")
             self.job_finished.emit(bg_worker)
 
     def update_progress(self) -> None:
