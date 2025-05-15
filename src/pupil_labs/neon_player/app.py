@@ -1,10 +1,11 @@
 import argparse
 import importlib.util
 import json
+import logging
+import logging.handlers
 import multiprocessing as mp
 import sys
 import time
-import traceback
 import typing
 from pathlib import Path
 
@@ -21,6 +22,42 @@ from pupil_labs.neon_player import Plugin
 from .job_manager import JobManager
 from .settings import GeneralSettings
 from .ui import MainWindow
+
+
+def setup_logging() -> None:
+    """Configure logging to both console and file."""
+    log_dir = Path.home() / "Pupil Labs" / "Neon Player" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    log_file = log_dir / "neon_player.log"
+
+    # Set up root logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    # Create formatters
+    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+    file_formatter = logging.Formatter(log_format)
+    console_formatter = logging.Formatter(log_format)
+
+    # File handler with rotation (10MB per file, keep 5 backups)
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+    )
+    file_handler.setFormatter(file_formatter)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(console_formatter)
+
+    # Add handlers
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    # Log startup message
+    logging.info("Neon Player starting up")
+    logging.info(f"Logging to file: {log_file}")
 
 
 class NeonPlayerApp(QApplication):
@@ -50,8 +87,8 @@ class NeonPlayerApp(QApplication):
             self.settings: GeneralSettings = GeneralSettings.from_dict(
                 self.load_settings()
             )
-        except Exception as exc:
-            print("Failed to load settings", exc)
+        except Exception:
+            logging.exception("Failed to load settings")
             self.settings = GeneralSettings()
 
         parser = argparse.ArgumentParser()
@@ -71,6 +108,7 @@ class NeonPlayerApp(QApplication):
 
     def load_settings(self) -> typing.Any:
         settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
+        logging.info(f"Loading settings from {settings_path}")
         return json.loads(settings_path.read_text())
 
     def save_settings(self) -> None:
@@ -82,6 +120,7 @@ class NeonPlayerApp(QApplication):
 
     def find_plugins(self, path: Path) -> None:
         sys.path.append(str(path))
+        logging.info(f"Searching for plugins in {path}")
         for d in path.iterdir():
             if d.is_file() and d.suffix != ".py":
                 continue
@@ -100,14 +139,15 @@ class NeonPlayerApp(QApplication):
                 if spec is None:
                     continue
 
+                logging.info(f"Loading plugin {d}")
+
                 module = importlib.util.module_from_spec(spec)
                 sys.modules[d.stem] = module
                 if spec.loader:
                     spec.loader.exec_module(module)
 
-            except Exception as exc:
-                print("Failed to load plugin", d, exc)
-                traceback.print_exc()
+            except Exception:
+                logging.exception(f"Failed to load plugin {d}")
 
     def toggle_plugin(
         self,
@@ -116,6 +156,7 @@ class NeonPlayerApp(QApplication):
         state: typing.Optional[dict] = None,
     ) -> typing.Optional[Plugin]:
         if enabled:
+            logging.info(f"Enabling plugin {kls.__name__}")
             try:
                 if state is None:
                     state = self.settings.plugin_states.get(kls.__name__, {})
@@ -129,12 +170,12 @@ class NeonPlayerApp(QApplication):
 
                 if self.recording:
                     plugin.on_recording_loaded(self.recording)
-            except Exception as exc:
-                print("Failed to enable plugin", kls, exc)
-                traceback.print_exc()
+            except Exception:
+                logging.exception(f"Failed to enable plugin {kls}")
                 return None
 
         else:
+            logging.info(f"Disabling plugin {kls.__name__}")
             plugin = self.plugins_by_class[kls]
 
             plugin.on_disabled()
@@ -143,8 +184,8 @@ class NeonPlayerApp(QApplication):
 
         try:
             self.save_settings()
-        except Exception as exc:
-            print("Failed to save settings", exc)
+        except Exception:
+            logging.exception("Failed to save settings")
 
         self.plugins = list(self.plugins_by_class.values())
         self.plugins.sort(key=lambda p: p.render_layer)
@@ -157,12 +198,13 @@ class NeonPlayerApp(QApplication):
         self.main_window.video_widget.update()
         self.save_settings()
 
-    def run(self) -> None:
+    def run(self) -> int:
         self.main_window.show()
-        sys.exit(self.exec())
+        return self.exec()
 
     def load(self, path: Path) -> None:
-        print("Opening recording at path:", path)
+        """Load a recording from the given path."""
+        logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
         self.playback_start_anchor = 0
 
@@ -246,10 +288,11 @@ class NeonPlayerApp(QApplication):
 
 
 def main() -> None:
+    mp.set_start_method("spawn")
+    setup_logging()
     app = NeonPlayerApp(sys.argv)
-    app.run()
+    sys.exit(app.run())
 
 
 if __name__ == "__main__":
-    mp.set_start_method("spawn")
     main()

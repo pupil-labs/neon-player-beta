@@ -1,8 +1,7 @@
+import logging
 import multiprocessing as mp
 import multiprocessing.connection
-import signal
-import traceback
-import types
+import multiprocessing.synchronize
 import typing as T
 
 from PySide6.QtCore import QObject, QTimer, Signal
@@ -42,7 +41,7 @@ class BGWorkerQtHelper(QObject):
 
 
 class BGWorker:
-    """Future-like object. Iterates a generator in the background"""
+    _job_counter = 0
 
     def __init__(
         self, name: str, generator: T.Callable, *args: T.Any, **kwargs: T.Any
@@ -50,6 +49,8 @@ class BGWorker:
         super().__init__()
         self.qt_helper = BGWorkerQtHelper(self)
         self.name = name
+        BGWorker._job_counter += 1
+        self.id = BGWorker._job_counter
 
         ctx = mp.get_context("spawn")
 
@@ -67,6 +68,10 @@ class BGWorker:
         self.pipe_send = pipe_send
         self.progress = 0.0
 
+    def start(self) -> None:
+        self.qt_helper.start()
+        self.process.start()
+
     def __getstate__(self) -> T.Any:
         state = self.__dict__.copy()
         if "qt_helper" in state:
@@ -74,14 +79,13 @@ class BGWorker:
 
         return state
 
-    def start(self) -> None:
-        self.qt_helper.start()
-        self.process.start()
+    def __str__(self) -> str:
+        return f"BGWorker(name={self.name}, id={self.id})"
 
     def _wrapper(
         self,
         pipe: mp.connection.Connection,
-        cancel_event: mp.Event,
+        cancel_event: mp.synchronize.Event,
         generator: T.Callable[..., T.Generator],
         *args: T.Any,
         **kwargs: T.Any,
@@ -92,12 +96,6 @@ class BGWorker:
         `Task_Proxy.fetch()`. This allows users to handle failure gracefully
         as well as raising their own exceptions in the background task.
         """
-
-        def interrupt_handler(sig: int, frame: T.Optional[types.FrameType]) -> None:
-            trace = traceback.format_stack(f=frame)
-            print(f"Caught signal {sig} in:\n" + "".join(trace))
-
-        signal.signal(signal.SIGINT, interrupt_handler)
         try:
             for datum in generator(*args, **kwargs):
                 if cancel_event.is_set():
@@ -177,13 +175,14 @@ class JobManager(QObject):
 
     def cleanup(self) -> None:
         for worker in self.bg_workers:
-            print(f"JobManager: cleaning up {worker.name}")
+            logging.info(f"JobManager: cleaning up {worker}")
             worker.cancel()
 
     def create_job(
         self, name: str, generator: T.Callable, *args: T.Any, **kwargs: T.Any
     ) -> BGWorker:
         worker = BGWorker(name, generator, *args, **kwargs)
+        logging.info(f"JobManager: created job {worker}")
         self.add_job(worker)
         worker.start()
         self.job_started.emit(worker)
@@ -205,8 +204,10 @@ class JobManager(QObject):
         self.update_progress()
 
         if canceled:
+            logging.warning(f"JobManager: job canceled {bg_worker}")
             self.job_canceled.emit(bg_worker)
         else:
+            logging.info(f"JobManager: job finished {bg_worker}")
             self.job_finished.emit(bg_worker)
 
     def update_progress(self) -> None:

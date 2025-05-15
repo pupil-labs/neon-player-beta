@@ -1,3 +1,4 @@
+import logging
 import typing as T
 from pathlib import Path
 from typing import ClassVar, Optional
@@ -146,7 +147,7 @@ def bg_export(recording_path: Path, destination: Path) -> None:
 
     export_file = destination / "gaze.csv"
     gaze.to_csv(export_file, index=False)
-    print(f"Wrote {export_file}")
+    logging.info(f"Wrote {export_file}")
 
 
 class GazeDataPlugin(neon_player.Plugin):

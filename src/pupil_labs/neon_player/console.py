@@ -1,6 +1,8 @@
+import logging
 import typing as T
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
@@ -14,8 +16,62 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player.expander import Expander
 from pupil_labs.neon_player.job_manager import BGWorker
+
+
+class QTextEditLogger(logging.Handler):
+    """Custom logging handler that writes to a QTextEdit.
+
+    This handler buffers log messages until a QTextEdit is set, then flushes them.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        self.setFormatter(formatter)
+        self._buffer: list[str] = []
+        self._text_edit: QTextEdit | None = None
+
+        self.colors = {
+            "DEBUG": Qt.GlobalColor.green,
+            "INFO": Qt.GlobalColor.white,
+            "WARNING": Qt.GlobalColor.yellow,
+            "ERROR": Qt.GlobalColor.red,
+            "CRITICAL": Qt.GlobalColor.magenta,
+        }
+
+    def set_text_edit(self, text_edit: QTextEdit) -> None:
+        self._text_edit = text_edit
+        # Flush any buffered messages
+        if self._buffer:
+            self._text_edit.append("\n".join(self._buffer))
+            self._buffer.clear()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Emit a log record to the text edit."""
+        msg = self.format(record)
+        color = self.colors.get(record.levelname)
+        self._append_text(msg, color)
+
+    def _append_text(self, text: str, color: T.Optional[Qt.GlobalColor] = None) -> None:
+        if self._text_edit is not None:
+            # Save current text color
+            current = self._text_edit.textColor()
+
+            if color is not None:
+                self._text_edit.setTextColor(color)
+
+            self._text_edit.append(text)
+
+            # Restore original color
+            self._text_edit.setTextColor(current)
+
+            # Auto-scroll to bottom
+            scroll_bar = self._text_edit.verticalScrollBar()
+            scroll_bar.setValue(scroll_bar.maximum())
+            self._text_edit.horizontalScrollBar().setValue(0)
+        else:
+            self._buffer.append(text)
 
 
 class JobProgressBar(QWidget):
@@ -57,23 +113,41 @@ class ConsoleWindow(QWidget):
         self.job_table_layout.setSpacing(3)
         self.job_table.setLayout(self.job_table_layout)
 
-        self.job_table_expander = Expander(title="Jobs")
-        self.job_table_expander.set_content_widget(self.job_table)
-        self.main_layout.addWidget(self.job_table_expander)
+        # Set size policy for job table
+        job_table_size_policy = QSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        )
+        self.job_table.setSizePolicy(job_table_size_policy)
+
+        self.main_layout.addWidget(self.job_table)
 
         # Log section
         self.console_widget = QTextEdit()
         self.console_widget.setReadOnly(True)
+        self.console_widget.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+
+        # Set size policy to expand vertically
+        size_policy = QSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        self.console_widget.setSizePolicy(size_policy)
+
+        # Set monospace font for better log readability
+        font = self.console_widget.font()
+        font.setFamily("Monospace")
+        font.setStyleHint(QFont.StyleHint.TypeWriter)
+        self.console_widget.setFont(font)
         self.console_widget.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
 
-        self.console_expander = Expander(title="Console")
-        self.console_expander.set_content_widget(self.console_widget)
-        self.console_expander.expanded_changed.connect(
-            lambda _: self.update_stretches()
-        )
-        self.main_layout.addWidget(self.console_expander)
+        # Set up logging to console widget
+        self.log_handler = QTextEditLogger()
+        self.log_handler.set_text_edit(self.console_widget)
+        logging.getLogger().addHandler(self.log_handler)
+
+        # Give console more vertical space than job table
+        self.main_layout.addWidget(self.console_widget, stretch=1)
 
         self.spacer = QWidget()
         self.spacer.setSizePolicy(
@@ -84,17 +158,29 @@ class ConsoleWindow(QWidget):
         # Buttons
         button_layout = QHBoxLayout()
         self.copy_log_button = QPushButton("Copy Log")
+        self.copy_log_button.clicked.connect(self.copy_log)
+        self.clear_log_button = QPushButton("Clear Log")
+        self.clear_log_button.clicked.connect(self.clear_log)
         self.close_button = QPushButton("Close")
-        self.close_button.clicked.connect(self.close)
         button_layout.addWidget(self.copy_log_button)
-        button_layout.addWidget(self.close_button)
+        button_layout.addWidget(self.clear_log_button)
         self.main_layout.addLayout(button_layout)
 
         app = neon_player.instance()
         app.job_manager.job_started.connect(self.on_job_added)
         app.job_manager.job_finished.connect(self.remove_job)
         app.job_manager.job_canceled.connect(self.remove_job)
-        app.job_manager.progress_changed.connect(self.on_total_updated)
+
+    def copy_log(self) -> None:
+        """Copy the current log contents to the clipboard."""
+        cb = neon_player.instance().clipboard()
+        cb.setText(self.console_widget.toPlainText())
+        logging.info("Log copied to clipboard")
+
+    def clear_log(self) -> None:
+        """Clear the log display."""
+        self.console_widget.clear()
+        logging.info("Log display cleared")
 
     def on_job_added(self, worker: BGWorker) -> None:
         self.job_table_layout.addRow(worker.name, JobProgressBar(worker))
@@ -106,11 +192,3 @@ class ConsoleWindow(QWidget):
             if isinstance(widget, JobProgressBar) and widget.worker == worker:
                 self.job_table_layout.removeRow(row_idx)
                 break
-
-    def on_total_updated(self, total_progress: float) -> None:
-        pass
-
-    def update_stretches(self) -> None:
-        c_stretch = 1 if self.console_expander.expanded else 0
-        self.main_layout.setStretch(1, c_stretch)
-        self.main_layout.setStretch(2, 1 - c_stretch)

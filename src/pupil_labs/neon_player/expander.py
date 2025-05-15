@@ -7,7 +7,12 @@ from PySide6.QtWidgets import QFrame, QGridLayout, QSizePolicy, QToolButton, QWi
 class Expander(QWidget):
     expanded_changed = Signal(bool)
 
-    def __init__(self, parent: T.Optional[QWidget] = None, title: str = "") -> None:
+    def __init__(
+        self,
+        parent: T.Optional[QWidget] = None,
+        title: str = "",
+        expanded: bool = False,
+    ) -> None:
         # Adapted from https://stackoverflow.com/a/56275050
         super().__init__(parent=parent)
 
@@ -22,8 +27,6 @@ class Expander(QWidget):
             Qt.ToolButtonStyle.ToolButtonTextBesideIcon
         )
         self.expander_button.setText(str(title))
-        self.expander_button.setCheckable(False)
-        self.expander_button.setChecked(False)
         self.expander_button.setArrowType(Qt.ArrowType.LeftArrow)
 
         self.header_line.setFrameShape(QFrame.Shape.HLine)
@@ -41,6 +44,12 @@ class Expander(QWidget):
         self.grid_layout.addWidget(self.header_line, 0, 2, 1, 1)
 
         self.expander_button.toggled.connect(lambda _: self.on_expand_toggled())
+
+        if expanded:
+            self.expander_button.setCheckable(True)
+            self.expanded = True
+        else:
+            self.expander_button.setCheckable(False)
 
     def on_expand_toggled(self) -> None:
         checked = self.expander_button.isChecked()
@@ -78,7 +87,8 @@ class Expander(QWidget):
         self.expander_button.setArrowType(Qt.ArrowType.RightArrow)
         self.grid_layout.addWidget(self.content_widget, 1, 0, 1, 3)
 
-        self.content_widget.hide()
+        if not self.expanded:
+            self.content_widget.hide()
 
     @property
     def expanded(self) -> bool:
