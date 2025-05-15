@@ -1,10 +1,12 @@
 import inspect
 import logging
+import logging.handlers
 import multiprocessing as mp
 import multiprocessing.connection
 import multiprocessing.synchronize
 import traceback
 import typing as T
+from logging.handlers import QueueHandler, QueueListener
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
@@ -42,8 +44,52 @@ class BGWorkerQtHelper(QObject):
         self.poller.stop()
 
 
+def setup_logging_queue() -> tuple[mp.Queue, QueueListener]:
+    """Set up logging queue and listener in the main process.
+
+    This creates a queue that forwards log records to the root logger,
+    which will be handled by the console window's log handler.
+    """
+    log_queue: mp.Queue = mp.Queue()
+
+    # Create a handler that forwards to the root logger
+    class RootLoggerHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            logger = logging.getLogger()
+            if logger.isEnabledFor(record.levelno):
+                logger.handle(record)
+
+    handler = RootLoggerHandler()
+    handler.setLevel(logging.INFO)
+
+    # Start the queue listener
+    listener = QueueListener(log_queue, handler, respect_handler_level=True)
+    listener.start()
+    return log_queue, listener
+
+
 class BGWorker:
     _job_counter = 0
+    _log_queue = None
+    _log_listener = None
+
+    @classmethod
+    def setup_logging(cls) -> None:
+        """Set up logging queue and listener.
+
+        Should be called once in the main process.
+        """
+        if cls._log_queue is None or cls._log_listener is None:
+            cls._log_queue, cls._log_listener = setup_logging_queue()
+            logging.info("Background process logging initialized")
+
+    @classmethod
+    def stop_logging(cls) -> None:
+        """Stop the log listener. Should be called when the application is exiting."""
+        if cls._log_listener is not None:
+            cls._log_listener.stop()
+            cls._log_listener = None
+            cls._log_queue = None
 
     def __init__(
         self, name: str, generator: T.Callable, *args: T.Any, **kwargs: T.Any
@@ -61,7 +107,7 @@ class BGWorker:
         self._cancel_event = ctx.Event()
 
         pipe_recv, pipe_send = ctx.Pipe(False)
-        wrapper_args = [pipe_send, self._cancel_event, generator]
+        wrapper_args = [pipe_send, self._cancel_event, BGWorker._log_queue, generator]
         wrapper_args.extend(args)
         self.process = ctx.Process(
             target=self._wrapper, name=name, args=wrapper_args, kwargs=kwargs
@@ -82,13 +128,32 @@ class BGWorker:
         return state
 
     def __str__(self) -> str:
-        return f"BGWorker(name={self.name}, id={self.id})"
+        return f"{self.__class__.__name__}(name={self.name}, id={self.id})"
+
+    def _setup_child_logging(self, log_queue: mp.Queue) -> None:
+        """Set up logging in the child process to send logs to the main process."""
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+
+        # Clear existing handlers to avoid duplicate logs
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+
+        # Add queue handler to send logs to the main process
+        queue_handler = QueueHandler(log_queue)
+        queue_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter(f"%(message)s [Job {self.id}]")
+        queue_handler.setFormatter(formatter)
+        root_logger.addHandler(queue_handler)
+        # Ensure the root logger propagates to the queue handler
+        root_logger.propagate = False
 
     def _wrapper(
         self,
         pipe: mp.connection.Connection,
         cancel_event: mp.synchronize.Event,
-        func: T.Callable[..., T.Generator],
+        log_queue: T.Optional[mp.Queue],
+        func: T.Callable,
         *args: T.Any,
         **kwargs: T.Any,
     ) -> None:
@@ -99,6 +164,10 @@ class BGWorker:
         as well as raising their own exceptions in the background task.
         """
         try:
+            # Set up logging in the child process if log queue is provided
+            if log_queue is not None:
+                self._setup_child_logging(log_queue)
+
             if inspect.isgeneratorfunction(func):
                 for datum in func(*args, **kwargs):
                     if cancel_event.is_set():
@@ -181,9 +250,15 @@ class JobManager(QObject):
         app.aboutToQuit.connect(self.cleanup)
 
     def cleanup(self) -> None:
-        for worker in self.bg_workers:
-            logging.info(f"JobManager: cleaning up {worker}")
+        BGWorker.stop_logging()
+        for worker in self.bg_workers[:]:
             worker.cancel()
+
+        for worker in self.bg_workers[:]:
+            if worker.process is not None:
+                worker.process.join(timeout=1.0)
+
+        self.bg_workers.clear()
 
     def create_job(
         self, name: str, generator: T.Callable, *args: T.Any, **kwargs: T.Any

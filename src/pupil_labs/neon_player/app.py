@@ -20,7 +20,7 @@ from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin
 
-from .job_manager import JobManager
+from .job_manager import BGWorker, JobManager
 from .settings import GeneralSettings
 from .ui import MainWindow
 
@@ -56,6 +56,8 @@ def setup_logging() -> None:
     # Log startup message
     logging.info("Neon Player starting up")
     logging.info(f"Logging to file: {log_file}")
+
+    BGWorker.setup_logging()
 
 
 class NeonPlayerApp(QApplication):
