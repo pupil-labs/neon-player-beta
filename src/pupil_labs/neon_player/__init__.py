@@ -29,7 +29,8 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @classmethod
     def __init_subclass__(cls: type["Plugin"], **kwargs: dict) -> None:  # type: ignore
         super().__init_subclass__(**kwargs)
-        Plugin.known_classes.append(cls)
+        if cls.__name__ not in [c.__name__ for c in Plugin.known_classes]:
+            Plugin.known_classes.append(cls)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         pass

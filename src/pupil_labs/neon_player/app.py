@@ -69,7 +69,7 @@ class NeonPlayerApp(QApplication):
 
         self.setPalette(QPalette(QColor("#1d2023")))
 
-        self.plugins_by_class: dict[type, Plugin] = {}
+        self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
         self.recording: typing.Optional[nr.NeonRecording] = None
         self.playback_start_anchor = 0
@@ -163,8 +163,10 @@ class NeonPlayerApp(QApplication):
 
                 plugin: Plugin = kls.from_dict(state)
 
-                self.plugins_by_class[kls] = plugin
-                self.main_window.settings_panel.set_plugin_instance(kls, plugin)
+                self.plugins_by_class[kls.__name__] = plugin
+                self.main_window.settings_panel.set_plugin_instance(
+                    kls.__name__, plugin
+                )
 
                 plugin.changed.connect(lambda: self.on_plugin_changed(plugin))
 
@@ -176,11 +178,11 @@ class NeonPlayerApp(QApplication):
 
         else:
             logging.info(f"Disabling plugin {kls.__name__}")
-            plugin = self.plugins_by_class[kls]
+            plugin = self.plugins_by_class[kls.__name__]
 
             plugin.on_disabled()
-            del self.plugins_by_class[kls]
-            self.main_window.settings_panel.set_plugin_instance(kls, None)
+            del self.plugins_by_class[kls.__name__]
+            self.main_window.settings_panel.set_plugin_instance(kls.__name__, None)
 
         try:
             self.save_settings()

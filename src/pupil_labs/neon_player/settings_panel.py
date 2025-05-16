@@ -42,7 +42,7 @@ class SettingsPanel(QWidget):
         super().__init__(parent=parent)
 
         self.setLayout(QVBoxLayout(self))
-        self.plugin_class_expanders: dict[type, Expander] = {}
+        self.plugin_class_expanders: dict[str, Expander] = {}
         self.refresh()
         self.setMinimumSize(350, 100)
 
@@ -79,7 +79,7 @@ class SettingsPanel(QWidget):
             )
             if layout:
                 layout.addWidget(expander)
-            self.plugin_class_expanders[plugin_class] = expander
+            self.plugin_class_expanders[plugin_class.__name__] = expander
 
         # Add a spacer to fill the remaining space
         spacer = QWidget()
@@ -87,12 +87,14 @@ class SettingsPanel(QWidget):
         if layout:
             layout.addWidget(spacer)
 
-    def set_plugin_instance(self, kls: type, instance: T.Optional[Plugin]) -> None:
+    def set_plugin_instance(
+        self, class_name: str, instance: T.Optional[Plugin]
+    ) -> None:
         if instance is None:
             form = None
 
         else:
-            expander = self.plugin_class_expanders[kls]
+            expander = self.plugin_class_expanders[class_name]
             if hasattr(expander, "toggle_button"):
                 expander.toggle_button.setChecked(True)
 
@@ -100,4 +102,4 @@ class SettingsPanel(QWidget):
             if not form.has_widgets:
                 form = None
 
-        self.plugin_class_expanders[kls].set_content_widget(form)
+        self.plugin_class_expanders[class_name].set_content_widget(form)

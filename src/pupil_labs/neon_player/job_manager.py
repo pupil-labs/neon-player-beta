@@ -102,8 +102,8 @@ class BGWorker:
 
         ctx = mp.get_context("spawn")
 
-        self._completed = False
-        self._canceled = False
+        self._was_completed = False
+        self._was_canceled = False
         self._cancel_event = ctx.Event()
 
         pipe_recv, pipe_send = ctx.Pipe(False)
@@ -116,14 +116,19 @@ class BGWorker:
         self.pipe_send = pipe_send
         self.progress = 0.0
 
+        self.finished = self.qt_helper.finished
+        self.canceled = self.qt_helper.canceled
+        self.progress_changed = self.qt_helper.progress_changed
+
     def start(self) -> None:
         self.qt_helper.start()
         self.process.start()
 
     def __getstate__(self) -> T.Any:
         state = self.__dict__.copy()
-        if "qt_helper" in state:
-            del state["qt_helper"]
+        ignorables = ["qt_helper", "finished", "canceled", "progress_changed"]
+        for ignorable in ignorables:
+            del state[ignorable]
 
         return state
 
@@ -194,14 +199,14 @@ class BGWorker:
             pipe.close()
 
     def fetch(self) -> None:
-        if self._completed or self._canceled:
+        if self._was_completed or self._was_canceled:
             return
 
         while self.pipe.poll(0):
             datum = self.pipe.recv()
 
             if isinstance(datum, StopIteration):
-                self._completed = True
+                self._was_completed = True
                 self.qt_helper.finished.emit()
                 return
 
@@ -218,7 +223,7 @@ class BGWorker:
                 self.qt_helper.progress_changed.emit(datum.progress)
 
     def cancel(self, timeout: float = 1) -> None:
-        if not (self.completed or self.canceled):
+        if not (self.was_completed or self.was_canceled):
             self._cancel_event.set()
             self.fetch()  # flush
 
@@ -226,12 +231,12 @@ class BGWorker:
             self.process.join(timeout)
 
     @property
-    def completed(self) -> bool:
-        return self._completed
+    def was_completed(self) -> bool:
+        return self._was_completed
 
     @property
-    def canceled(self) -> bool:
-        return self._canceled
+    def was_canceled(self) -> bool:
+        return self._was_canceled
 
 
 class JobManager(QObject):

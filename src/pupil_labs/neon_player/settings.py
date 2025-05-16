@@ -30,7 +30,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     def enabled_plugin_names(self) -> list[str]:
         app = neon_player.instance()
         if app.applicationState() == Qt.ApplicationState.ApplicationActive:
-            return [k.__name__ for k in app.plugins_by_class]
+            return list(app.plugins_by_class.keys())
 
         return self._enabled_plugin_names
 
@@ -43,7 +43,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     def plugin_states(self) -> dict[str, dict]:
         app = neon_player.instance()
         current_states = {
-            kls.__name__: p.to_dict() for kls, p in app.plugins_by_class.items()
+            class_name: p.to_dict() for class_name, p in app.plugins_by_class.items()
         }
 
         plugin_states = {**self._plugin_states, **current_states}
