@@ -75,13 +75,23 @@ class NeonPlayerApp(QApplication):
         self.playback_start_anchor = 0
         self.current_ts = 0
 
+        self.settings = GeneralSettings()
+
         self.refresh_timer = QTimer(self)
         self.refresh_timer.setInterval(0)
         self.refresh_timer.timeout.connect(self.poll)
         self.job_manager = JobManager()
 
+        parser = argparse.ArgumentParser()
+        parser.add_argument("recording", nargs="?", default=None, help="")
+        args = parser.parse_args()
+
+        self.main_window = MainWindow()
+        setup_logging()
+
         # Iterate through all modules within plugins and register them
         self.find_plugins(Path(__file__).parent / "plugins")
+        self.main_window.settings_panel.refresh()
 
         try:
             self.settings: GeneralSettings = GeneralSettings.from_dict(
@@ -89,13 +99,6 @@ class NeonPlayerApp(QApplication):
             )
         except Exception:
             logging.exception("Failed to load settings")
-            self.settings = GeneralSettings()
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument("recording", nargs="?", default=None, help="")
-        args = parser.parse_args()
-
-        self.main_window = MainWindow()
 
         for plugin_class in Plugin.known_classes:
             enabled = plugin_class.__name__ in self.settings.enabled_plugin_names
@@ -139,7 +142,7 @@ class NeonPlayerApp(QApplication):
                 if spec is None:
                     continue
 
-                logging.info(f"Loading plugin {d}")
+                logging.info(f"Importing plugin module {d}")
 
                 module = importlib.util.module_from_spec(spec)
                 sys.modules[d.stem] = module
@@ -147,7 +150,7 @@ class NeonPlayerApp(QApplication):
                     spec.loader.exec_module(module)
 
             except Exception:
-                logging.exception(f"Failed to load plugin {d}")
+                logging.exception(f"Failed to import plugin module {d}")
 
     def toggle_plugin(
         self,
@@ -291,7 +294,6 @@ class NeonPlayerApp(QApplication):
 
 def main() -> None:
     mp.set_start_method("spawn")
-    setup_logging()
     app = NeonPlayerApp(sys.argv)
     sys.exit(app.run())
 

@@ -1,7 +1,7 @@
 import logging
 import typing as T
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFormLayout,
@@ -66,11 +66,17 @@ class QTextEditLogger(logging.Handler):
             self._text_edit.setTextColor(current)
 
             # Auto-scroll to bottom
-            scroll_bar = self._text_edit.verticalScrollBar()
-            scroll_bar.setValue(scroll_bar.maximum())
-            self._text_edit.horizontalScrollBar().setValue(0)
+            self.scroll_to_bottom()
         else:
             self._buffer.append(text)
+
+    def scroll_to_bottom(self):
+        QTimer.singleShot(0, self._scroll_to_bottom)
+
+    def _scroll_to_bottom(self) -> None:
+        scroll_bar = self._text_edit.verticalScrollBar()
+        scroll_bar.setValue(scroll_bar.maximum())
+        self._text_edit.horizontalScrollBar().setValue(0)
 
 
 class JobProgressBar(QWidget):
@@ -192,3 +198,7 @@ class ConsoleWindow(QWidget):
             if isinstance(widget, JobProgressBar) and widget.worker == worker:
                 self.job_table_layout.removeRow(row_idx)
                 break
+
+    def show(self):
+        super().show()
+        self.log_handler.scroll_to_bottom()

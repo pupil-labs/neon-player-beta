@@ -10,9 +10,7 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import BGWorker, ProgressUpdate
 from pupil_labs.neon_recording import NeonRecording
 
-LOG_FORMAT_STRING = (
-    "%(asctime)s - %(levelname)s - %(name)s:%(filename)s:%(lineno)d - %(message)s"
-)
+LOG_FORMAT_STRING = "%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
 
 
 class Plugin(PersistentPropertiesMixin, QObject):
