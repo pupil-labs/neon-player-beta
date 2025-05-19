@@ -6,8 +6,8 @@ from PySide6.QtCore import (
 )
 from PySide6.QtWidgets import (
     QCheckBox,
-    QSizePolicy,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -95,7 +95,9 @@ class SettingsPanel(QWidget):
 
         # Add a spacer to fill the remaining space
         self.spacer = QWidget()
-        self.spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.spacer.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
         self.container_layout.addWidget(self.spacer)
 
     def set_plugin_instance(

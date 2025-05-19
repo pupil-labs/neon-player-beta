@@ -70,10 +70,13 @@ class QTextEditLogger(logging.Handler):
         else:
             self._buffer.append(text)
 
-    def scroll_to_bottom(self):
+    def scroll_to_bottom(self) -> None:
         QTimer.singleShot(0, self._scroll_to_bottom)
 
     def _scroll_to_bottom(self) -> None:
+        if self._text_edit is None:
+            return
+
         scroll_bar = self._text_edit.verticalScrollBar()
         scroll_bar.setValue(scroll_bar.maximum())
         self._text_edit.horizontalScrollBar().setValue(0)
@@ -199,6 +202,6 @@ class ConsoleWindow(QWidget):
                 self.job_table_layout.removeRow(row_idx)
                 break
 
-    def show(self):
+    def show(self) -> None:
         super().show()
         self.log_handler.scroll_to_bottom()

@@ -1,7 +1,13 @@
 import typing as T
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFrame, QGridLayout, QSizePolicy, QToolButton, QWidget, QLabel
+from PySide6.QtWidgets import (
+    QFrame,
+    QGridLayout,
+    QSizePolicy,
+    QToolButton,
+    QWidget,
+)
 
 
 class Expander(QWidget):
@@ -60,7 +66,9 @@ class Expander(QWidget):
             self.expander_button.setArrowType(Qt.ArrowType.DownArrow)
             if self.content_widget is not None:
                 self.content_widget.show()
-                self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+                self.content_widget.setSizePolicy(
+                    QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
+                )
         else:
             self.expander_button.setArrowType(Qt.ArrowType.RightArrow)
             if self.content_widget is not None:

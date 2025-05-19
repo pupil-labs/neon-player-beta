@@ -94,9 +94,7 @@ class NeonPlayerApp(QApplication):
         self.main_window.settings_panel.refresh()
 
         try:
-            self.settings: GeneralSettings = GeneralSettings.from_dict(
-                self.load_settings()
-            )
+            self.settings = GeneralSettings.from_dict(self.load_settings())
         except Exception:
             logging.exception("Failed to load settings")
 
