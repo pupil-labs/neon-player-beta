@@ -1,7 +1,7 @@
 import typing as T
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QFrame, QGridLayout, QSizePolicy, QToolButton, QWidget
+from PySide6.QtWidgets import QFrame, QGridLayout, QSizePolicy, QToolButton, QWidget, QLabel
 
 
 class Expander(QWidget):
@@ -19,6 +19,8 @@ class Expander(QWidget):
         self.content_widget: T.Optional[QWidget] = None
         self.header_line = QFrame()
         self.expander_button = QToolButton()
+
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.expander_button.setStyleSheet(
             "QToolButton { border: none; font-weight: bold; font-size: 12pt; }"
@@ -58,6 +60,7 @@ class Expander(QWidget):
             self.expander_button.setArrowType(Qt.ArrowType.DownArrow)
             if self.content_widget is not None:
                 self.content_widget.show()
+                self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         else:
             self.expander_button.setArrowType(Qt.ArrowType.RightArrow)
             if self.content_widget is not None:

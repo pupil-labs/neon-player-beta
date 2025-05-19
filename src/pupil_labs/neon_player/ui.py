@@ -71,6 +71,8 @@ class MainWindow(QMainWindow):
         self.add_dock(
             self.settings_panel, "Settings", Qt.DockWidgetArea.RightDockWidgetArea
         )
+        self.setCorner(Qt.Corner.BottomRightCorner, Qt.DockWidgetArea.RightDockWidgetArea)
+        self.setCorner(Qt.Corner.BottomLeftCorner, Qt.DockWidgetArea.LeftDockWidgetArea)
 
     def on_open_action(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Open Recording")
