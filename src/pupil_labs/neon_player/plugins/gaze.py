@@ -227,7 +227,7 @@ class AnnulusViz(GazeVisualization):
         self._color = value
 
     @property
-    @property_params(min=1, max=9999)
+    @property_params(min=1, max=999)
     def radius(self) -> int:
         return self._radius
 
@@ -236,7 +236,7 @@ class AnnulusViz(GazeVisualization):
         self._radius = value
 
     @property
-    @property_params(min=1, max=9999)
+    @property_params(min=1, max=999)
     def stroke_width(self) -> int:
         return self._stroke_width
 
@@ -295,7 +295,7 @@ class CrosshairViz(GazeVisualization):
         self._color = value
 
     @property
-    @property_params(min=1, max=2048)
+    @property_params(min=1, max=999)
     def size(self) -> int:
         return self._size
 
@@ -304,7 +304,7 @@ class CrosshairViz(GazeVisualization):
         self._size = value
 
     @property
-    @property_params(min=1, max=2048)
+    @property_params(min=1, max=999)
     def stroke_width(self) -> int:
         return self._stroke_width
 

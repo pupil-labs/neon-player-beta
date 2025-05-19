@@ -189,7 +189,7 @@ class FixationsPlugin(neon_player.Plugin):
         for viz in self._visualizations:
             viz.render(
                 painter,
-                fixations,
+                fixations,  # type: ignore
                 fixation_ids,
                 np.array(optic_flow_offsets),
                 self.get_gaze_offset(),
@@ -336,7 +336,7 @@ class FixationAnnulusViz(FixationVisualization):
         self._color = value
 
     @property
-    @property_params(min=1, max=9999)
+    @property_params(min=1, max=999)
     def base_radius(self) -> int:
         return self._base_radius
 
@@ -345,7 +345,7 @@ class FixationAnnulusViz(FixationVisualization):
         self._base_radius = value
 
     @property
-    @property_params(min=1, max=9999)
+    @property_params(min=1, max=999)
     def stroke_width(self) -> int:
         return self._stroke_width
 
@@ -354,7 +354,7 @@ class FixationAnnulusViz(FixationVisualization):
         self._stroke_width = value
 
     @property
-    @property_params(min=1, max=999)
+    @property_params(min=1, max=200)
     def font_size(self) -> int:
         return self._font_size
 
