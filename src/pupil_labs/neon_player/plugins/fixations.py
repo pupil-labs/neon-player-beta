@@ -213,7 +213,7 @@ class FixationsPlugin(neon_player.Plugin):
         )
 
     @property
-    @property_params(use_subclass_selector=True)
+    @property_params(use_subclass_selector=True, add_button_text="Add visualization")
     def visualizations(self) -> list["FixationVisualization"]:
         return self._visualizations
 
