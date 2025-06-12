@@ -9,10 +9,12 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QAction,
+    QColor,
     QColorConstants,
     QKeySequence,
     QPainter,
     QPaintEvent,
+    QPalette,
     QResizeEvent,
 )
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
@@ -44,6 +46,42 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Neon Player")
         self.resize(1200, 800)
 
+        neon_player.instance().setPalette(QPalette(QColor("#1c2021")))
+
+        self.setStyleSheet("""
+            QWidget {
+                font-family: arial;
+                font-size: 11pt;
+            }
+
+            Expander {
+                border-top: 0;
+                border-bottom: 2px solid #494d4d;
+            }
+
+            Expander>QLabel {
+                font-weight: bold;
+            }
+
+            Expander>QToolButton {
+                border: none;
+                font-family: monospace;
+            }
+
+            BoolWidget>QToolButton {
+                width: 24px;
+                height: 20px;
+                border-radius: 5px;
+                border: 1px solid #555;
+                background-color: #111;
+            }
+
+            BoolWidget>QToolButton:checked {
+                background: #6d7be0;
+                border: 1px solid #555;
+            }
+        """)
+
         self.video_widget = VideoRenderWidget()
         self.setCentralWidget(self.video_widget)
 
@@ -69,7 +107,7 @@ class MainWindow(QMainWindow):
 
         self.settings_panel = SettingsPanel()
         self.add_dock(
-            self.settings_panel, "Settings", Qt.DockWidgetArea.RightDockWidgetArea
+            self.settings_panel, "Control Panel", Qt.DockWidgetArea.RightDockWidgetArea
         )
         self.setCorner(
             Qt.Corner.BottomRightCorner, Qt.DockWidgetArea.RightDockWidgetArea

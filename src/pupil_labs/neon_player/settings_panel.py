@@ -2,10 +2,8 @@ import typing as T
 
 from PySide6.QtCore import (
     Qt,
-    Signal,
 )
 from PySide6.QtWidgets import (
-    QCheckBox,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -18,25 +16,6 @@ from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.expander import Expander
 
 
-class PluginExpander(Expander):
-    toggled = Signal(bool)
-
-    def __init__(self, parent: T.Optional[QWidget] = None, title: str = "") -> None:
-        super().__init__(parent=parent, title=title)
-
-        self.toggle_button = QCheckBox("")
-        self.toggle_button.setChecked(False)
-        self.toggle_button.clicked.connect(self.on_toggle_button_clicked)
-
-        self.grid_layout.addWidget(
-            self.toggle_button, 0, 3, 1, 1, Qt.AlignmentFlag.AlignRight
-        )
-
-    def on_toggle_button_clicked(self) -> None:
-        self.toggled.emit(self.toggle_button.isChecked())
-        self.expander_button.setChecked(self.toggle_button.isChecked())
-
-
 class SettingsPanel(QWidget):
     # @TODO make this scrollable
     def __init__(self, parent: T.Optional[QWidget] = None) -> None:
@@ -46,11 +25,12 @@ class SettingsPanel(QWidget):
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.setMinimumSize(400, 100)
+        self.setMinimumSize(350, 100)
 
         container = QWidget()
         self.container_layout = QVBoxLayout(container)
         self.container_layout.setSpacing(0)
+        self.container_layout.setContentsMargins(5, 5, 5, 5)
 
         scroll_area.setWidget(container)
 
@@ -60,9 +40,9 @@ class SettingsPanel(QWidget):
         self.setLayout(main_layout)
 
         self.plugin_class_expanders: dict[str, Expander] = {}
-        self.refresh()
+        # self.refresh()
 
-    def refresh(self) -> None:
+        # def refresh(self) -> None:
         app = neon_player.instance()
 
         # Clear all existing child widgets
@@ -72,26 +52,11 @@ class SettingsPanel(QWidget):
                 widget = layout_item.widget()
                 widget.deleteLater()
 
-        expander = PluginExpander(title="General Settings")
         general_settings_form = PropertyForm(app.settings)
-        expander.set_content_widget(general_settings_form)
-        expander.toggle_button.setChecked(True)
-        expander.toggle_button.setDisabled(True)
+        expander = Expander(
+            title="General Settings", content_widget=general_settings_form
+        )
         self.container_layout.addWidget(expander)
-
-        # Add new plugin widgets
-        for plugin_class in Plugin.known_classes:
-            if hasattr(plugin_class, "label"):
-                label = plugin_class.label
-            else:
-                label = plugin_class.__name__
-
-            expander = PluginExpander(title=label)
-            expander.toggled.connect(
-                lambda enabled, kls=plugin_class: app.toggle_plugin(kls, enabled)
-            )
-            self.container_layout.addWidget(expander)
-            self.plugin_class_expanders[plugin_class.__name__] = expander
 
         # Add a spacer to fill the remaining space
         self.spacer = QWidget()
@@ -100,19 +65,19 @@ class SettingsPanel(QWidget):
         )
         self.container_layout.addWidget(self.spacer)
 
-    def set_plugin_instance(
-        self, class_name: str, instance: T.Optional[Plugin]
-    ) -> None:
-        if instance is None:
-            form = None
+    def remove_plugin_settings(self, class_name: str) -> None:
+        expander = self.plugin_class_expanders[class_name]
+        self.container_layout.removeWidget(expander)
+        expander.deleteLater()
+        del self.plugin_class_expanders[class_name]
 
-        else:
-            expander = self.plugin_class_expanders[class_name]
-            if hasattr(expander, "toggle_button"):
-                expander.toggle_button.setChecked(True)
+    def add_plugin_settings(self, instance: Plugin) -> None:
+        cls = instance.__class__
+        class_name = cls.__name__
 
-            form = PropertyForm(instance)
-            if not form.has_widgets:
-                form = None
+        settings_form = PropertyForm(instance)
+        label = cls.label if hasattr(cls, "label") else cls.__name__
+        expander = Expander(title=label, content_widget=settings_form)
 
-        self.plugin_class_expanders[class_name].set_content_widget(form)
+        self.container_layout.insertWidget(self.container_layout.count() - 1, expander)
+        self.plugin_class_expanders[class_name] = expander

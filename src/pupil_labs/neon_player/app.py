@@ -10,7 +10,7 @@ import typing
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Signal
-from PySide6.QtGui import QAction, QColor, QPainter, QPalette
+from PySide6.QtGui import QAction, QPainter
 from PySide6.QtWidgets import (
     QApplication,
 )
@@ -67,8 +67,6 @@ class NeonPlayerApp(QApplication):
     def __init__(self, argv: list[str]) -> None:
         super().__init__(argv)
 
-        self.setPalette(QPalette(QColor("#1d2023")))
-
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
         self.recording: typing.Optional[nr.NeonRecording] = None
@@ -91,7 +89,6 @@ class NeonPlayerApp(QApplication):
 
         # Iterate through all modules within plugins and register them
         self.find_plugins(Path(__file__).parent / "plugins")
-        self.main_window.settings_panel.refresh()
 
         try:
             self.settings = GeneralSettings.from_dict(self.load_settings())
@@ -165,9 +162,7 @@ class NeonPlayerApp(QApplication):
                 plugin: Plugin = kls.from_dict(state)
 
                 self.plugins_by_class[kls.__name__] = plugin
-                self.main_window.settings_panel.set_plugin_instance(
-                    kls.__name__, plugin
-                )
+                self.main_window.settings_panel.add_plugin_settings(plugin)
 
                 plugin.changed.connect(lambda: self.on_plugin_changed(plugin))
 
@@ -183,7 +178,7 @@ class NeonPlayerApp(QApplication):
 
             plugin.on_disabled()
             del self.plugins_by_class[kls.__name__]
-            self.main_window.settings_panel.set_plugin_instance(kls.__name__, None)
+            self.main_window.settings_panel.remove_plugin_settings(kls.__name__)
 
         try:
             self.save_settings()
