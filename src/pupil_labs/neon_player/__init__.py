@@ -1,6 +1,8 @@
 import functools
 import typing as T
+from pathlib import Path
 
+import pkg_resources
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
 from qt_property_widgets.utilities import PersistentPropertiesMixin
@@ -60,6 +62,9 @@ def action(func: T.Callable) -> T.Any:
 
     return object_action(wrapper)
 
+
+def asset_path(resource: str):
+    return Path(pkg_resources.resource_filename(__name__, 'assets')) / resource
 
 __all__ = [
     "BGWorker",

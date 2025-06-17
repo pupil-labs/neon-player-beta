@@ -139,6 +139,32 @@ class FixationsPlugin(neon_player.Plugin):
             )
             job.finished.connect(self._load_optic_flow)
 
+        app = neon_player.instance()
+
+        self.fixations = recording.fixations[recording.fixations["event_type"] == 1]
+        self.fixation_ids = 1 + np.arange(len(self.fixations))
+        for fixation_idx, fixation in enumerate(self.fixations):
+            app.main_window.timeline_dock.add_timeline_line(
+                "Fixations",
+                [
+                    (fixation.start_ts, 0),
+                    (fixation.end_ts, 0),
+                ],
+                f"Fixation {fixation_idx+1}"
+            )
+
+        self.saccades = recording.fixations[recording.fixations["event_type"] == 0]
+        self.saccade_ids = 1 + np.arange(len(self.saccades))
+        for saccade_idx, saccade in enumerate(self.saccades):
+            app.main_window.timeline_dock.add_timeline_line(
+                "Saccades",
+                [
+                    (saccade.start_ts, 0),
+                    (saccade.end_ts, 0),
+                ],
+                f"Saccade {saccade_idx+1}"
+            )
+
     def _load_optic_flow(self) -> None:
         if self.recording is None:
             return
@@ -156,11 +182,12 @@ class FixationsPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        after_mask = self.recording.fixations["start_timestamp_ns"] <= time_in_recording
-        before_mask = self.recording.fixations["end_timestamp_ns"] > time_in_recording
+        after_mask = self.fixations["start_timestamp_ns"] <= time_in_recording
+        before_mask = self.fixations["end_timestamp_ns"] > time_in_recording
 
-        fixations = self.recording.fixations[after_mask & before_mask]
-        fixation_ids = np.where(after_mask & before_mask)[0]
+        filter_mask = after_mask & before_mask
+        fixations = self.fixations[filter_mask]
+        fixation_ids = 1 + np.where(filter_mask)[0]
 
         optic_flow_offsets = []
         for fixation in fixations:  # type: ignore

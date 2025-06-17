@@ -63,6 +63,7 @@ def setup_logging() -> None:
 class NeonPlayerApp(QApplication):
     playback_state_changed = Signal(bool)
     position_changed = Signal(object)
+    recording_loaded = Signal(object)
 
     def __init__(self, argv: list[str]) -> None:
         super().__init__(argv)
@@ -214,6 +215,8 @@ class NeonPlayerApp(QApplication):
             self.seek_to(self.recording.scene[0].ts)
         else:
             self.seek_to(self.recording.start_ts)
+
+        self.recording_loaded.emit(self.recording)
 
     def get_action(self, action_path: str) -> typing.Optional[QAction]:
         return self.main_window.get_action(action_path)

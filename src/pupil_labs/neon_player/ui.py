@@ -1,6 +1,7 @@
 import typing
 import webbrowser
 
+from PySide6.QtCharts import QXYSeries
 from PySide6.QtCore import (
     QKeyCombination,
     QPoint,
@@ -34,6 +35,7 @@ from pupil_labs.neon_player.settings_panel import SettingsPanel
 from pupil_labs.neon_recording import NeonRecording
 
 from .console import ConsoleWindow
+from .timeline_dock import TimelineDock
 
 QtShortcutType = typing.Optional[
     typing.Union[QKeySequence, QKeyCombination, QKeySequence.StandardKey, str, int]
@@ -80,6 +82,12 @@ class MainWindow(QMainWindow):
                 background: #6d7be0;
                 border: 1px solid #555;
             }
+
+            QDockWidget::title {
+                background-color: #0f1314;
+                padding: 5px;
+            }
+
         """)
 
         self.video_widget = VideoRenderWidget()
@@ -109,6 +117,12 @@ class MainWindow(QMainWindow):
         self.add_dock(
             self.settings_panel, "Control Panel", Qt.DockWidgetArea.RightDockWidgetArea
         )
+
+        self.timeline_dock = TimelineDock()
+        self.add_dock(
+            self.timeline_dock, "Timeline", Qt.DockWidgetArea.BottomDockWidgetArea
+        )
+
         self.setCorner(
             Qt.Corner.BottomRightCorner, Qt.DockWidgetArea.RightDockWidgetArea
         )
