@@ -1,4 +1,5 @@
 import argparse
+import contextlib
 import importlib.util
 import json
 import logging
@@ -66,6 +67,7 @@ class NeonPlayerApp(QApplication):
     recording_loaded = Signal(object)
 
     def __init__(self, argv: list[str]) -> None:
+        self._initializing = True
         super().__init__(argv)
 
         self.plugins_by_class: dict[str, Plugin] = {}
@@ -105,17 +107,23 @@ class NeonPlayerApp(QApplication):
         if args.recording:
             QTimer.singleShot(1, lambda: self.load(Path(args.recording)))
 
+        self._initializing = False
+
     def load_settings(self) -> typing.Any:
         settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
         logging.info(f"Loading settings from {settings_path}")
         return json.loads(settings_path.read_text())
 
     def save_settings(self) -> None:
-        settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
-        settings_path.parent.mkdir(parents=True, exist_ok=True)
-        data = self.settings.to_dict()
-        with settings_path.open("w") as f:
-            json.dump(data, f, cls=ComplexEncoder)
+        try:
+            settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
+            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            data = self.settings.to_dict()
+            with settings_path.open("w") as f:
+                json.dump(data, f, cls=ComplexEncoder)
+        except Exception as exc:
+            logging.exception("Failed to save settings")
+            raise exc
 
     def find_plugins(self, path: Path) -> None:
         sys.path.append(str(path))
@@ -181,10 +189,9 @@ class NeonPlayerApp(QApplication):
             del self.plugins_by_class[kls.__name__]
             self.main_window.settings_panel.remove_plugin_settings(kls.__name__)
 
-        try:
-            self.save_settings()
-        except Exception:
-            logging.exception("Failed to save settings")
+        if not self._initializing:
+            with contextlib.suppress(Exception):
+                self.save_settings()
 
         self.plugins = list(self.plugins_by_class.values())
         self.plugins.sort(key=lambda p: p.render_layer)

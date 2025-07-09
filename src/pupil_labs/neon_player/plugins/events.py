@@ -28,4 +28,3 @@ class EventsPlugin(neon_player.Plugin):
                 f"Events/{event_name}",
                 [(ts, 0) for ts in timestamps],
             )
-

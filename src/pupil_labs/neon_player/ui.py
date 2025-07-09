@@ -1,7 +1,6 @@
 import typing
 import webbrowser
 
-from PySide6.QtCharts import QXYSeries
 from PySide6.QtCore import (
     QKeyCombination,
     QPoint,
@@ -20,17 +19,24 @@ from PySide6.QtGui import (
 )
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
     QDockWidget,
     QFileDialog,
+    QFormLayout,
     QLabel,
     QMainWindow,
     QMenu,
     QMenuBar,
     QMessageBox,
+    QVBoxLayout,
     QWidget,
 )
+from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player.expander import Expander, ExpanderList
 from pupil_labs.neon_player.settings_panel import SettingsPanel
 from pupil_labs.neon_recording import NeonRecording
 
@@ -88,6 +94,9 @@ class MainWindow(QMainWindow):
                 padding: 5px;
             }
 
+            PreferencesDialog > QLabel {
+                font-weight: bold;
+            }
         """)
 
         self.video_widget = VideoRenderWidget()
@@ -105,6 +114,7 @@ class MainWindow(QMainWindow):
         self.register_action("&Help/&About", on_triggered=self.on_about_action)
 
         self.register_action("&File/&Open", "Ctrl+o", self.on_open_action)
+        self.register_action("&File/&Preferences", "Ctrl+p", self.on_preferences_action)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
 
         self.register_action("&View/&Console", "Ctrl+Alt+c", self.console_window.show)
@@ -133,6 +143,10 @@ class MainWindow(QMainWindow):
         if path:
             app = neon_player.instance()
             app.load(path)
+
+    def on_preferences_action(self) -> None:
+        preferences_dialog = PreferencesDialog(self)
+        preferences_dialog.exec()
 
     def on_quit_action(self) -> None:
         self.close()
@@ -220,6 +234,50 @@ class MainWindow(QMainWindow):
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.video_widget.on_recording_loaded(recording)
+
+
+class PreferencesDialog(QDialog):
+    def __init__(self, parent: typing.Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+
+        app = neon_player.instance()
+
+        self.setWindowTitle("Preferences")
+
+        layout = QVBoxLayout(self)
+        self.setLayout(layout)
+
+        self.expander_list = ExpanderList()
+        layout.addWidget(self.expander_list)
+
+        general_settings_form = PropertyForm(app.settings)
+        general_settings_form.property_changed.connect(self.on_property_changed)
+        self.expander_list.add_expander("General Settings", general_settings_form)
+
+        class PluginListObject:
+            pass
+
+        for kls in Plugin.known_classes:
+            def getter(self, kls=kls) -> bool:
+                return kls.__name__ in app.settings.enabled_plugin_names
+
+            def setter(self, value: bool, kls=kls) -> None:
+                app.toggle_plugin(kls, value)
+
+            prop = property(getter, setter)
+            label = kls.label if hasattr(kls, "label") else kls.__name__
+            setattr(PluginListObject, label, prop)
+
+        plugins_form = PropertyForm(PluginListObject())
+        self.expander_list.add_expander("Enabled Plugins", plugins_form)
+
+    def on_property_changed(self, prop_name: str, value: typing.Any):
+        app = neon_player.instance()
+        app.save_settings()
+
+    def on_plugin_state_changed(self, plugin_class: type[Plugin], checked: bool):
+        app = neon_player.instance()
+        app.toggle_plugin(plugin_class, checked)
 
 
 class VideoRenderWidget(QOpenGLWidget):

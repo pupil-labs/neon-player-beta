@@ -1,10 +1,11 @@
 import typing as T
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QScrollArea,
     QSizePolicy,
     QToolButton,
     QVBoxLayout,
@@ -76,3 +77,42 @@ class Expander(QFrame):
     def expanded(self, value: bool) -> None:
         self.expander_button.setChecked(value)
         self.on_expand_toggled()
+
+
+class ExpanderList(QWidget):
+    def __init__(self, parent: T.Optional[QWidget] = None) -> None:
+        super().__init__(parent=parent)
+
+        scroll_area = QScrollArea(self)
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.setMinimumSize(350, 100)
+
+        container = QWidget()
+        self.container_layout = QVBoxLayout(container)
+        self.container_layout.setSpacing(0)
+        self.container_layout.setContentsMargins(5, 5, 5, 5)
+
+        scroll_area.setWidget(container)
+
+        main_layout = QVBoxLayout(self)
+        main_layout.addWidget(scroll_area)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(main_layout)
+
+        self.spacer = QWidget()
+        self.spacer.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
+        self.container_layout.addWidget(self.spacer)
+
+    def add_expander(self, title: str, content: QWidget) -> None:
+        expander = Expander(title=title, content_widget=content)
+        self.container_layout.insertWidget(self.container_layout.count() - 1, expander)
+
+        return expander
+
+    def remove_expander(self, expander: Expander) -> None:
+        self.container_layout.removeWidget(expander)
+        expander.deleteLater()
