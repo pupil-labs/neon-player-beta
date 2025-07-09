@@ -1020,6 +1020,7 @@ dependencies = [
     { name = "pupil-labs-neon-recording" },
     { name = "pyside6" },
     { name = "qt-property-widgets" },
+    { name = "scipy" },
     { name = "setuptools" },
 ]
 
@@ -1054,6 +1055,7 @@ requires-dist = [
     { name = "pupil-labs-neon-recording", specifier = ">=1.0.1" },
     { name = "pyside6", specifier = ">=6.9.0" },
     { name = "qt-property-widgets", directory = "../qt-property-widgets" },
+    { name = "scipy", specifier = ">=1.15.2" },
     { name = "setuptools", specifier = ">=78.1.0" },
 ]
 provides-extras = ["examples"]

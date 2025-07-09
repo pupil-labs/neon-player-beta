@@ -126,8 +126,9 @@ class FixationsPlugin(neon_player.Plugin):
         self.gaze_plugin: Optional[GazeDataPlugin] = None
         self.optic_flow: T.Optional[OpticFlow] = None
 
-    def on_recording_loaded(self, recording: Optional[NeonRecording]) -> None:
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.recording = recording
+
         for viz in self._visualizations:
             viz.on_recording_loaded(recording)
 
@@ -150,7 +151,7 @@ class FixationsPlugin(neon_player.Plugin):
                     (fixation.start_ts, 0),
                     (fixation.end_ts, 0),
                 ],
-                f"Fixation {fixation_idx+1}"
+                f"Fixation {fixation_idx + 1}",
             )
 
         self.saccades = recording.fixations[recording.fixations["event_type"] == 0]
@@ -162,7 +163,7 @@ class FixationsPlugin(neon_player.Plugin):
                     (saccade.start_ts, 0),
                     (saccade.end_ts, 0),
                 ],
-                f"Saccade {saccade_idx+1}"
+                f"Saccade {saccade_idx + 1}",
             )
 
     def _load_optic_flow(self) -> None:
@@ -190,7 +191,7 @@ class FixationsPlugin(neon_player.Plugin):
         fixation_ids = 1 + np.where(filter_mask)[0]
 
         optic_flow_offsets = []
-        for fixation in fixations:  # type: ignore
+        for fixation in fixations:
             optic_flow_offset = [0, 0]
 
             if self.optic_flow is not None:
@@ -216,7 +217,7 @@ class FixationsPlugin(neon_player.Plugin):
         for viz in self._visualizations:
             viz.render(
                 painter,
-                fixations,  # type: ignore
+                fixations,
                 fixation_ids,
                 np.array(optic_flow_offsets),
                 self.get_gaze_offset(),
@@ -250,7 +251,7 @@ class FixationsPlugin(neon_player.Plugin):
 
         for viz in self._visualizations:
             viz.changed.connect(self.changed.emit)
-            if viz.recording is None:
+            if self.recording is not None:
                 viz.on_recording_loaded(self.recording)
 
 
@@ -278,7 +279,7 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
     def __init_subclass__(cls: type["FixationVisualization"], **kwargs: dict) -> None:
         FixationVisualization._known_types.append(cls)
 
-    def on_recording_loaded(self, recording: T.Optional[NeonRecording]) -> None:
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.recording = recording
 
     def to_dict(self, include_class_name: bool = True) -> dict:

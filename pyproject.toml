@@ -26,6 +26,7 @@ dependencies = [
     "pupil-labs-neon-recording>=1.0.1",
     "pyside6>=6.9.0",
     "qt-property-widgets",
+    "scipy>=1.15.2",
     "setuptools>=78.1.0",
 ]
 

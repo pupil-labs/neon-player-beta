@@ -63,8 +63,9 @@ def action(func: T.Callable) -> T.Any:
     return object_action(wrapper)
 
 
-def asset_path(resource: str):
-    return Path(pkg_resources.resource_filename(__name__, 'assets')) / resource
+def asset_path(resource: str) -> Path:
+    return Path(pkg_resources.resource_filename(__name__, "assets")) / resource
+
 
 __all__ = [
     "BGWorker",

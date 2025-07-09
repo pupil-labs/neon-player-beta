@@ -1,8 +1,15 @@
 import typing as T
 
 from PySide6.QtCharts import QChart, QChartView, QLineSeries, QScatterSeries, QValueAxis
-from PySide6.QtCore import QEvent, QMargins, QObject, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QMouseEvent, QPainter, QPaintEvent, QResizeEvent
+from PySide6.QtCore import QMargins, QRect, Qt, Signal
+from PySide6.QtGui import (
+    QColor,
+    QIcon,
+    QMouseEvent,
+    QPainter,
+    QPaintEvent,
+    QResizeEvent,
+)
 from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
@@ -17,13 +24,13 @@ from pupil_labs import neon_player
 
 
 class TimestampLabel(QLabel):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.set_time(0)
         self.setStyleSheet("font-family: monospace; font-weight: bold;")
 
-    def set_time(self, time_ns):
+    def set_time(self, time_ns: int) -> None:
         hours = time_ns // (1e9 * 60 * 60)
         minutes = (time_ns // (1e9 * 60)) % 60
         seconds = (time_ns / 1e9) % 60
@@ -31,15 +38,14 @@ class TimestampLabel(QLabel):
 
 
 class PlayHead(QWidget):
-    def __init__(self, parent: T.Optional[QWidget] = None):
+    def __init__(self, parent: T.Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
         app = neon_player.instance()
         app.position_changed.connect(self.on_position_changed)
-        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
-
-    def on_position_changed(self, t):
+    def on_position_changed(self, t: int) -> None:
         app = neon_player.instance()
         duration = app.recording.stop_ts - app.recording.start_ts + 2e9
         self.player_position = (t - app.recording.start_ts + 1e9) / duration
@@ -48,17 +54,20 @@ class PlayHead(QWidget):
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.fillRect(
-            self.player_position * self.width() - 1, 0,
-            2, self.height(),
-            QColor('#6d7be0')
+            self.player_position * self.width() - 1,
+            0,
+            2,
+            self.height(),
+            QColor("#6d7be0"),
         )
+
 
 class TimelineTable(QWidget):
     mouse_moved = Signal(QMouseEvent)
     mouse_pressed = Signal(QMouseEvent)
     resized = Signal(QResizeEvent)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.grid_layout = QGridLayout()
         self.grid_layout.setSpacing(0)
@@ -78,12 +87,12 @@ class TimelineTable(QWidget):
 
 
 class TimelineDock(QWidget):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
         app = neon_player.instance()
 
-        self.timeline_chart_views = {}
+        self.timeline_chart_views: dict[str, QChartView] = {}
 
         self.main_layout = QVBoxLayout()
         self.setLayout(self.main_layout)
@@ -91,7 +100,9 @@ class TimelineDock(QWidget):
         self.toolbar_layout = QHBoxLayout()
         self.play_button = QToolButton()
         self.play_button.setIcon(QIcon(str(neon_player.asset_path("play.svg"))))
-        self.play_button.clicked.connect(lambda: app.get_action("Playback/Play\\Pause").trigger())
+        self.play_button.clicked.connect(
+            lambda: app.get_action("Playback/Play\\Pause").trigger()
+        )
         self.toolbar_layout.addWidget(self.play_button)
 
         self.timestamp_label = TimestampLabel()
@@ -114,12 +125,14 @@ class TimelineDock(QWidget):
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
 
-    def on_playback_state_changed(self, is_playing):
-        self.play_button.setIcon(QIcon(str(
-            neon_player.asset_path("pause.svg" if is_playing else "play.svg")
-        )))
+    def on_playback_state_changed(self, is_playing: bool) -> None:
+        self.play_button.setIcon(
+            QIcon(
+                str(neon_player.asset_path("pause.svg" if is_playing else "play.svg"))
+            )
+        )
 
-    def on_position_changed(self, t):
+    def on_position_changed(self, t: int) -> None:
         app = neon_player.instance()
         self.timestamp_label.set_time(t - app.recording.start_ts)
 
@@ -127,7 +140,7 @@ class TimelineDock(QWidget):
         rect = self.get_chart_area()
         self.playhead.setGeometry(rect)
 
-    def get_chart_area(self):
+    def get_chart_area(self) -> QRect:
         top_chart_cell_rect = self.timeline_table.grid_layout.cellRect(0, 1)
         bottom_chart_cell_rect = self.timeline_table.grid_layout.cellRect(
             self.timeline_table.grid_layout.rowCount() - 1,
@@ -149,39 +162,48 @@ class TimelineDock(QWidget):
         app = neon_player.instance()
         left = (event.position() - rect.topLeft()).x()
         v = left / rect.width()
-        t = app.recording.start_ts - 1e9 + v * (app.recording.stop_ts - app.recording.start_ts + 2e9)
+        t = (
+            app.recording.start_ts
+            - 1e9
+            + v * (app.recording.stop_ts - app.recording.start_ts + 2e9)
+        )
         if app.recording.start_ts < t < app.recording.stop_ts:
             app.seek_to(t)
 
-    def add_timeline_plot(self, name: str, data: list[tuple[int, int]], series_cls: type = QLineSeries, item_name: str = "") -> None:
+    def add_timeline_plot(  # noqa: C901
+        self,
+        name: str,
+        data: list[tuple[int, int]],
+        series_cls: type = QLineSeries,
+        item_name: str = "",
+    ) -> None:
         app = neon_player.instance()
         if name not in self.timeline_chart_views:
             chart = QChart()
 
             chart.legend().setVisible(False)
-            chart.setTheme(QChart.ChartThemeDark)
+            chart.setTheme(QChart.ChartTheme.ChartThemeDark)
             chart.setBackgroundVisible(False)
             chart.layout().setContentsMargins(0, 0, 0, 0)
-            chart.setMargins(QMargins(0,0,0,0))
+            chart.setMargins(QMargins(0, 0, 0, 0))
             chart.setBackgroundRoundness(0)
 
             axes = {
-               Qt.AlignBottom: QValueAxis(),
-               Qt.AlignLeft: QValueAxis(),
+                Qt.AlignmentFlag.AlignBottom: QValueAxis(),
+                Qt.AlignmentFlag.AlignLeft: QValueAxis(),
             }
 
-            axes[Qt.AlignBottom].setRange(
-                app.recording.start_ts - 1e9,
-                app.recording.stop_ts + 1e9
+            axes[Qt.AlignmentFlag.AlignBottom].setRange(
+                app.recording.start_ts - 1e9, app.recording.stop_ts + 1e9
             )
-            axes[Qt.AlignBottom].setTickCount(2)
-            axes[Qt.AlignLeft].setTickCount(3)
+            axes[Qt.AlignmentFlag.AlignBottom].setTickCount(2)
+            axes[Qt.AlignmentFlag.AlignLeft].setTickCount(3)
 
             for alignment, axis in axes.items():
-               axis.setGridLineVisible(False)
-               axis.setLineVisible(False)
-               axis.setLabelsVisible(False)
-               chart.addAxis(axis, alignment)
+                axis.setGridLineVisible(False)
+                axis.setLineVisible(False)
+                axis.setLabelsVisible(False)
+                chart.addAxis(axis, alignment)
 
             chart_view = QChartView(chart)
 
@@ -206,14 +228,17 @@ class TimelineDock(QWidget):
             series.append(x, y)
 
         chart.addSeries(series)
-        for axis in chart.axes():
-            series.attachAxis(axis)
+        for series_axis in chart.axes():
+            series.attachAxis(series_axis)
 
         series.setVisible(True)
         # series.hovered.connect(lambda: print("Hover:", item_name))
 
         chart_y_range = None
         for chart_series in chart.series():
+            if not hasattr(chart_series, "points"):
+                continue
+
             for point in chart_series.points():
                 if chart_y_range is None:
                     chart_y_range = [point.y(), point.y()]
@@ -223,7 +248,7 @@ class TimelineDock(QWidget):
 
         pen = series.pen()
 
-        if chart_y_range[0] == chart_y_range[1]:
+        if chart_y_range is not None and chart_y_range[0] == chart_y_range[1]:
             chart_y_range[0] -= 1
             chart_y_range[1] += 1
 
@@ -237,25 +262,30 @@ class TimelineDock(QWidget):
             self.timeline_table.grid_layout.setRowStretch(row_idx, 1)
 
         for v_axis in chart_view.chart().axes(Qt.Orientation.Vertical):
-            v_axis.setRange(chart_y_range[0], chart_y_range[1])
+            if chart_y_range is not None:
+                v_axis.setRange(chart_y_range[0], chart_y_range[1])
 
         if series_cls == QLineSeries:
             pen.setCapStyle(Qt.PenCapStyle.FlatCap)
             series.setPen(pen)
         elif series_cls == QScatterSeries:
-            series.setMarkerShape(QScatterSeries.MarkerShape.MarkerShapeRotatedRectangle)
+            series.setMarkerShape(
+                QScatterSeries.MarkerShape.MarkerShapeRotatedRectangle
+            )
             series.setMarkerSize(8)
 
         rec = app.recording
         h_axis = chart_view.chart().axes(Qt.Orientation.Horizontal)[0]
-        h_axis.setTickInterval(rec.stop_ts - rec.start_ts)
-        h_axis.setTickAnchor(rec.start_ts)
+        if isinstance(h_axis, QValueAxis):
+            h_axis.setTickInterval(rec.stop_ts - rec.start_ts)
+            h_axis.setTickAnchor(rec.start_ts)
 
-    def add_timeline_line(self, name: str, data: list[tuple[int, int]], item_name: str = "") -> None:
+    def add_timeline_line(
+        self, name: str, data: list[tuple[int, int]], item_name: str = ""
+    ) -> None:
         self.add_timeline_plot(name, data, QLineSeries, item_name)
 
-    def add_timeline_scatter(self, name: str, data: list[tuple[int, int]], item_name: str = "") -> None:
+    def add_timeline_scatter(
+        self, name: str, data: list[tuple[int, int]], item_name: str = ""
+    ) -> None:
         self.add_timeline_plot(name, data, QScatterSeries, item_name)
-
-
-

@@ -18,7 +18,7 @@ class SceneRendererPlugin(Plugin):
         self.recording: Optional[NeonRecording] = None
         self.gray = QColorConstants.Gray
 
-    def on_recording_loaded(self, recording: Optional[NeonRecording]) -> None:
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.recording = recording
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:

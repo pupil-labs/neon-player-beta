@@ -19,11 +19,9 @@ from PySide6.QtGui import (
 )
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
-    QCheckBox,
     QDialog,
     QDockWidget,
     QFileDialog,
-    QFormLayout,
     QLabel,
     QMainWindow,
     QMenu,
@@ -36,7 +34,7 @@ from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
-from pupil_labs.neon_player.expander import Expander, ExpanderList
+from pupil_labs.neon_player.expander import ExpanderList
 from pupil_labs.neon_player.settings_panel import SettingsPanel
 from pupil_labs.neon_recording import NeonRecording
 
@@ -258,10 +256,13 @@ class PreferencesDialog(QDialog):
             pass
 
         for kls in Plugin.known_classes:
-            def getter(self, kls=kls) -> bool:
+
+            def getter(self: PluginListObject, kls: type[Plugin] = kls) -> bool:
                 return kls.__name__ in app.settings.enabled_plugin_names
 
-            def setter(self, value: bool, kls=kls) -> None:
+            def setter(
+                self: PluginListObject, value: bool, kls: type[Plugin] = kls
+            ) -> None:
                 app.toggle_plugin(kls, value)
 
             prop = property(getter, setter)
@@ -271,11 +272,13 @@ class PreferencesDialog(QDialog):
         plugins_form = PropertyForm(PluginListObject())
         self.expander_list.add_expander("Enabled Plugins", plugins_form)
 
-    def on_property_changed(self, prop_name: str, value: typing.Any):
+    def on_property_changed(self, prop_name: str, value: typing.Any) -> None:
         app = neon_player.instance()
         app.save_settings()
 
-    def on_plugin_state_changed(self, plugin_class: type[Plugin], checked: bool):
+    def on_plugin_state_changed(
+        self, plugin_class: type[Plugin], checked: bool
+    ) -> None:
         app = neon_player.instance()
         app.toggle_plugin(plugin_class, checked)
 
@@ -293,7 +296,7 @@ class VideoRenderWidget(QOpenGLWidget):
         self.scale = 1.0
         self.offset = QPoint(0, 0)
 
-    def on_recording_loaded(self, recording: typing.Optional[NeonRecording]) -> None:
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.adjust_size()
 
     def set_time_in_recording(self, ts: int) -> None:

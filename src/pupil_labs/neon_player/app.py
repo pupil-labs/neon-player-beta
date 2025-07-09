@@ -121,9 +121,9 @@ class NeonPlayerApp(QApplication):
             data = self.settings.to_dict()
             with settings_path.open("w") as f:
                 json.dump(data, f, cls=ComplexEncoder)
-        except Exception as exc:
+        except Exception:
             logging.exception("Failed to save settings")
-            raise exc
+            raise
 
     def find_plugins(self, path: Path) -> None:
         sys.path.append(str(path))

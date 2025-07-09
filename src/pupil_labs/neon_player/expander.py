@@ -107,7 +107,7 @@ class ExpanderList(QWidget):
         )
         self.container_layout.addWidget(self.spacer)
 
-    def add_expander(self, title: str, content: QWidget) -> None:
+    def add_expander(self, title: str, content: QWidget) -> Expander:
         expander = Expander(title=title, content_widget=content)
         self.container_layout.insertWidget(self.container_layout.count() - 1, expander)
 

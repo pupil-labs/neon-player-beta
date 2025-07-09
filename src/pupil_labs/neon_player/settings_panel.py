@@ -1,12 +1,6 @@
 import typing as T
 
-from PySide6.QtCore import (
-    Qt,
-)
 from PySide6.QtWidgets import (
-    QScrollArea,
-    QSizePolicy,
-    QVBoxLayout,
     QWidget,
 )
 from qt_property_widgets.widgets import PropertyForm

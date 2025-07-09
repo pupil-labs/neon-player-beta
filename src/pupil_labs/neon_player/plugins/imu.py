@@ -17,7 +17,7 @@ class IMUPlugin(neon_player.Plugin):
         self.recording: Optional[NeonRecording] = None
         self.imu_data: Optional[pd.DataFrame] = None
 
-    def on_recording_loaded(self, recording: Optional[NeonRecording]) -> None:
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.recording = recording
 
         rotations = Rotation.from_quat(recording.imu.quaternion_wxyz, scalar_first=True)
@@ -66,5 +66,8 @@ class IMUPlugin(neon_player.Plugin):
 
     @action
     def export(self, destination: Path = Path()) -> None:
+        if self.imu_data is None:
+            return
+
         export_file = destination / "imu.csv"
         self.imu_data.to_csv(export_file, index=False)

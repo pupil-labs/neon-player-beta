@@ -81,8 +81,9 @@ class GazeDataPlugin(neon_player.Plugin):
             AnnulusViz(),
         ]
 
-    def on_recording_loaded(self, recording: T.Optional[NeonRecording]) -> None:
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.recording = recording
+
         for viz in self._visualizations:
             viz.on_recording_loaded(recording)
 
@@ -142,7 +143,7 @@ class GazeDataPlugin(neon_player.Plugin):
 
         for viz in self._visualizations:
             viz.changed.connect(self.changed.emit)
-            if viz.recording is None:
+            if self.recording is not None:
                 viz.on_recording_loaded(self.recording)
 
 
@@ -168,7 +169,7 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
     def __init_subclass__(cls: type["GazeVisualization"], **kwargs: dict) -> None:
         GazeVisualization._known_types.append(cls)
 
-    def on_recording_loaded(self, recording: T.Optional[NeonRecording]) -> None:
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.recording = recording
 
     def to_dict(self, include_class_name: bool = True) -> dict:
