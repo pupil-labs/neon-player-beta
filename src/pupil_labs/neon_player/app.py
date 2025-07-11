@@ -4,7 +4,6 @@ import importlib.util
 import json
 import logging
 import logging.handlers
-import multiprocessing as mp
 import sys
 import time
 import typing
@@ -72,7 +71,7 @@ class NeonPlayerApp(QApplication):
 
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
-        self.recording: typing.Optional[nr.NeonRecording] = None
+        self.recording: nr.NeonRecording | None = None
         self.playback_start_anchor = 0
         self.current_ts = 0
 
@@ -160,8 +159,8 @@ class NeonPlayerApp(QApplication):
         self,
         kls: type[Plugin],
         enabled: bool,
-        state: typing.Optional[dict] = None,
-    ) -> typing.Optional[Plugin]:
+        state: dict | None = None,
+    ) -> Plugin | None:
         if enabled:
             logging.info(f"Enabling plugin {kls.__name__}")
             try:
@@ -225,7 +224,7 @@ class NeonPlayerApp(QApplication):
 
         self.recording_loaded.emit(self.recording)
 
-    def get_action(self, action_path: str) -> typing.Optional[QAction]:
+    def get_action(self, action_path: str) -> QAction:
         return self.main_window.get_action(action_path)
 
     def toggle_play(self) -> None:
@@ -278,7 +277,7 @@ class NeonPlayerApp(QApplication):
 
         self.position_changed.emit(self.current_ts)
 
-    def render_to(self, painter: QPainter, ts: typing.Optional[int] = None) -> None:
+    def render_to(self, painter: QPainter, ts: int | None = None) -> None:
         if ts is None:
             ts = self.current_ts
 
@@ -293,13 +292,3 @@ class NeonPlayerApp(QApplication):
     @property
     def is_playing(self) -> bool:
         return self.refresh_timer.isActive()
-
-
-def main() -> None:
-    mp.set_start_method("spawn")
-    app = NeonPlayerApp(sys.argv)
-    sys.exit(app.run())
-
-
-if __name__ == "__main__":
-    main()

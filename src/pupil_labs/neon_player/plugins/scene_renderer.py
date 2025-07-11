@@ -1,12 +1,10 @@
 import time
-from typing import Optional
 
 import numpy as np
 from PySide6.QtGui import QColorConstants, QPainter
 
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.utilities import qimage_from_frame
-from pupil_labs.neon_recording import NeonRecording
 
 
 class SceneRendererPlugin(Plugin):
@@ -15,11 +13,7 @@ class SceneRendererPlugin(Plugin):
     def __init__(self) -> None:
         super().__init__()
         self.render_layer = 0
-        self.recording: Optional[NeonRecording] = None
         self.gray = QColorConstants.Gray
-
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self.recording = recording
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         painter.drawText(50, 50, f"{time.time_ns()}")

@@ -7,7 +7,7 @@ from PySide6.QtGui import QImage
 from pupil_labs.neon_recording import NeonRecording
 
 
-def qimage_from_frame(frame: T.Optional[np.ndarray]) -> QImage:
+def qimage_from_frame(frame: np.ndarray | None) -> QImage:
     if frame is None:
         return QImage()
 

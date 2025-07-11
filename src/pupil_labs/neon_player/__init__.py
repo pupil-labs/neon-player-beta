@@ -5,12 +5,15 @@ from pathlib import Path
 import pkg_resources
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
-from qt_property_widgets.utilities import PersistentPropertiesMixin
+from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 from qt_property_widgets.utilities import action as object_action
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import BGWorker, ProgressUpdate
 from pupil_labs.neon_recording import NeonRecording
+
+if T.TYPE_CHECKING:
+    from pupil_labs.neon_player.app import NeonPlayerApp
 
 LOG_FORMAT_STRING = (
     "%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
@@ -43,22 +46,33 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def on_disabled(self) -> None:
         pass
 
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def recording(self) -> NeonRecording | None:
+        from pupil_labs.neon_player.app import NeonPlayerApp
 
-def instance():  # type: ignore
+        return NeonPlayerApp.instance().recording
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def app(self) -> "NeonPlayerApp":
+        return instance()
+
+
+def instance() -> "NeonPlayerApp":
     from pupil_labs.neon_player.app import NeonPlayerApp
 
-    return NeonPlayerApp.instance()
+    instance = NeonPlayerApp.instance()
+    if instance is None or not isinstance(instance, NeonPlayerApp):
+        raise RuntimeError()
+
+    return instance
 
 
 def action(func: T.Callable) -> T.Any:
     @functools.wraps(func)
     def wrapper(*args: T.Any, **kwargs: T.Any) -> T.Any:
-        result = func(*args, **kwargs)
-        if isinstance(result, BGWorker):
-            app = instance()
-            app.start_bg_worker(result)
-
-        return result
+        return func(*args, **kwargs)
 
     return object_action(wrapper)
 

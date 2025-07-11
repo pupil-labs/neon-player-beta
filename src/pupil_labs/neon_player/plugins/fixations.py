@@ -1,7 +1,6 @@
 import logging
 import typing as T
 from pathlib import Path
-from typing import Optional
 
 import cv2
 import numpy as np
@@ -119,33 +118,27 @@ class FixationsPlugin(neon_player.Plugin):
 
     def __init__(self) -> None:
         super().__init__()
-        self.recording: Optional[NeonRecording] = None
 
         self._visualizations: list[FixationVisualization] = [FixationAnnulusViz()]
 
-        self.gaze_plugin: Optional[GazeDataPlugin] = None
-        self.optic_flow: T.Optional[OpticFlow] = None
+        self.gaze_plugin: GazeDataPlugin | None = None
+        self.optic_flow: OpticFlow | None = None
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self.recording = recording
-
         for viz in self._visualizations:
             viz.on_recording_loaded(recording)
 
         self._load_optic_flow()
         if not self.optic_flow:
-            app = neon_player.instance()
-            job = app.job_manager.create_job(
-                "Calculate optic flow", bg_optic_flow, app.recording._rec_dir
+            job = self.app.job_manager.create_job(
+                "Calculate optic flow", bg_optic_flow, self.recording._rec_dir
             )
             job.finished.connect(self._load_optic_flow)
-
-        app = neon_player.instance()
 
         self.fixations = recording.fixations[recording.fixations["event_type"] == 1]
         self.fixation_ids = 1 + np.arange(len(self.fixations))
         for fixation_idx, fixation in enumerate(self.fixations):
-            app.main_window.timeline_dock.add_timeline_line(
+            self.app.main_window.timeline_dock.add_timeline_line(
                 "Fixations",
                 [
                     (fixation.start_ts, 0),
@@ -157,7 +150,7 @@ class FixationsPlugin(neon_player.Plugin):
         self.saccades = recording.fixations[recording.fixations["event_type"] == 0]
         self.saccade_ids = 1 + np.arange(len(self.saccades))
         for saccade_idx, saccade in enumerate(self.saccades):
-            app.main_window.timeline_dock.add_timeline_line(
+            self.app.main_window.timeline_dock.add_timeline_line(
                 "Saccades",
                 [
                     (saccade.start_ts, 0),
@@ -225,8 +218,9 @@ class FixationsPlugin(neon_player.Plugin):
 
     def get_gaze_offset(self) -> tuple[float, float]:
         if not self.gaze_plugin:
-            app = neon_player.instance()
-            self.gaze_plugin = app.plugins_by_class.get("GazeDataPlugin")
+            plugin = self.app.plugins_by_class.get("GazeDataPlugin")
+            if isinstance(plugin, GazeDataPlugin):
+                self.gaze_plugin = plugin
 
         if not self.gaze_plugin:
             return (0.0, 0.0)
@@ -235,9 +229,8 @@ class FixationsPlugin(neon_player.Plugin):
 
     @action
     def export(self, destination: Path = Path()) -> None:
-        app = neon_player.instance()
-        app.job_manager.create_job(
-            "Export Fixations", bg_export, app.recording._rec_dir, destination
+        self.app.job_manager.create_job(
+            "Export Fixations", bg_export, self.recording._rec_dir, destination
         )
 
     @property
@@ -264,7 +257,7 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
         super().__init__()
         self._use_offset = True
         self._adjust_for_optic_flow = True
-        self.recording: T.Optional[NeonRecording] = None
+        self.recording: NeonRecording | None = None
 
     def render(
         self,
@@ -395,7 +388,7 @@ def calc_grid_optic_flow_LK(
     previous_frame: np.ndarray,
     current_frame: np.ndarray,
     grid_spacing: int = 100,
-    lk_winSize: T.Optional[tuple[int, int]] = (50, 50),
+    lk_winSize: tuple[int, int] | None = (50, 50),
     lk_maxLevel: int = 4,
     lk_criteria: tuple[int, int, float] = (
         cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,

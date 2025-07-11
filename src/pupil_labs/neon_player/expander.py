@@ -1,5 +1,3 @@
-import typing as T
-
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
@@ -18,9 +16,9 @@ class Expander(QFrame):
 
     def __init__(
         self,
-        parent: T.Optional[QWidget] = None,
+        parent: QWidget | None = None,
         title: str = "",
-        content_widget: T.Optional[QWidget] = None,
+        content_widget: QWidget | None = None,
         expanded: bool = False,
     ) -> None:
         # Adapted from https://stackoverflow.com/a/56275050
@@ -80,14 +78,13 @@ class Expander(QFrame):
 
 
 class ExpanderList(QWidget):
-    def __init__(self, parent: T.Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent=parent)
 
         scroll_area = QScrollArea(self)
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.setMinimumSize(350, 100)
 
         container = QWidget()
         self.container_layout = QVBoxLayout(container)

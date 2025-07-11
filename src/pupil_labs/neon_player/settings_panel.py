@@ -1,5 +1,3 @@
-import typing as T
-
 from PySide6.QtWidgets import (
     QWidget,
 )
@@ -10,8 +8,9 @@ from pupil_labs.neon_player.expander import Expander, ExpanderList
 
 
 class SettingsPanel(ExpanderList):
-    def __init__(self, parent: T.Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent=parent)
+        self.setMinimumSize(400, 100)
 
         self.plugin_class_expanders: dict[str, Expander] = {}
 

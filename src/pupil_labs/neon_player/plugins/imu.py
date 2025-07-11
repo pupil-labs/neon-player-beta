@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 from scipy.spatial.transform import Rotation
@@ -14,12 +13,9 @@ class IMUPlugin(neon_player.Plugin):
 
     def __init__(self) -> None:
         super().__init__()
-        self.recording: Optional[NeonRecording] = None
-        self.imu_data: Optional[pd.DataFrame] = None
+        self.imu_data: pd.DataFrame | None = None
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self.recording = recording
-
         rotations = Rotation.from_quat(recording.imu.quaternion_wxyz, scalar_first=True)
         eulers = rotations.as_euler(seq="yxz", degrees=True)
 
@@ -41,25 +37,23 @@ class IMUPlugin(neon_player.Plugin):
             "quaternion z": recording.imu.quaternion_wxyz[:, 3],
         })
 
-        app = neon_player.instance()
-
         for euler_axis in ["roll", "pitch", "yaw"]:
             data = self.imu_data[["timestamp [ns]", f"{euler_axis} [deg]"]]
-            app.main_window.timeline_dock.add_timeline_line(
+            self.app.main_window.timeline_dock.add_timeline_line(
                 "IMU Euler",
                 data.to_numpy().tolist(),
             )
 
         for gyro_axis in "xyz":
             data = self.imu_data[["timestamp [ns]", f"gyro {gyro_axis} [deg/s]"]]
-            app.main_window.timeline_dock.add_timeline_line(
+            self.app.main_window.timeline_dock.add_timeline_line(
                 "IMU Gyro",
                 data.to_numpy().tolist(),
             )
 
         for acc_axis in "xyz":
             data = self.imu_data[["timestamp [ns]", f"acceleration {acc_axis} [g]"]]
-            app.main_window.timeline_dock.add_timeline_line(
+            self.app.main_window.timeline_dock.add_timeline_line(
                 "IMU Acceleration",
                 data.to_numpy().tolist(),
             )

@@ -1,5 +1,3 @@
-import typing as T
-
 from PySide6.QtCharts import QChart, QChartView, QLineSeries, QScatterSeries, QValueAxis
 from PySide6.QtCore import QMargins, QRect, Qt, Signal
 from PySide6.QtGui import (
@@ -38,15 +36,17 @@ class TimestampLabel(QLabel):
 
 
 class PlayHead(QWidget):
-    def __init__(self, parent: T.Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
-        app = neon_player.instance()
-        app.position_changed.connect(self.on_position_changed)
+        neon_player.instance().position_changed.connect(self.on_position_changed)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
     def on_position_changed(self, t: int) -> None:
         app = neon_player.instance()
+        if app.recording is None:
+            return
+
         duration = app.recording.stop_ts - app.recording.start_ts + 2e9
         self.player_position = (t - app.recording.start_ts + 1e9) / duration
         self.update()
@@ -54,7 +54,7 @@ class PlayHead(QWidget):
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.fillRect(
-            self.player_position * self.width() - 1,
+            int(self.player_position * self.width() - 1),
             0,
             2,
             self.height(),
@@ -134,6 +134,9 @@ class TimelineDock(QWidget):
 
     def on_position_changed(self, t: int) -> None:
         app = neon_player.instance()
+        if app.recording is None:
+            return
+
         self.timestamp_label.set_time(t - app.recording.start_ts)
 
     def on_timeline_table_resized(self, event: QResizeEvent) -> None:
@@ -160,6 +163,9 @@ class TimelineDock(QWidget):
     def on_timeline_mouse_pressed(self, event: QMouseEvent) -> None:
         rect = self.get_chart_area()
         app = neon_player.instance()
+        if app.recording is None:
+            return
+
         left = (event.position() - rect.topLeft()).x()
         v = left / rect.width()
         t = (
@@ -168,7 +174,7 @@ class TimelineDock(QWidget):
             + v * (app.recording.stop_ts - app.recording.start_ts + 2e9)
         )
         if app.recording.start_ts < t < app.recording.stop_ts:
-            app.seek_to(t)
+            app.seek_to(int(t))
 
     def add_timeline_plot(  # noqa: C901
         self,
@@ -178,6 +184,9 @@ class TimelineDock(QWidget):
         item_name: str = "",
     ) -> None:
         app = neon_player.instance()
+        if app.recording is None:
+            return
+
         if name not in self.timeline_chart_views:
             chart = QChart()
 

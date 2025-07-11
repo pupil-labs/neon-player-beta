@@ -52,7 +52,7 @@ class QTextEditLogger(logging.Handler):
         color = self.colors.get(record.levelname)
         self._append_text(msg, color)
 
-    def _append_text(self, text: str, color: T.Optional[Qt.GlobalColor] = None) -> None:
+    def _append_text(self, text: str, color: Qt.GlobalColor | None = None) -> None:
         if self._text_edit is not None:
             # Save current text color
             current = self._text_edit.textColor()

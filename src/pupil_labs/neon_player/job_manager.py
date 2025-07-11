@@ -2,11 +2,11 @@ import inspect
 import logging
 import logging.handlers
 import multiprocessing as mp
-import multiprocessing.connection
 import multiprocessing.synchronize
 import traceback
 import typing as T
 from logging.handlers import QueueHandler, QueueListener
+from multiprocessing.queues import Queue as MPQueue
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
@@ -44,13 +44,13 @@ class BGWorkerQtHelper(QObject):
         self.poller.stop()
 
 
-def setup_logging_queue() -> tuple[mp.Queue, QueueListener]:
+def setup_logging_queue() -> tuple[MPQueue, QueueListener]:
     """Set up logging queue and listener in the main process.
 
     This creates a queue that forwards log records to the root logger,
     which will be handled by the console window's log handler.
     """
-    log_queue: mp.Queue = mp.Queue()
+    log_queue: MPQueue = mp.Queue()
 
     # Create a handler that forwards to the root logger
     class RootLoggerHandler(logging.Handler):
@@ -135,7 +135,7 @@ class BGWorker:
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name}, id={self.id})"
 
-    def _setup_child_logging(self, log_queue: mp.Queue) -> None:
+    def _setup_child_logging(self, log_queue: MPQueue) -> None:
         """Set up logging in the child process to send logs to the main process."""
         root_logger = logging.getLogger()
         root_logger.setLevel(logging.INFO)
@@ -157,7 +157,7 @@ class BGWorker:
         self,
         pipe: mp.connection.Connection,
         cancel_event: mp.synchronize.Event,
-        log_queue: T.Optional[mp.Queue],
+        log_queue: MPQueue | None,
         func: T.Callable,
         *args: T.Any,
         **kwargs: T.Any,
@@ -251,8 +251,7 @@ class JobManager(QObject):
         self.bg_workers: list[BGWorker] = []
         self.job_count = 0
 
-        app = neon_player.instance()
-        app.aboutToQuit.connect(self.cleanup)
+        neon_player.instance().aboutToQuit.connect(self.cleanup)
 
     def cleanup(self) -> None:
         BGWorker.stop_logging()

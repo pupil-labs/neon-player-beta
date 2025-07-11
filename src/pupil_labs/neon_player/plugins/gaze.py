@@ -72,7 +72,6 @@ class GazeDataPlugin(neon_player.Plugin):
 
     def __init__(self) -> None:
         super().__init__()
-        self.recording: T.Optional[NeonRecording] = None
 
         self._offset_x = 0.0
         self._offset_y = 0.0
@@ -82,8 +81,6 @@ class GazeDataPlugin(neon_player.Plugin):
         ]
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self.recording = recording
-
         for viz in self._visualizations:
             viz.on_recording_loaded(recording)
 
@@ -105,13 +102,15 @@ class GazeDataPlugin(neon_player.Plugin):
         gazes = self.recording.gaze[after_mask & before_mask]
 
         for viz in self._visualizations:
-            viz.render(painter, gazes, self._offset_x, self._offset_y)  # type: ignore
+            viz.render(painter, gazes, self._offset_x, self._offset_y)
 
     @action
     def export(self, destination: Path = Path()) -> None:
-        app = neon_player.instance()
-        app.job_manager.create_job(
-            "Export Gaze Data", bg_export, app.recording._rec_dir, destination
+        if self.recording is None:
+            return
+
+        self.app.job_manager.create_job(
+            "Export Gaze Data", bg_export, self.recording._rec_dir, destination
         )
 
     @property
@@ -155,7 +154,7 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
     def __init__(self) -> None:
         super().__init__()
         self._use_offset = True
-        self.recording: T.Optional[NeonRecording] = None
+        self.recording: NeonRecording | None = None
 
     def render(
         self,

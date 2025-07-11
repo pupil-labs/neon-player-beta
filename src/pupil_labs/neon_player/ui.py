@@ -1,5 +1,6 @@
 import typing
 import webbrowser
+from pathlib import Path
 
 from PySide6.QtCore import (
     QKeyCombination,
@@ -41,9 +42,9 @@ from pupil_labs.neon_recording import NeonRecording
 from .console import ConsoleWindow
 from .timeline_dock import TimelineDock
 
-QtShortcutType = typing.Optional[
-    typing.Union[QKeySequence, QKeyCombination, QKeySequence.StandardKey, str, int]
-]
+QtShortcutType = (
+    QKeySequence | QKeyCombination | QKeySequence.StandardKey | str | int | None
+)
 
 
 class MainWindow(QMainWindow):
@@ -139,8 +140,7 @@ class MainWindow(QMainWindow):
     def on_open_action(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Open Recording")
         if path:
-            app = neon_player.instance()
-            app.load(path)
+            neon_player.instance().load(Path(path))
 
     def on_preferences_action(self) -> None:
         preferences_dialog = PreferencesDialog(self)
@@ -186,7 +186,7 @@ class MainWindow(QMainWindow):
 
         return menu
 
-    def get_action(self, action_path: str) -> typing.Optional[QAction]:
+    def get_action(self, action_path: str) -> QAction:
         menu_path, action_name = action_path.rsplit("/", 1)
         menu = self.get_menu(menu_path)
 
@@ -194,13 +194,13 @@ class MainWindow(QMainWindow):
             if action.text().replace("&", "") == action_name.replace("&", ""):
                 return action
 
-        return None
+        raise ValueError(f"Action {action_path} not found")
 
     def register_action(
         self,
         action_path: str,
         shortcut: QtShortcutType = None,
-        on_triggered: typing.Optional[typing.Callable] = None,
+        on_triggered: typing.Callable | None = None,
     ) -> QAction:
         menu_path, action_name = action_path.rsplit("/", 1)
 
@@ -235,8 +235,9 @@ class MainWindow(QMainWindow):
 
 
 class PreferencesDialog(QDialog):
-    def __init__(self, parent: typing.Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setMinimumSize(400, 400)
 
         app = neon_player.instance()
 
@@ -273,18 +274,16 @@ class PreferencesDialog(QDialog):
         self.expander_list.add_expander("Enabled Plugins", plugins_form)
 
     def on_property_changed(self, prop_name: str, value: typing.Any) -> None:
-        app = neon_player.instance()
-        app.save_settings()
+        neon_player.instance().save_settings()
 
     def on_plugin_state_changed(
         self, plugin_class: type[Plugin], checked: bool
     ) -> None:
-        app = neon_player.instance()
-        app.toggle_plugin(plugin_class, checked)
+        neon_player.instance().toggle_plugin(plugin_class, checked)
 
 
 class VideoRenderWidget(QOpenGLWidget):
-    def __init__(self, parent: typing.Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setMinimumSize(256, 256)
 
@@ -316,8 +315,7 @@ class VideoRenderWidget(QOpenGLWidget):
         if self.ts is None:
             return
 
-        app = neon_player.instance()
-        app.render_to(painter)
+        neon_player.instance().render_to(painter)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -328,7 +326,9 @@ class VideoRenderWidget(QOpenGLWidget):
         if app.recording is None:
             return
 
-        source_size = QSize(app.recording.scene.width, app.recording.scene.height)
+        source_size = QSize(
+            app.recording.scene.width or 1, app.recording.scene.height or 1
+        )
         self.fit_rect(source_size)
         self.repaint()
 
