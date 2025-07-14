@@ -128,6 +128,9 @@ class FixationsPlugin(neon_player.Plugin):
         for viz in self._visualizations:
             viz.on_recording_loaded(recording)
 
+        if len(recording.fixations) == 0:
+            return
+
         self._load_optic_flow()
         if not self.optic_flow:
             job = self.app.job_manager.create_job(
@@ -174,6 +177,9 @@ class FixationsPlugin(neon_player.Plugin):
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         if self.recording is None:
+            return
+
+        if not hasattr(self, "fixations"):
             return
 
         after_mask = self.fixations["start_timestamp_ns"] <= time_in_recording

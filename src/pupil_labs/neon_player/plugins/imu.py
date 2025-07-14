@@ -16,6 +16,12 @@ class IMUPlugin(neon_player.Plugin):
         self.imu_data: pd.DataFrame | None = None
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
+        try:
+            if len(recording.imu) == 0:
+                return
+        except AssertionError:
+            return
+
         rotations = Rotation.from_quat(recording.imu.quaternion_wxyz, scalar_first=True)
         eulers = rotations.as_euler(seq="yxz", degrees=True)
 
