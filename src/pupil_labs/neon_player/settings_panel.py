@@ -1,10 +1,50 @@
+from datetime import datetime
+
 from PySide6.QtWidgets import (
+    QLabel,
+    QSpacerItem,
+    QVBoxLayout,
     QWidget,
 )
 from qt_property_widgets.widgets import PropertyForm
 
+from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.expander import Expander, ExpanderList
+from pupil_labs.neon_recording import NeonRecording
+
+
+class RecordingInfoWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(main_layout)
+
+        main_layout.addWidget(QLabel("<b>Recording ID</b>"))
+        self.recording_id_label = QLabel("-")
+        main_layout.addWidget(self.recording_id_label)
+        main_layout.addSpacing(10)
+
+        main_layout.addWidget(QLabel("<b>Recorded</b>"))
+        self.recording_date_label = QLabel("-")
+        main_layout.addWidget(self.recording_date_label)
+        main_layout.addSpacing(10)
+
+        main_layout.addWidget(QLabel("<b>Wearer</b>"))
+        self.wearer_label = QLabel("-")
+        main_layout.addWidget(self.wearer_label)
+
+        app = neon_player.instance()
+        app.recording_loaded.connect(self.on_recording_loaded)
+
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
+        self.recording_id_label.setText(recording.info['recording_id'])
+        start_time = datetime.fromtimestamp(recording.info['start_time'] / 1e9)
+        print(recording.info['start_time'] / 1e9)
+        start_time_str = start_time.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
+        self.recording_date_label.setText(start_time_str)
+        self.wearer_label.setText(recording.wearer['name'])
 
 
 class SettingsPanel(ExpanderList):
@@ -13,6 +53,9 @@ class SettingsPanel(ExpanderList):
         self.setMinimumSize(400, 100)
 
         self.plugin_class_expanders: dict[str, Expander] = {}
+
+        self.recording_info_widget = RecordingInfoWidget()
+        self.add_expander("Recording", self.recording_info_widget)
 
     def add_plugin_settings(self, instance: Plugin) -> None:
         cls = instance.__class__
