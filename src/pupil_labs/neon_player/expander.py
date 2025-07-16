@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QScrollArea,
     QSizePolicy,
     QToolButton,
@@ -76,6 +77,9 @@ class Expander(QFrame):
         self.expander_button.setChecked(value)
         self.on_expand_toggled()
 
+    @property
+    def title(self) -> str:
+        return self.label.text()
 
 class ExpanderList(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -94,6 +98,14 @@ class ExpanderList(QWidget):
         scroll_area.setWidget(container)
 
         main_layout = QVBoxLayout(self)
+
+        self.search_widget = QLineEdit()
+        self.search_widget.setStyleSheet("margin: 5px; padding: 5px")
+        self.search_widget.setPlaceholderText("Search...")
+        self.search_widget.setClearButtonEnabled(True)
+        self.search_widget.textChanged.connect(self.on_search_text_changed)
+
+        main_layout.addWidget(self.search_widget)
         main_layout.addWidget(scroll_area)
         main_layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(main_layout)
@@ -103,6 +115,13 @@ class ExpanderList(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
         self.container_layout.addWidget(self.spacer)
+
+    def on_search_text_changed(self, text: str) -> None:
+        for item_idx in range(self.container_layout.count()):
+            item = self.container_layout.itemAt(item_idx)
+            expander = item.widget()
+            if isinstance(expander, Expander):
+                expander.setVisible(text.lower() in expander.title.lower())
 
     def add_expander(self, title: str, content: QWidget) -> Expander:
         expander = Expander(title=title, content_widget=content)
