@@ -53,7 +53,7 @@ class SettingsPanel(ExpanderList):
         self.plugin_class_expanders: dict[str, Expander] = {}
 
         self.recording_info_widget = RecordingInfoWidget()
-        self.add_expander("Recording", self.recording_info_widget)
+        self.add_expander("Recording", self.recording_info_widget, expanded=True, sort_key="000")
 
     def add_plugin_settings(self, instance: Plugin) -> None:
         cls = instance.__class__

@@ -74,7 +74,7 @@ class Expander(QFrame):
 
     @expanded.setter
     def expanded(self, value: bool) -> None:
-        self.expander_button.setChecked(value)
+        self.expander_button.setChecked(not value)
         self.on_expand_toggled()
 
     @property
@@ -116,6 +116,8 @@ class ExpanderList(QWidget):
         )
         self.container_layout.addWidget(self.spacer)
 
+        self.sort_keys = {}
+
     def on_search_text_changed(self, text: str) -> None:
         for item_idx in range(self.container_layout.count()):
             item = self.container_layout.itemAt(item_idx)
@@ -123,12 +125,28 @@ class ExpanderList(QWidget):
             if isinstance(expander, Expander):
                 expander.setVisible(text.lower() in expander.title.lower())
 
-    def add_expander(self, title: str, content: QWidget) -> Expander:
-        expander = Expander(title=title, content_widget=content)
+    def add_expander(self, title: str, content: QWidget, expanded: bool = False, sort_key: str | None = None) -> Expander:
+        expander = Expander(title=title, content_widget=content, expanded=expanded)
+        if sort_key is None:
+            sort_key = title.lower()
+
+        self.sort_keys[expander] = sort_key
+
+        for item_idx in range(self.container_layout.count() - 1):
+            item = self.container_layout.itemAt(item_idx).widget()
+            if isinstance(item, Expander):
+                key_compare = self.sort_keys[item]
+                if key_compare.lower() > sort_key.lower():
+                    self.container_layout.insertWidget(item_idx, expander)
+                    return expander
+
         self.container_layout.insertWidget(self.container_layout.count() - 1, expander)
 
         return expander
 
     def remove_expander(self, expander: Expander) -> None:
+        del self.sort_keys[expander]
+
         self.container_layout.removeWidget(expander)
         expander.deleteLater()
+
