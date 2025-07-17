@@ -30,6 +30,7 @@ class Expander(QFrame):
             content_widget.setContentsMargins(0, 0, 8, 0)
 
         self.label = QLabel(title)
+        self.label.mousePressEvent = lambda *_: self.expander_button.click()
 
         self.expander_button = QToolButton()
         self.expander_button.setCheckable(True)
@@ -80,6 +81,7 @@ class Expander(QFrame):
     @property
     def title(self) -> str:
         return self.label.text()
+
 
 class ExpanderList(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
