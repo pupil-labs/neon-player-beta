@@ -14,7 +14,7 @@ from pupil_labs.neon_recording import NeonRecording
 
 
 class RecordingInfoWidget(QWidget):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -38,11 +38,11 @@ class RecordingInfoWidget(QWidget):
         app.recording_loaded.connect(self.on_recording_loaded)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self.recording_id_label.setText(recording.info['recording_id'])
-        start_time = datetime.fromtimestamp(recording.info['start_time'] / 1e9)
+        self.recording_id_label.setText(recording.info["recording_id"])
+        start_time = datetime.fromtimestamp(recording.info["start_time"] / 1e9)
         start_time_str = start_time.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
         self.recording_date_label.setText(start_time_str)
-        self.wearer_label.setText(recording.wearer['name'])
+        self.wearer_label.setText(recording.wearer["name"])
 
 
 class SettingsPanel(ExpanderList):
@@ -53,7 +53,9 @@ class SettingsPanel(ExpanderList):
         self.plugin_class_expanders: dict[str, Expander] = {}
 
         self.recording_info_widget = RecordingInfoWidget()
-        self.add_expander("Recording", self.recording_info_widget, expanded=True, sort_key="000")
+        self.add_expander(
+            "Recording", self.recording_info_widget, expanded=True, sort_key="000"
+        )
 
     def add_plugin_settings(self, instance: Plugin) -> None:
         cls = instance.__class__

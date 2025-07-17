@@ -251,7 +251,9 @@ class PreferencesDialog(QDialog):
 
         general_settings_form = PropertyForm(app.settings)
         general_settings_form.property_changed.connect(self.on_property_changed)
-        self.expander_list.add_expander("General Settings", general_settings_form)
+        self.expander_list.add_expander(
+            "General Settings", general_settings_form, sort_key="000"
+        )
 
         class PluginListObject:
             pass

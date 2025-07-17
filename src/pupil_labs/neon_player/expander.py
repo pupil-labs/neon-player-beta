@@ -30,7 +30,7 @@ class Expander(QFrame):
             content_widget.setContentsMargins(0, 0, 8, 0)
 
         self.label = QLabel(title)
-        self.label.mousePressEvent = lambda *_: self.expander_button.click()
+        self.label.mousePressEvent = lambda *_: self.expander_button.click()  # type: ignore
 
         self.expander_button = QToolButton()
         self.expander_button.setCheckable(True)
@@ -38,6 +38,9 @@ class Expander(QFrame):
         self.controls_layout = QHBoxLayout()
         self.controls_layout.addWidget(self.label)
         self.controls_layout.addWidget(self.expander_button)
+
+        self.label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.expander_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
@@ -118,7 +121,7 @@ class ExpanderList(QWidget):
         )
         self.container_layout.addWidget(self.spacer)
 
-        self.sort_keys = {}
+        self.sort_keys: dict[Expander, str] = {}
 
     def on_search_text_changed(self, text: str) -> None:
         for item_idx in range(self.container_layout.count()):
@@ -127,7 +130,13 @@ class ExpanderList(QWidget):
             if isinstance(expander, Expander):
                 expander.setVisible(text.lower() in expander.title.lower())
 
-    def add_expander(self, title: str, content: QWidget, expanded: bool = False, sort_key: str | None = None) -> Expander:
+    def add_expander(
+        self,
+        title: str,
+        content: QWidget,
+        expanded: bool = False,
+        sort_key: str | None = None,
+    ) -> Expander:
         expander = Expander(title=title, content_widget=content, expanded=expanded)
         if sort_key is None:
             sort_key = title.lower()
@@ -151,4 +160,3 @@ class ExpanderList(QWidget):
 
         self.container_layout.removeWidget(expander)
         expander.deleteLater()
-
