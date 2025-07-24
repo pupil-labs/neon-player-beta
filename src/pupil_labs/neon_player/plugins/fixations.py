@@ -21,7 +21,7 @@ from pupil_labs.neon_player.utilities import (
     unproject_points,
 )
 from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.stream.fixation_stream import FixationArray
+from pupil_labs.neon_recording.timeseries import FixationTimeseries
 
 
 def bg_optic_flow(recording_path: Path) -> T.Generator[ProgressUpdate, None, None]:
@@ -138,29 +138,29 @@ class FixationsPlugin(neon_player.Plugin):
             )
             job.finished.connect(self._load_optic_flow)
 
-        self.fixations = recording.fixations[recording.fixations["event_type"] == 1]
+        self.fixations = recording.fixations # [recording.fixations["event_type"] == 1]
         self.fixation_ids = 1 + np.arange(len(self.fixations))
         for fixation_idx, fixation in enumerate(self.fixations):
             self.app.main_window.timeline_dock.add_timeline_line(
                 "Fixations",
                 [
-                    (fixation.start_ts, 0),
-                    (fixation.end_ts, 0),
+                    (fixation.start_time, 0),
+                    (fixation.stop_time, 0),
                 ],
                 f"Fixation {fixation_idx + 1}",
             )
 
-        self.saccades = recording.fixations[recording.fixations["event_type"] == 0]
-        self.saccade_ids = 1 + np.arange(len(self.saccades))
-        for saccade_idx, saccade in enumerate(self.saccades):
-            self.app.main_window.timeline_dock.add_timeline_line(
-                "Saccades",
-                [
-                    (saccade.start_ts, 0),
-                    (saccade.end_ts, 0),
-                ],
-                f"Saccade {saccade_idx + 1}",
-            )
+        #self.saccades = recording.fixations[recording.fixations["event_type"] == 0]
+        #self.saccade_ids = 1 + np.arange(len(self.saccades))
+        #for saccade_idx, saccade in enumerate(self.saccades):
+        #    self.app.main_window.timeline_dock.add_timeline_line(
+        #        "Saccades",
+        #        [
+        #            (saccade.start_ts, 0),
+        #            (saccade.end_ts, 0),
+        #        ],
+        #        f"Saccade {saccade_idx + 1}",
+        #    )
 
     def _load_optic_flow(self) -> None:
         if self.recording is None:
@@ -182,8 +182,8 @@ class FixationsPlugin(neon_player.Plugin):
         if not hasattr(self, "fixations"):
             return
 
-        after_mask = self.fixations["start_timestamp_ns"] <= time_in_recording
-        before_mask = self.fixations["end_timestamp_ns"] > time_in_recording
+        after_mask = self.fixations.start_time <= time_in_recording
+        before_mask = self.fixations.stop_time > time_in_recording
 
         filter_mask = after_mask & before_mask
         fixations = self.fixations[filter_mask]
@@ -194,8 +194,10 @@ class FixationsPlugin(neon_player.Plugin):
             optic_flow_offset = [0, 0]
 
             if self.optic_flow is not None:
-                start_frame_idx = self.recording.scene.ts.searchsorted(fixation.ts)
-                current_frame_idx = self.recording.scene.ts.searchsorted(
+                start_frame_idx = self.recording.scene.time.searchsorted(
+                    fixation.start_time
+                )
+                current_frame_idx = self.recording.scene.time.searchsorted(
                     time_in_recording
                 )
                 for frame_idx in range(start_frame_idx, current_frame_idx):
@@ -268,7 +270,7 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
     def render(
         self,
         painter: QPainter,
-        fixations: FixationArray,
+        fixations: FixationTimeseries,
         fixation_ids: np.ndarray,
         optic_flow_offsets: np.ndarray,
         gaze_offset: tuple[float, float],
@@ -312,7 +314,7 @@ class FixationAnnulusViz(FixationVisualization):
     def render(
         self,
         painter: QPainter,
-        fixations: FixationArray,
+        fixations: FixationTimeseries,
         fixation_ids: np.ndarray,
         optic_flow_offsets: np.ndarray,
         gaze_offset: tuple[float, float],
@@ -342,13 +344,13 @@ class FixationAnnulusViz(FixationVisualization):
         ):
             if self._adjust_for_optic_flow:
                 center = QPointF(
-                    fixation.start_gaze_xy[0] + offset[0] + optic_flow_offset[0],
-                    fixation.start_gaze_xy[1] + offset[1] + optic_flow_offset[1],
+                    fixation.start_gaze[0] + offset[0] + optic_flow_offset[0],
+                    fixation.start_gaze[1] + offset[1] + optic_flow_offset[1],
                 )
             else:
                 center = QPointF(
-                    fixation.mean_gaze_xy[0] + offset[0],
-                    fixation.mean_gaze_xy[1] + offset[1],
+                    fixation.mean_gaze[0] + offset[0],
+                    fixation.mean_gaze[1] + offset[1],
                 )
 
             painter.drawEllipse(center, self._base_radius, self._base_radius)

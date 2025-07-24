@@ -8,7 +8,7 @@ class EventsPlugin(neon_player.Plugin):
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.app.main_window.timeline_dock.add_timeline_scatter(
             "Events",
-            [(event.ts, 0) for event in self.recording.events],
+            [(event.time, 0) for event in self.recording.events],
         )
         events_by_name: dict[str, list[int]] = {}
 
@@ -17,7 +17,7 @@ class EventsPlugin(neon_player.Plugin):
             if event_name not in events_by_name:
                 events_by_name[event_name] = []
 
-            events_by_name[event_name].append(int(event.ts))
+            events_by_name[event_name].append(int(event.time))
 
         for event_name, timestamps in events_by_name.items():
             self.app.main_window.timeline_dock.add_timeline_scatter(

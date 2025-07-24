@@ -218,9 +218,9 @@ class NeonPlayerApp(QApplication):
             plugin.on_recording_loaded(self.recording)
 
         if self.settings.skip_gray_frames_on_load:
-            self.seek_to(self.recording.scene[0].ts)
+            self.seek_to(self.recording.scene[0].time)
         else:
-            self.seek_to(self.recording.start_ts)
+            self.seek_to(self.recording.start_time)
 
         self.recording_loaded.emit(self.recording)
 
@@ -232,14 +232,14 @@ class NeonPlayerApp(QApplication):
             return
 
         now = time.time_ns()
-        if self.current_ts >= self.recording.stop_ts:
-            self.current_ts = self.recording.start_ts
+        if self.current_ts >= self.recording.stop_time:
+            self.current_ts = self.recording.start_time
 
         if self.refresh_timer.isActive():
             self.refresh_timer.stop()
 
         else:
-            elapsed_time = self.current_ts - self.recording.start_ts
+            elapsed_time = self.current_ts - self.recording.start_time
             self.playback_start_anchor = now - elapsed_time
             self.refresh_timer.start()
 
@@ -251,14 +251,14 @@ class NeonPlayerApp(QApplication):
 
         now = time.time_ns()
         elapsed_time = now - self.playback_start_anchor
-        target_ts = elapsed_time + self.recording.start_ts
+        target_ts = elapsed_time + self.recording.start_time
 
-        if self.current_ts < self.recording.stop_ts:
+        if self.current_ts < self.recording.stop_time:
             self.current_ts = target_ts
             self.main_window.set_time_in_recording(self.current_ts)
 
         else:
-            self.current_ts = self.recording.stop_ts
+            self.current_ts = self.recording.stop_time
             self.main_window.set_time_in_recording(self.current_ts)
 
             self.refresh_timer.stop()
@@ -272,7 +272,7 @@ class NeonPlayerApp(QApplication):
 
         now = time.time_ns()
         self.current_ts = ts
-        self.playback_start_anchor = now - (ts - self.recording.start_ts)
+        self.playback_start_anchor = now - (ts - self.recording.start_time)
         self.main_window.set_time_in_recording(ts)
 
         self.position_changed.emit(self.current_ts)

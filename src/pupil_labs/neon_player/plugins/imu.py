@@ -22,25 +22,25 @@ class IMUPlugin(neon_player.Plugin):
         except AssertionError:
             return
 
-        rotations = Rotation.from_quat(recording.imu.quaternion_wxyz, scalar_first=True)
+        rotations = Rotation.from_quat(recording.imu.rotation, scalar_first=True)
         eulers = rotations.as_euler(seq="yxz", degrees=True)
 
         self.imu_data = pd.DataFrame({
             "recording id": recording.info["recording_id"],
-            "timestamp [ns]": recording.imu.ts,
-            "gyro x [deg/s]": recording.imu.gyro_xyz[:, 0],
-            "gyro y [deg/s]": recording.imu.gyro_xyz[:, 1],
-            "gyro z [deg/s]": recording.imu.gyro_xyz[:, 2],
-            "acceleration x [g]": recording.imu.accel_xyz[:, 0],
-            "acceleration y [g]": recording.imu.accel_xyz[:, 1],
-            "acceleration z [g]": recording.imu.accel_xyz[:, 2],
+            "timestamp [ns]": recording.imu.time,
+            "gyro x [deg/s]": recording.imu.angular_velocity[:, 0],
+            "gyro y [deg/s]": recording.imu.angular_velocity[:, 1],
+            "gyro z [deg/s]": recording.imu.angular_velocity[:, 2],
+            "acceleration x [g]": recording.imu.acceleration[:, 0],
+            "acceleration y [g]": recording.imu.acceleration[:, 1],
+            "acceleration z [g]": recording.imu.acceleration[:, 2],
             "roll [deg]": eulers[:, 0],
             "pitch [deg]": eulers[:, 1],
             "yaw [deg]": eulers[:, 2],
-            "quaternion w": recording.imu.quaternion_wxyz[:, 0],
-            "quaternion x": recording.imu.quaternion_wxyz[:, 1],
-            "quaternion y": recording.imu.quaternion_wxyz[:, 2],
-            "quaternion z": recording.imu.quaternion_wxyz[:, 3],
+            "quaternion x": recording.imu.rotation[:, 0],
+            "quaternion y": recording.imu.rotation[:, 1],
+            "quaternion z": recording.imu.rotation[:, 2],
+            "quaternion w": recording.imu.rotation[:, 3],
         })
 
         for euler_axis in ["roll", "pitch", "yaw"]:

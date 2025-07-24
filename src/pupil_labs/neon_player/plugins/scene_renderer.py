@@ -22,13 +22,13 @@ class SceneRendererPlugin(Plugin):
             return
 
         scene_idx = (
-            np.searchsorted(self.recording.scene.ts, time_in_recording, "right") - 1
+            np.searchsorted(self.recording.scene.time, time_in_recording, "right") - 1
         )
         should_gray = scene_idx < 0 or scene_idx > len(self.recording.scene) - 1
         if not should_gray:
             frame = self.recording.scene[scene_idx]
-            should_gray = time_in_recording < frame.ts
-            should_gray = should_gray or (time_in_recording - frame.ts > 1e9 / 5)
+            should_gray = time_in_recording < frame.time
+            should_gray = should_gray or (time_in_recording - frame.time > 1e9 / 5)
 
         if should_gray:
             if self.recording.scene.width and self.recording.scene.height:

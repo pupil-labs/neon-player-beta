@@ -18,7 +18,7 @@ from pupil_labs.neon_player.utilities import (
     unproject_points,
 )
 from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.stream.gaze_stream import GazeArray
+from pupil_labs.neon_recording.timeseries.gaze import GazeArray
 
 
 def bg_export(recording_path: Path, destination: Path) -> None:
@@ -88,17 +88,17 @@ class GazeDataPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        scene_idx = np.searchsorted(self.recording.scene.ts, time_in_recording) - 1
+        scene_idx = np.searchsorted(self.recording.scene.time, time_in_recording) - 1
         if scene_idx >= len(self.recording.scene) - 1 or scene_idx < 0:
             gaze_start_ts = time_in_recording
             gaze_end_ts = gaze_start_ts + 1e9 / 30
 
         else:
-            gaze_start_ts = self.recording.scene[scene_idx].ts
-            gaze_end_ts = self.recording.scene[scene_idx + 1].ts
+            gaze_start_ts = self.recording.scene[scene_idx].time
+            gaze_end_ts = self.recording.scene[scene_idx + 1].time
 
-        after_mask = self.recording.gaze.ts >= gaze_start_ts
-        before_mask = self.recording.gaze.ts < gaze_end_ts
+        after_mask = self.recording.gaze.time >= gaze_start_ts
+        before_mask = self.recording.gaze.time < gaze_end_ts
         gazes = self.recording.gaze[after_mask & before_mask]
 
         for viz in self._visualizations:
@@ -214,8 +214,7 @@ class AnnulusViz(GazeVisualization):
                 offset[1] = offset_y * self.recording.scene.height
 
         for gaze in gazes:
-            center = QPointF(gaze.x + offset[0], gaze.y + offset[1])
-
+            center = QPointF(gaze.point[0] + offset[0], gaze.point[1] + offset[1])
             painter.drawEllipse(center, self._radius, self._radius)
 
     @property
@@ -272,7 +271,7 @@ class CrosshairViz(GazeVisualization):
                 offset[1] = offset_y * self.recording.scene.height
 
         for gaze in gazes:
-            center = QPointF(gaze.x + offset[0], gaze.y + offset[1])
+            center = QPointF(gaze.point[0] + offset[0], gaze.point[1] + offset[1])
 
             # Draw horizontal line
             painter.drawLine(
