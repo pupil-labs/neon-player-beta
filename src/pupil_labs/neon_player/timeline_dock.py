@@ -1,5 +1,5 @@
 from PySide6.QtCharts import QChart, QChartView, QLineSeries, QScatterSeries, QValueAxis
-from PySide6.QtCore import QMargins, QRect, Qt, Signal
+from PySide6.QtCore import QMargins, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QIcon,
@@ -36,23 +36,33 @@ class TimestampLabel(QLabel):
 
 
 class PlayHead(QWidget):
+    mouse_pressed = Signal(QMouseEvent)
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
         neon_player.instance().position_changed.connect(self.on_position_changed)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.player_position = 0
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        self.mouse_pressed.emit(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if event.buttons() == Qt.MouseButton.LeftButton:
+            self.mouse_pressed.emit(event)
 
     def on_position_changed(self, t: int) -> None:
         app = neon_player.instance()
         if app.recording is None:
             return
 
-        duration = app.recording.stop_ts - app.recording.start_ts + 2e9
-        self.player_position = (t - app.recording.start_ts + 1e9) / duration
+        duration = app.recording.stop_time - app.recording.start_time + 2e9
+        self.player_position = (t - app.recording.start_time + 1e9) / duration
         self.update()
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
+
         painter.fillRect(
             int(self.player_position * self.width() - 1),
             0,
@@ -67,8 +77,8 @@ class TimelineTable(QWidget):
     mouse_pressed = Signal(QMouseEvent)
     resized = Signal(QResizeEvent)
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
         self.grid_layout = QGridLayout()
         self.grid_layout.setSpacing(0)
         self.setLayout(self.grid_layout)
@@ -110,17 +120,24 @@ class TimelineDock(QWidget):
 
         self.main_layout.addLayout(self.toolbar_layout)
 
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
+        self.header_widget = QWidget()
+        self.zoom_controls = QWidget(self.header_widget)
+
+        self.header_widget.setContentsMargins(0, 0, 0, 0)
+        self.header_widget.setMinimumSize(self.zoom_controls.size())
+
+        self.main_layout.addWidget(self.header_widget)
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
         self.timeline_table = TimelineTable()
-        self.timeline_table.resized.connect(self.on_timeline_table_resized)
-        self.timeline_table.mouse_moved.connect(self.on_timeline_mouse_moved)
-        self.timeline_table.mouse_pressed.connect(self.on_timeline_mouse_pressed)
+        self.timeline_table.resized.connect(self.adjust_playhead_geometry)
 
-        scroll_area.setWidget(self.timeline_table)
-        self.main_layout.addWidget(scroll_area)
+        self.scroll_area.setWidget(self.timeline_table)
+        self.main_layout.addWidget(self.scroll_area)
 
-        self.playhead = PlayHead(scroll_area)
+        self.playhead = PlayHead(self)
+        self.playhead.mouse_pressed.connect(self.on_playhead_mouse_pressed)
 
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
@@ -137,44 +154,46 @@ class TimelineDock(QWidget):
         if app.recording is None:
             return
 
-        self.timestamp_label.set_time(t - app.recording.start_ts)
+        self.timestamp_label.set_time(t - app.recording.start_time)
+        self.adjust_playhead_geometry()
 
-    def on_timeline_table_resized(self, event: QResizeEvent) -> None:
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        self.adjust_playhead_geometry()
+        return super().resizeEvent(event)
+
+    def adjust_playhead_geometry(self) -> None:
         rect = self.get_chart_area()
-        self.playhead.setGeometry(rect)
+        tl = self.mapFromGlobal(rect.topLeft())
+        br = self.mapFromGlobal(rect.bottomRight())
+        tl.setY(self.header_widget.geometry().top())
+        br.setY(self.scroll_area.geometry().bottom())
+        self.playhead.setGeometry(QRect(tl, br))
 
     def get_chart_area(self) -> QRect:
-        top_chart_cell_rect = self.timeline_table.grid_layout.cellRect(0, 1)
-        bottom_chart_cell_rect = self.timeline_table.grid_layout.cellRect(
-            self.timeline_table.grid_layout.rowCount() - 1,
-            1,
-        )
-        top_chart_cell_rect.setTop(0)
-        rect = QRect(
-            top_chart_cell_rect.topLeft(),
-            bottom_chart_cell_rect.bottomRight(),
-        )
-        return rect
+        if self.timeline_table.grid_layout.count() == 0:
+            return QRect()
+        first_chart = self.timeline_table.grid_layout.itemAtPosition(1, 2).widget()
+        tl = first_chart.parent().mapToGlobal(first_chart.geometry().topLeft())
+        br = first_chart.parent().mapToGlobal(first_chart.geometry().bottomRight())
 
-    def on_timeline_mouse_moved(self, event: QMouseEvent) -> None:
-        if event.buttons() != Qt.MouseButton.NoButton:
-            self.on_timeline_mouse_pressed(event)
+        return QRect(tl, br)
 
-    def on_timeline_mouse_pressed(self, event: QMouseEvent) -> None:
-        rect = self.get_chart_area()
+    def on_playhead_mouse_pressed(self, event: QMouseEvent) -> None:
         app = neon_player.instance()
         if app.recording is None:
             return
 
+        rect = QRect(QPoint(), self.playhead.size())
+
         left = (event.position() - rect.topLeft()).x()
         v = left / rect.width()
         t = (
-            app.recording.start_ts
+            app.recording.start_time
             - 1e9
-            + v * (app.recording.stop_ts - app.recording.start_ts + 2e9)
+            + v * (app.recording.stop_time - app.recording.start_time + 2e9)
         )
-        if app.recording.start_ts < t < app.recording.stop_ts:
-            app.seek_to(int(t))
+        t = min(max(t, app.recording.start_time), app.recording.stop_time)
+        app.seek_to(int(t))
 
     def add_timeline_plot(  # noqa: C901
         self,
@@ -203,7 +222,7 @@ class TimelineDock(QWidget):
             }
 
             axes[Qt.AlignmentFlag.AlignBottom].setRange(
-                app.recording.start_ts - 1e9, app.recording.stop_ts + 1e9
+                app.recording.start_time - 1e9, app.recording.stop_time + 1e9
             )
             axes[Qt.AlignmentFlag.AlignBottom].setTickCount(2)
             axes[Qt.AlignmentFlag.AlignLeft].setTickCount(3)
@@ -220,15 +239,15 @@ class TimelineDock(QWidget):
             self.timeline_chart_views[name] = chart_view
 
             row_idx = self.timeline_table.grid_layout.rowCount()
-            self.timeline_table.grid_layout.addWidget(QLabel(name), row_idx, 0)
-            self.timeline_table.grid_layout.addWidget(chart_view, row_idx, 1)
+            self.timeline_table.grid_layout.addWidget(QLabel(name), row_idx, 1)
+            self.timeline_table.grid_layout.addWidget(chart_view, row_idx, 2)
 
         else:
             chart_view = self.timeline_chart_views[name]
             chart = chart_view.chart()
 
             for row_idx in range(self.timeline_table.grid_layout.rowCount()):
-                item = self.timeline_table.grid_layout.itemAtPosition(row_idx, 1)
+                item = self.timeline_table.grid_layout.itemAtPosition(row_idx, 2)
                 if item is not None and item.widget() == chart_view:
                     break
 
@@ -241,7 +260,6 @@ class TimelineDock(QWidget):
             series.attachAxis(series_axis)
 
         series.setVisible(True)
-        # series.hovered.connect(lambda: print("Hover:", item_name))
 
         chart_y_range = None
         for chart_series in chart.series():
@@ -286,8 +304,8 @@ class TimelineDock(QWidget):
         rec = app.recording
         h_axis = chart_view.chart().axes(Qt.Orientation.Horizontal)[0]
         if isinstance(h_axis, QValueAxis):
-            h_axis.setTickInterval(rec.stop_ts - rec.start_ts)
-            h_axis.setTickAnchor(rec.start_ts)
+            h_axis.setTickInterval(rec.stop_time - rec.start_time)
+            h_axis.setTickAnchor(rec.start_time)
 
     def add_timeline_line(
         self, name: str, data: list[tuple[int, int]], item_name: str = ""
