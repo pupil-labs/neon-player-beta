@@ -31,6 +31,10 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
         neon_player.instance().aboutToQuit.connect(self.on_disabled)
 
+    def add_dynamic_action(self, name: str, func: T.Callable) -> None:
+        my_prop_form = self.app.main_window.settings_panel.plugin_class_expanders[self.__class__.__name__].content_widget
+        my_prop_form.add_action(name, func)
+
     @classmethod
     def __init_subclass__(cls: type["Plugin"], **kwargs: dict) -> None:  # type: ignore
         super().__init_subclass__(**kwargs)

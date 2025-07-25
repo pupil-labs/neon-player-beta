@@ -1,4 +1,6 @@
+
 from pupil_labs import neon_player
+from pupil_labs.neon_player import action
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -24,3 +26,33 @@ class EventsPlugin(neon_player.Plugin):
                 f"Events/{event_name}",
                 [(ts, 0) for ts in timestamps],
             )
+
+            if event_name not in ['recording.begin', 'recording.end']:
+                self.add_dynamic_action(
+                    f"add_{event_name}",
+                    lambda self, evt=event_name: self.add_event(evt),
+                )
+
+        self.event_names = list(events_by_name.keys())
+
+    @action
+    def create_event_type(self, event_name: str) -> None:
+        if self.recording is None:
+            return
+
+        if event_name not in self.event_names:
+            self.event_names.append(event_name)
+
+            self.add_dynamic_action(
+                f"add_{event_name}",
+                lambda self, evt=event_name: self.add_event(evt),
+            )
+
+    def add_event(self, event_name: str) -> None:
+        if self.recording is None:
+            return
+
+        self.app.main_window.timeline_dock.add_timeline_scatter(
+            f"Events/{event_name}",
+            [(self.app.current_ts, 0)],
+        )
