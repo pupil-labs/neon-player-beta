@@ -1,3 +1,5 @@
+import typing as T
+
 from PySide6.QtCharts import QChart, QChartView, QLineSeries, QScatterSeries, QValueAxis
 from PySide6.QtCore import QMargins, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import (
@@ -19,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player.ui import GUIEventNotifier
 
 
 class TimestampLabel(QLabel):
@@ -35,21 +38,12 @@ class TimestampLabel(QLabel):
         self.setText(f"{hours:0>2,.0f}:{minutes:0>2.0f}:{seconds:0>6.3f}")
 
 
-class PlayHead(QWidget):
-    mouse_pressed = Signal(QMouseEvent)
-
+class PlayHead(GUIEventNotifier, QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
         neon_player.instance().position_changed.connect(self.on_position_changed)
         self.player_position = 0
-
-    def mousePressEvent(self, event: QMouseEvent) -> None:
-        self.mouse_pressed.emit(event)
-
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        if event.buttons() == Qt.MouseButton.LeftButton:
-            self.mouse_pressed.emit(event)
 
     def on_position_changed(self, t: int) -> None:
         app = neon_player.instance()
@@ -72,28 +66,12 @@ class PlayHead(QWidget):
         )
 
 
-class TimelineTable(QWidget):
-    mouse_moved = Signal(QMouseEvent)
-    mouse_pressed = Signal(QMouseEvent)
-    resized = Signal(QResizeEvent)
-
+class TimelineTable(GUIEventNotifier, QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.grid_layout = QGridLayout()
         self.grid_layout.setSpacing(0)
         self.setLayout(self.grid_layout)
-
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        self.mouse_moved.emit(event)
-        return super().mouseMoveEvent(event)
-
-    def mousePressEvent(self, event: QMouseEvent) -> None:
-        self.mouse_pressed.emit(event)
-        return super().mousePressEvent(event)
-
-    def resizeEvent(self, event: QResizeEvent) -> None:
-        self.resized.emit(event)
-        return super().resizeEvent(event)
 
 
 class TimelineDock(QWidget):
@@ -138,6 +116,7 @@ class TimelineDock(QWidget):
 
         self.playhead = PlayHead(self)
         self.playhead.mouse_pressed.connect(self.on_playhead_mouse_pressed)
+        self.playhead.mouse_moved.connect(self.on_playhead_mouse_moved)
 
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
@@ -178,7 +157,14 @@ class TimelineDock(QWidget):
 
         return QRect(tl, br)
 
+    def on_playhead_mouse_moved(self, event: QMouseEvent) -> None:
+        self.on_playhead_mouse_pressed(event)
+
     def on_playhead_mouse_pressed(self, event: QMouseEvent) -> None:
+        if not event.buttons() & Qt.MouseButton.LeftButton:
+            event.ignore()
+            return
+
         app = neon_player.instance()
         if app.recording is None:
             return
@@ -194,6 +180,8 @@ class TimelineDock(QWidget):
         )
         t = min(max(t, app.recording.start_time), app.recording.stop_time)
         app.seek_to(int(t))
+
+        event.accept()
 
     def add_timeline_plot(  # noqa: C901
         self,
@@ -316,3 +304,6 @@ class TimelineDock(QWidget):
         self, name: str, data: list[tuple[int, int]], item_name: str = ""
     ) -> None:
         self.add_timeline_plot(name, data, QScatterSeries, item_name)
+
+    def register_action(self, name: str, func: T.Callable) -> None:
+        self.app.register_action(f"Timeline/{name}", None, func)

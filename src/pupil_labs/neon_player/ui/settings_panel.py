@@ -9,7 +9,7 @@ from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
-from pupil_labs.neon_player.expander import Expander, ExpanderList
+from pupil_labs.neon_player.ui.expander import Expander, ExpanderList
 from pupil_labs.neon_recording import NeonRecording
 
 

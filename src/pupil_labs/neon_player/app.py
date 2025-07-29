@@ -22,7 +22,7 @@ from pupil_labs.neon_player import Plugin
 
 from .job_manager import BGWorker, JobManager
 from .settings import GeneralSettings
-from .ui import MainWindow
+from .ui.main_window import MainWindow
 
 
 def setup_logging() -> None:
