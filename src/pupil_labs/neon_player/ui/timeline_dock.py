@@ -9,6 +9,7 @@ from PySide6.QtGui import (
     QPainter,
     QPaintEvent,
     QResizeEvent,
+    QWheelEvent,
 )
 from PySide6.QtWidgets import (
     QGridLayout,
@@ -120,11 +121,28 @@ class TimelineDock(QWidget):
         self.main_layout.addWidget(self.scroll_area)
 
         self.playhead = PlayHead(self)
-        self.playhead.mouse_pressed.connect(self.on_playhead_mouse_pressed)
-        self.playhead.mouse_moved.connect(self.on_playhead_mouse_moved)
+        self.playhead.mouse_pressed.connect(self.adjust_playhead_to_mouse)
+        self.playhead.mouse_moved.connect(self.adjust_playhead_to_mouse)
+        self.playhead.mouse_wheel_moved.connect(self.on_scroll_wheel)
 
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
+
+    def on_scroll_wheel(self, event: QWheelEvent) -> None:
+        app = neon_player.instance()
+        if event.angleDelta().x() != 0:
+            direction = 1 if event.angleDelta().x() < 0 else -1
+            app.seek_to(app.current_ts + direction * 5e8)
+            event.accept()
+            return
+
+        if event.modifiers() & Qt.ShiftModifier:
+            direction = 1 if event.angleDelta().y() < 0 else -1
+            app.seek_to(app.current_ts + direction * 5e8)
+            event.accept()
+            return
+
+        self.scroll_area.wheelEvent(event)
 
     def on_playback_state_changed(self, is_playing: bool) -> None:
         self.play_button.setIcon(
@@ -162,10 +180,7 @@ class TimelineDock(QWidget):
 
         return QRect(tl, br)
 
-    def on_playhead_mouse_moved(self, event: QMouseEvent) -> None:
-        self.on_playhead_mouse_pressed(event)
-
-    def on_playhead_mouse_pressed(self, event: QMouseEvent) -> None:
+    def adjust_playhead_to_mouse(self, event: QMouseEvent) -> None:
         if not event.buttons() & Qt.MouseButton.LeftButton:
             event.ignore()
             return
@@ -174,16 +189,16 @@ class TimelineDock(QWidget):
         if app.recording is None:
             return
 
+        pos = self.playhead.mapFromGlobal(event.globalPosition())
         rect = QRect(QPoint(), self.playhead.size())
 
-        left = (event.position() - rect.topLeft()).x()
+        left = (pos - rect.topLeft()).x()
         v = left / rect.width()
         t = (
             app.recording.start_time
             - 1e9
             + v * (app.recording.stop_time - app.recording.start_time + 2e9)
         )
-        t = min(max(t, app.recording.start_time), app.recording.stop_time)
         app.seek_to(int(t))
 
         event.accept()

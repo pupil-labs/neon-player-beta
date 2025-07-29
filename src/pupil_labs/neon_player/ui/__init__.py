@@ -1,13 +1,13 @@
 
 from PySide6.QtCore import (
     QKeyCombination,
-    QObject,
     Signal,
 )
 from PySide6.QtGui import (
     QKeySequence,
     QMouseEvent,
     QResizeEvent,
+    QWheelEvent,
 )
 
 QtShortcutType = (
@@ -18,6 +18,7 @@ QtShortcutType = (
 class GUIEventNotifier:
     mouse_pressed = Signal(QMouseEvent)
     mouse_moved = Signal(QMouseEvent)
+    mouse_wheel_moved = Signal(QWheelEvent)
     resized = Signal(QResizeEvent)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
@@ -31,3 +32,7 @@ class GUIEventNotifier:
     def resizeEvent(self, event: QResizeEvent) -> None:
         self.resized.emit(event)
         return super().resizeEvent(event)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        self.mouse_wheel_moved.emit(event)
+        return super().wheelEvent(event)

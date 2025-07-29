@@ -270,6 +270,8 @@ class NeonPlayerApp(QApplication):
         if self.recording is None:
             return
 
+        ts = min(max(ts, self.recording.start_time), self.recording.stop_time)
+
         now = time.time_ns()
         self.current_ts = ts
         self.playback_start_anchor = now - (ts - self.recording.start_time)
