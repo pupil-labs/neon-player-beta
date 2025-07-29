@@ -42,11 +42,11 @@ class EventsPlugin(neon_player.Plugin):
 
         if event_name not in self.event_names:
             self.event_names.append(event_name)
-
-            self.add_dynamic_action(
-                f"add_{event_name}",
-                lambda self, evt=event_name: self.add_event(evt),
+            self.app.main_window.timeline_dock.add_timeline_scatter(
+                f"Events/{event_name}", [],
             )
+
+            self.register_timeline_action(f"Add Event/{event_name}", lambda: self.add_event(event_name))
 
     def add_event(self, event_name: str) -> None:
         if self.recording is None:
@@ -55,4 +55,8 @@ class EventsPlugin(neon_player.Plugin):
         self.app.main_window.timeline_dock.add_timeline_scatter(
             f"Events/{event_name}",
             [(self.app.current_ts, 0)],
+        )
+
+        self.app.main_window.timeline_dock.add_timeline_scatter(
+            "Events", [(self.app.current_ts, 0)],
         )

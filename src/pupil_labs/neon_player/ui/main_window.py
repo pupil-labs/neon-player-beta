@@ -154,7 +154,7 @@ class MainWindow(QMainWindow):
             ),
         )
 
-    def get_menu(self, menu_path: str) -> typing.Union[QMenu, QMenuBar]:
+    def get_menu(self, menu_path: str, auto_create: bool = True) -> typing.Union[QMenu, QMenuBar]:
         menu: typing.Union[QMenu, QMenuBar] = self.menuBar()
         parts = menu_path.split("/")
         for depth, part in enumerate(parts):
@@ -164,6 +164,9 @@ class MainWindow(QMainWindow):
                     menu = action.menu()  # type: ignore
                     break
             else:
+                if not auto_create:
+                    return None
+
                 new_menu = QMenu(part, menu)
 
                 if depth == 0 and len(menu.actions()) > 0:

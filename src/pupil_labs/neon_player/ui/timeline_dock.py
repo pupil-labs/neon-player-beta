@@ -1,7 +1,7 @@
 import typing as T
 
 from PySide6.QtCharts import QChart, QChartView, QLineSeries, QScatterSeries, QValueAxis
-from PySide6.QtCore import QMargins, QPoint, QRect, Qt, Signal
+from PySide6.QtCore import QMargins, QPoint, QPropertyAnimation, QRect, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
     QIcon,
@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QScrollArea,
     QToolButton,
     QVBoxLayout,
@@ -77,8 +78,12 @@ class TimelineTable(GUIEventNotifier, QWidget):
 class TimelineDock(QWidget):
     def __init__(self) -> None:
         super().__init__()
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
 
         app = neon_player.instance()
+
+        self.scroll_animation: QPropertyAnimation | None = None
 
         self.timeline_chart_views: dict[str, QChartView] = {}
 
@@ -189,6 +194,7 @@ class TimelineDock(QWidget):
         data: list[tuple[int, int]],
         series_cls: type = QLineSeries,
         item_name: str = "",
+        color: QColor|None = None,
     ) -> None:
         app = neon_player.instance()
         if app.recording is None:
@@ -230,6 +236,8 @@ class TimelineDock(QWidget):
             self.timeline_table.grid_layout.addWidget(QLabel(name), row_idx, 1)
             self.timeline_table.grid_layout.addWidget(chart_view, row_idx, 2)
 
+            QTimer.singleShot(100, self.scroll_to_bottom)
+
         else:
             chart_view = self.timeline_chart_views[name]
             chart = chart_view.chart()
@@ -242,6 +250,9 @@ class TimelineDock(QWidget):
         series = series_cls()
         for x, y in data:
             series.append(x, y)
+
+        if color is not None:
+            series.setColor(color)
 
         chart.addSeries(series)
         for series_axis in chart.axes():
@@ -295,6 +306,16 @@ class TimelineDock(QWidget):
             h_axis.setTickInterval(rec.stop_time - rec.start_time)
             h_axis.setTickAnchor(rec.start_time)
 
+    def scroll_to_bottom(self) -> None:
+        scroll_bar = self.scroll_area.verticalScrollBar()
+        if self.scroll_animation is not None:
+            self.scroll_animation.stop()
+
+        self.scroll_animation = QPropertyAnimation(scroll_bar, b"value")
+        self.scroll_animation.setDuration(500)
+        self.scroll_animation.setEndValue(scroll_bar.maximum())
+        self.scroll_animation.start()
+
     def add_timeline_line(
         self, name: str, data: list[tuple[int, int]], item_name: str = ""
     ) -> None:
@@ -303,7 +324,32 @@ class TimelineDock(QWidget):
     def add_timeline_scatter(
         self, name: str, data: list[tuple[int, int]], item_name: str = ""
     ) -> None:
-        self.add_timeline_plot(name, data, QScatterSeries, item_name)
+        self.add_timeline_plot(
+            name,
+            data,
+            QScatterSeries,
+            item_name,
+            Qt.GlobalColor.white
+        )
+
+    def show_context_menu(self, position: QPoint) -> None:
+        menu = neon_player.instance().main_window.get_menu("Timeline", auto_create=False)
+        if menu is None:
+            return
+
+        menu_copy = self.clone_menu(menu)
+
+        menu_copy.exec(self.mapToGlobal(position))
 
     def register_action(self, name: str, func: T.Callable) -> None:
         self.app.register_action(f"Timeline/{name}", None, func)
+
+    def clone_menu(self, menu: QMenu) -> QMenu:
+        menu_copy = QMenu(menu.title(), self)
+        for action in menu.actions():
+            if action.menu():
+                menu_copy.addMenu(self.clone_menu(action.menu()))
+            else:
+                menu_copy.addAction(action)
+
+        return menu_copy

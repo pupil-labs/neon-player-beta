@@ -22,6 +22,12 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
         neon_player.instance().aboutToQuit.connect(self.on_disabled)
 
+    def register_action(self, name: str, func: T.Callable) -> None:
+        self.app.main_window.register_action(name, None, func)
+
+    def register_timeline_action(self, name: str, func: T.Callable) -> None:
+        self.app.main_window.register_action(f"Timeline/{name}", None, func)
+
     def add_dynamic_action(self, name: str, func: T.Callable) -> None:
         my_prop_form = self.app.main_window.settings_panel.plugin_class_expanders[self.__class__.__name__].content_widget
         my_prop_form.add_action(name, func)
