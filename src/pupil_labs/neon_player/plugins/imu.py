@@ -45,24 +45,28 @@ class IMUPlugin(neon_player.Plugin):
 
         for euler_axis in ["roll", "pitch", "yaw"]:
             data = self.imu_data[["timestamp [ns]", f"{euler_axis} [deg]"]]
-            self.app.main_window.timeline_dock.add_timeline_line(
+            self.add_timeline_line(
                 "IMU Euler",
                 data.to_numpy().tolist(),
             )
 
         for gyro_axis in "xyz":
             data = self.imu_data[["timestamp [ns]", f"gyro {gyro_axis} [deg/s]"]]
-            self.app.main_window.timeline_dock.add_timeline_line(
+            self.add_timeline_line(
                 "IMU Gyro",
                 data.to_numpy().tolist(),
             )
 
         for acc_axis in "xyz":
             data = self.imu_data[["timestamp [ns]", f"acceleration {acc_axis} [g]"]]
-            self.app.main_window.timeline_dock.add_timeline_line(
+            self.add_timeline_line(
                 "IMU Acceleration",
                 data.to_numpy().tolist(),
             )
+
+    def on_disabled(self) -> None:
+        for name in ["Euler", "Gyro", "Acceleration"]:
+            self.remove_timeline_plot(f"IMU {name}")
 
     @action
     def export(self, destination: Path = Path()) -> None:

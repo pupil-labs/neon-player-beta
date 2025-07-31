@@ -68,7 +68,7 @@ def bg_optic_flow(recording_path: Path) -> T.Generator[ProgressUpdate, None, Non
 
         # get time axis
         ts_array = np.array(timestamps, dtype=np.uint64)
-        time_axis = (ts_array - recording.scene.ts[0]) / 1e9
+        time_axis = (ts_array - recording.scene.time[0]) / 1e9
 
     save_file = recording_path / "optic_flow_vectors.npz"
     logging.info(f"Saving optic flow vectors to {save_file}")
@@ -138,10 +138,10 @@ class FixationsPlugin(neon_player.Plugin):
             )
             job.finished.connect(self._load_optic_flow)
 
-        self.fixations = recording.fixations # [recording.fixations["event_type"] == 1]
+        self.fixations = recording.fixations
         self.fixation_ids = 1 + np.arange(len(self.fixations))
         for fixation_idx, fixation in enumerate(self.fixations):
-            self.app.main_window.timeline_dock.add_timeline_line(
+            self.add_timeline_line(
                 "Fixations",
                 [
                     (fixation.start_time, 0),
@@ -150,17 +150,6 @@ class FixationsPlugin(neon_player.Plugin):
                 f"Fixation {fixation_idx + 1}",
             )
 
-        #self.saccades = recording.fixations[recording.fixations["event_type"] == 0]
-        #self.saccade_ids = 1 + np.arange(len(self.saccades))
-        #for saccade_idx, saccade in enumerate(self.saccades):
-        #    self.app.main_window.timeline_dock.add_timeline_line(
-        #        "Saccades",
-        #        [
-        #            (saccade.start_ts, 0),
-        #            (saccade.end_ts, 0),
-        #        ],
-        #        f"Saccade {saccade_idx + 1}",
-        #    )
 
     def _load_optic_flow(self) -> None:
         if self.recording is None:
@@ -234,6 +223,9 @@ class FixationsPlugin(neon_player.Plugin):
             return (0.0, 0.0)
 
         return self.gaze_plugin.offset_x, self.gaze_plugin.offset_y
+
+    def on_disabled(self) -> None:
+        self.remove_timeline_plot("Fixations")
 
     @action
     def export(self, destination: Path = Path()) -> None:

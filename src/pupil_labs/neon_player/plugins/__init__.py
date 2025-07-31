@@ -47,6 +47,15 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def on_disabled(self) -> None:
         pass
 
+    def add_timeline_scatter(self, name: str, data: list[tuple[int, int]], item_name: str = "") -> None:
+        self.app.main_window.timeline_dock.add_timeline_scatter(name, data, item_name)
+
+    def add_timeline_line(self, name: str, data: list[tuple[int, int]], item_name: str = "") -> None:
+        self.app.main_window.timeline_dock.add_timeline_line(name, data, item_name)
+
+    def remove_timeline_plot(self, name: str) -> None:
+        self.app.main_window.timeline_dock.remove_timeline_plot(name)
+
     @property
     @property_params(widget=None, dont_encode=True)
     def recording(self) -> NeonRecording | None:

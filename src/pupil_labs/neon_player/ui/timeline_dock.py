@@ -71,9 +71,33 @@ class PlayHead(GUIEventNotifier, QWidget):
 class TimelineTable(GUIEventNotifier, QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.grid_layout = QGridLayout()
+        self.grid_layout = GridLayout()
         self.grid_layout.setSpacing(0)
         self.setLayout(self.grid_layout)
+
+
+class GridLayout(QGridLayout):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def row_count(self) -> int:
+        return self.count() // self.columnCount()
+
+    def delete_row(self, row: int) -> None:
+        for col in range(self.columnCount()):
+            item = self.itemAtPosition(row, col)
+            if item is not None:
+                item.widget().deleteLater()
+                self.removeItem(item)
+
+        # move all of the items in rows below this one up
+        for below_row in range(row + 1, self.row_count() + 1):
+            for col in range(self.columnCount()):
+                item = self.itemAtPosition(below_row, col)
+                if item is not None:
+                    widget = item.widget()
+                    self.removeItem(item)
+                    self.addWidget(widget, below_row - 1, col)
 
 
 class TimelineDock(QWidget):
@@ -174,7 +198,8 @@ class TimelineDock(QWidget):
     def get_chart_area(self) -> QRect:
         if self.timeline_table.grid_layout.count() == 0:
             return QRect()
-        first_chart = self.timeline_table.grid_layout.itemAtPosition(1, 2).widget()
+
+        first_chart = self.timeline_table.grid_layout.itemAtPosition(0, 1).widget()
         tl = first_chart.parent().mapToGlobal(first_chart.geometry().topLeft())
         br = first_chart.parent().mapToGlobal(first_chart.geometry().bottomRight())
 
@@ -243,22 +268,24 @@ class TimelineDock(QWidget):
                 chart.addAxis(axis, alignment)
 
             chart_view = QChartView(chart)
+            chart_view.setMaximumHeight(100)
 
             chart_view.setInteractive(True)
             self.timeline_chart_views[name] = chart_view
 
-            row_idx = self.timeline_table.grid_layout.rowCount()
-            self.timeline_table.grid_layout.addWidget(QLabel(name), row_idx, 1)
-            self.timeline_table.grid_layout.addWidget(chart_view, row_idx, 2)
+            row_idx = self.timeline_table.grid_layout.row_count()
+
+            self.timeline_table.grid_layout.addWidget(QLabel(name), row_idx, 0)
+            self.timeline_table.grid_layout.addWidget(chart_view, row_idx, 1)
 
             QTimer.singleShot(100, self.scroll_to_bottom)
-
+            QTimer.singleShot(1, self.adjust_playhead_geometry)
         else:
             chart_view = self.timeline_chart_views[name]
             chart = chart_view.chart()
 
-            for row_idx in range(self.timeline_table.grid_layout.rowCount()):
-                item = self.timeline_table.grid_layout.itemAtPosition(row_idx, 2)
+            for row_idx in range(self.timeline_table.grid_layout.row_count()):
+                item = self.timeline_table.grid_layout.itemAtPosition(row_idx, 1)
                 if item is not None and item.widget() == chart_view:
                     break
 
@@ -296,11 +323,8 @@ class TimelineDock(QWidget):
             pen = series.pen()
             pen.setWidth(15)
 
-            self.timeline_table.grid_layout.setRowStretch(row_idx, 0)
-
         else:
             pen.setWidth(2)
-            self.timeline_table.grid_layout.setRowStretch(row_idx, 1)
 
         for v_axis in chart_view.chart().axes(Qt.Orientation.Vertical):
             if chart_y_range is not None:
@@ -320,6 +344,20 @@ class TimelineDock(QWidget):
         if isinstance(h_axis, QValueAxis):
             h_axis.setTickInterval(rec.stop_time - rec.start_time)
             h_axis.setTickAnchor(rec.start_time)
+
+    def remove_timeline_plot(self, name: str) -> None:
+        if name not in self.timeline_chart_views:
+            return
+
+        chart_view = self.timeline_chart_views[name]
+        for row_idx in range(self.timeline_table.grid_layout.row_count()):
+            item = self.timeline_table.grid_layout.itemAtPosition(row_idx, 1)
+            if item.widget() == chart_view:
+                self.timeline_table.grid_layout.delete_row(row_idx)
+                del self.timeline_chart_views[name]
+                break
+
+        QTimer.singleShot(1, self.adjust_playhead_geometry)
 
     def scroll_to_bottom(self) -> None:
         scroll_bar = self.scroll_area.verticalScrollBar()
