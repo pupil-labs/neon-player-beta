@@ -21,7 +21,7 @@ from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin
 
 from .job_manager import BGWorker, JobManager
-from .settings import GeneralSettings
+from .settings import GeneralSettings, RecordingSettings
 from .ui.main_window import MainWindow
 
 
@@ -76,6 +76,7 @@ class NeonPlayerApp(QApplication):
         self.current_ts = 0
 
         self.settings = GeneralSettings()
+        self.recording_settings = None
 
         self.refresh_timer = QTimer(self)
         self.refresh_timer.setInterval(0)
@@ -97,12 +98,6 @@ class NeonPlayerApp(QApplication):
         except Exception:
             logging.exception("Failed to load settings")
 
-        for plugin_class in Plugin.known_classes:
-            enabled = plugin_class.__name__ in self.settings.enabled_plugin_names
-            if enabled:
-                state = self.settings.plugin_states.get(plugin_class.__name__, {})
-                self.toggle_plugin(plugin_class, True, state)
-
         if args.recording:
             QTimer.singleShot(1, lambda: self.load(Path(args.recording)))
 
@@ -120,6 +115,14 @@ class NeonPlayerApp(QApplication):
             data = self.settings.to_dict()
             with settings_path.open("w") as f:
                 json.dump(data, f, cls=ComplexEncoder)
+
+            if self.recording:
+                settings_path = self.recording._rec_dir / ".neon_player" / "settings.json"
+                settings_path.parent.mkdir(parents=True, exist_ok=True)
+                data = self.recording_settings.to_dict()
+                with settings_path.open("w") as f:
+                    json.dump(data, f, cls=ComplexEncoder)
+
         except Exception:
             logging.exception("Failed to save settings")
             raise
@@ -165,7 +168,7 @@ class NeonPlayerApp(QApplication):
             logging.info(f"Enabling plugin {kls.__name__}")
             try:
                 if state is None:
-                    state = self.settings.plugin_states.get(kls.__name__, {})
+                    state = self.recording_settings.plugin_states.get(kls.__name__, {})
 
                 plugin: Plugin = kls.from_dict(state)
 
@@ -214,6 +217,24 @@ class NeonPlayerApp(QApplication):
         self.playback_start_anchor = 0
 
         self.main_window.on_recording_loaded(self.recording)
+
+        try:
+            settings_path = path / ".neon_player" / "settings.json"
+            if settings_path.exists():
+                logging.info(f"Loading recording settings from {settings_path}")
+                self.recording_settings = RecordingSettings.from_dict(json.loads(settings_path.read_text()))
+                for plugin_class in Plugin.known_classes:
+                    enabled = plugin_class.__name__ in self.recording_settings.enabled_plugin_names
+                    if enabled:
+                        state = self.recording_settings.plugin_states.get(plugin_class.__name__, {})
+                        self.toggle_plugin(plugin_class, True, state)
+            else:
+                self.recording_settings = RecordingSettings()
+
+        except Exception:
+            logging.exception("Failed to load settings")
+            self.recording_settings = RecordingSettings()
+
         for plugin in self.plugins:
             plugin.on_recording_loaded(self.recording)
 

@@ -215,6 +215,7 @@ class MainWindow(QMainWindow):
     ) -> QDockWidget:
         dock = QDockWidget(title, self)
         dock.setWidget(widget)
+        dock.setFeatures(dock.features() & ~QDockWidget.DockWidgetClosable)
         self.addDockWidget(area, dock)
 
         return dock
@@ -244,28 +245,28 @@ class PreferencesDialog(QDialog):
         general_settings_form = PropertyForm(app.settings)
         general_settings_form.property_changed.connect(self.on_property_changed)
         self.expander_list.add_expander(
-            "General Settings", general_settings_form, sort_key="000"
+            "Global Settings", general_settings_form, sort_key="000"
         )
 
-        class PluginListObject:
-            pass
+        if app.recording is not None:
+            class PluginListObject:
+                pass
 
-        for kls in Plugin.known_classes:
+            for kls in Plugin.known_classes:
+                def getter(self: PluginListObject, kls: type[Plugin] = kls) -> bool:
+                    return kls.__name__ in app.recording_settings.enabled_plugin_names
 
-            def getter(self: PluginListObject, kls: type[Plugin] = kls) -> bool:
-                return kls.__name__ in app.settings.enabled_plugin_names
+                def setter(
+                    self: PluginListObject, value: bool, kls: type[Plugin] = kls
+                ) -> None:
+                    app.toggle_plugin(kls, value)
 
-            def setter(
-                self: PluginListObject, value: bool, kls: type[Plugin] = kls
-            ) -> None:
-                app.toggle_plugin(kls, value)
+                prop = property(getter, setter)
+                label = kls.label if hasattr(kls, "label") else kls.__name__
+                setattr(PluginListObject, label, prop)
 
-            prop = property(getter, setter)
-            label = kls.label if hasattr(kls, "label") else kls.__name__
-            setattr(PluginListObject, label, prop)
-
-        plugins_form = PropertyForm(PluginListObject())
-        self.expander_list.add_expander("Enabled Plugins", plugins_form)
+            plugins_form = PropertyForm(PluginListObject())
+            self.expander_list.add_expander("Enabled Plugins", plugins_form)
 
     def on_property_changed(self, prop_name: str, value: typing.Any) -> None:
         neon_player.instance().save_settings()

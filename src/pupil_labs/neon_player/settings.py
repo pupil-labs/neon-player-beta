@@ -3,19 +3,11 @@ from qt_property_widgets.utilities import PersistentPropertiesMixin, property_pa
 
 from pupil_labs import neon_player
 
-
 class GeneralSettings(PersistentPropertiesMixin, QObject):
     changed = Signal()
-
     def __init__(self) -> None:
         super().__init__()
         self._skip_gray_frames_on_load = True
-        self._enabled_plugin_names = [
-            "playback_controls",
-            "GazeDataPlugin",
-            "SceneRendererPlugin",
-        ]
-        self._plugin_states: dict[str, dict] = {}
 
     @property
     def skip_gray_frames_on_load(self) -> bool:
@@ -24,6 +16,18 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     @skip_gray_frames_on_load.setter
     def skip_gray_frames_on_load(self, value: bool) -> None:
         self._skip_gray_frames_on_load = value
+
+
+class RecordingSettings(PersistentPropertiesMixin, QObject):
+    changed = Signal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._enabled_plugin_names = [
+            "GazeDataPlugin",
+            "SceneRendererPlugin",
+        ]
+        self._plugin_states: dict[str, dict] = {}
 
     @property
     @property_params(widget=None)
