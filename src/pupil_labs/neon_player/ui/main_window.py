@@ -42,7 +42,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Neon Player")
         self.resize(1200, 800)
 
-        neon_player.instance().setPalette(QPalette(QColor("#1c2021")))
+        app = neon_player.instance()
+        app.setPalette(QPalette(QColor("#1c2021")))
 
         self.setStyleSheet("""
             QWidget {
@@ -81,10 +82,6 @@ class MainWindow(QMainWindow):
                 background-color: #0f1314;
                 padding: 5px;
             }
-
-            PreferencesDialog > QLabel {
-                font-weight: bold;
-            }
         """)
 
         self.video_widget = VideoRenderWidget()
@@ -102,7 +99,13 @@ class MainWindow(QMainWindow):
         self.register_action("&Help/&About", on_triggered=self.on_about_action)
 
         self.register_action("&File/&Open", "Ctrl+o", self.on_open_action)
-        self.register_action("&File/&Preferences", "Ctrl+p", self.on_preferences_action)
+        self.register_action("&File/&Global Settings", None, self.show_global_settings)
+        self.rec_settings_action = self.register_action(
+            "&File/&Recording Settings",
+            None,
+            self.show_recording_settings
+        )
+        self.rec_settings_action.setDisabled(True)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
 
         self.register_action("&View/&Console", "Ctrl+Alt+c", self.console_window.show)
@@ -126,14 +129,27 @@ class MainWindow(QMainWindow):
         )
         self.setCorner(Qt.Corner.BottomLeftCorner, Qt.DockWidgetArea.LeftDockWidgetArea)
 
+        app.recording_loaded.connect(lambda recording: self.rec_settings_action.setDisabled(recording is None))
+
     def on_open_action(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Open Recording")
         if path:
             neon_player.instance().load(Path(path))
 
-    def on_preferences_action(self) -> None:
-        preferences_dialog = PreferencesDialog(self)
-        preferences_dialog.exec()
+    def show_global_settings(self) -> None:
+        dialog = GlobalSettingsDialog(self)
+        dialog.exec()
+
+    def show_recording_settings(self) -> None:
+        if neon_player.instance().recording is None:
+            QMessageBox.information(
+                self, "Neon Player - Recording Settings", "Please open a recording."
+            )
+
+            return
+
+        dialog = RecordingSettingsDialog(self)
+        dialog.exec()
 
     def on_quit_action(self) -> None:
         self.close()
@@ -227,51 +243,39 @@ class MainWindow(QMainWindow):
         self.video_widget.on_recording_loaded(recording)
 
 
-class PreferencesDialog(QDialog):
+class GlobalSettingsDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.setWindowTitle("Neon Player -Global Settings")
         self.setMinimumSize(400, 400)
 
         app = neon_player.instance()
 
-        self.setWindowTitle("Preferences")
-
         layout = QVBoxLayout(self)
         self.setLayout(layout)
 
-        self.expander_list = ExpanderList()
-        layout.addWidget(self.expander_list)
+        global_settings_form = PropertyForm(app.settings)
+        global_settings_form.property_changed.connect(self.on_property_changed)
 
-        general_settings_form = PropertyForm(app.settings)
-        general_settings_form.property_changed.connect(self.on_property_changed)
-        self.expander_list.add_expander(
-            "Global Settings", general_settings_form, sort_key="000"
-        )
-
-        if app.recording is not None:
-            class PluginListObject:
-                pass
-
-            for kls in Plugin.known_classes:
-                def getter(self: PluginListObject, kls: type[Plugin] = kls) -> bool:
-                    return kls.__name__ in app.recording_settings.enabled_plugin_names
-
-                def setter(
-                    self: PluginListObject, value: bool, kls: type[Plugin] = kls
-                ) -> None:
-                    app.toggle_plugin(kls, value)
-
-                prop = property(getter, setter)
-                label = kls.label if hasattr(kls, "label") else kls.__name__
-                setattr(PluginListObject, label, prop)
-
-            plugins_form = PropertyForm(PluginListObject())
-            self.expander_list.add_expander("Enabled Plugins", plugins_form)
+        layout.addWidget(QLabel("<h2>Global Settings</h2>"))
+        layout.addWidget(global_settings_form)
 
     def on_property_changed(self, prop_name: str, value: typing.Any) -> None:
         neon_player.instance().save_settings()
 
-    def on_plugin_state_changed(
-        self, plugin_class: type[Plugin], checked: bool
-    ) -> None:
-        neon_player.instance().toggle_plugin(plugin_class, checked)
+
+class RecordingSettingsDialog(QDialog):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Neon Player - Recording Settings")
+        self.setMinimumSize(400, 400)
+
+        app = neon_player.instance()
+
+        layout = QVBoxLayout(self)
+        self.setLayout(layout)
+
+        layout.addWidget(QLabel("<h2>Recording Settings</h2>"))
+
+        recording_settings_form = PropertyForm(app.recording_settings)
+        layout.addWidget(recording_settings_form)

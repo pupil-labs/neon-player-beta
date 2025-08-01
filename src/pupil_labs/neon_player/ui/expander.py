@@ -160,3 +160,11 @@ class ExpanderList(QWidget):
 
         self.container_layout.removeWidget(expander)
         expander.deleteLater()
+
+    @property
+    def searchbar_visibility(self) -> bool:
+        return self.search_widget.isVisible()
+
+    @searchbar_visibility.setter
+    def searchbar_visibility(self, value: bool) -> None:
+        self.search_widget.setVisible(value)

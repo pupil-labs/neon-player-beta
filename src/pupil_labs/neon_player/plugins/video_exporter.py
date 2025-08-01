@@ -16,7 +16,6 @@ from pupil_labs.neon_player.utilities import ndarray_from_qimage
 
 def bg_export(recording_path: Path, destination: Path) -> T.Generator:
     app = NeonPlayerApp([str(recording_path)])
-    app.load_settings()
     app.load(recording_path)
 
     if app.recording is None:

@@ -69,6 +69,8 @@ class NeonPlayerApp(QApplication):
         self._initializing = True
         super().__init__(argv)
 
+        self.setApplicationName("Neon Player")
+
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
         self.recording: nr.NeonRecording | None = None
@@ -94,7 +96,7 @@ class NeonPlayerApp(QApplication):
         self.find_plugins(Path(__file__).parent / "plugins")
 
         try:
-            self.settings = GeneralSettings.from_dict(self.load_settings())
+            self.settings = GeneralSettings.from_dict(self.load_global_settings())
         except Exception:
             logging.exception("Failed to load settings")
 
@@ -103,12 +105,16 @@ class NeonPlayerApp(QApplication):
 
         self._initializing = False
 
-    def load_settings(self) -> typing.Any:
+    def load_global_settings(self) -> typing.Any:
         settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
         logging.info(f"Loading settings from {settings_path}")
         return json.loads(settings_path.read_text())
 
     def save_settings(self) -> None:
+        if self._initializing:
+            return
+
+        logging.info("Saving settings")
         try:
             settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
             settings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -160,11 +166,16 @@ class NeonPlayerApp(QApplication):
 
     def toggle_plugin(
         self,
-        kls: type[Plugin],
+        kls: type[Plugin]|str,
         enabled: bool,
         state: dict | None = None,
     ) -> Plugin | None:
-        if enabled:
+        if isinstance(kls, str):
+            kls = Plugin.get_class_by_name(kls)
+
+        currently_enabled = kls.__name__ in self.plugins_by_class
+
+        if enabled and not currently_enabled:
             logging.info(f"Enabling plugin {kls.__name__}")
             try:
                 if state is None:
@@ -183,7 +194,7 @@ class NeonPlayerApp(QApplication):
                 logging.exception(f"Failed to enable plugin {kls}")
                 return None
 
-        else:
+        elif not enabled and currently_enabled:
             logging.info(f"Disabling plugin {kls.__name__}")
             plugin = self.plugins_by_class[kls.__name__]
 
@@ -191,16 +202,10 @@ class NeonPlayerApp(QApplication):
             del self.plugins_by_class[kls.__name__]
             self.main_window.settings_panel.remove_plugin_settings(kls.__name__)
 
-        if not self._initializing:
-            with contextlib.suppress(Exception):
-                self.save_settings()
-
         self.plugins = list(self.plugins_by_class.values())
         self.plugins.sort(key=lambda p: p.render_layer)
 
         self.main_window.video_widget.update()
-
-        return plugin
 
     def on_plugin_changed(self, plugin: Plugin) -> None:
         self.main_window.video_widget.update()
@@ -223,11 +228,6 @@ class NeonPlayerApp(QApplication):
             if settings_path.exists():
                 logging.info(f"Loading recording settings from {settings_path}")
                 self.recording_settings = RecordingSettings.from_dict(json.loads(settings_path.read_text()))
-                for plugin_class in Plugin.known_classes:
-                    enabled = plugin_class.__name__ in self.recording_settings.enabled_plugin_names
-                    if enabled:
-                        state = self.recording_settings.plugin_states.get(plugin_class.__name__, {})
-                        self.toggle_plugin(plugin_class, True, state)
             else:
                 self.recording_settings = RecordingSettings()
 
@@ -235,12 +235,21 @@ class NeonPlayerApp(QApplication):
             logging.exception("Failed to load settings")
             self.recording_settings = RecordingSettings()
 
+        self.toggle_plugins_by_settings()
+        self.recording_settings.changed.connect(self.toggle_plugins_by_settings)
+        self.recording_settings.changed.connect(self.save_settings)
+
         if self.settings.skip_gray_frames_on_load:
             self.seek_to(self.recording.scene[0].time)
         else:
             self.seek_to(self.recording.start_time)
 
         self.recording_loaded.emit(self.recording)
+
+    def toggle_plugins_by_settings(self) -> None:
+        for cls_name, enabled in self.recording_settings.enabled_plugins.items():
+            state = self.recording_settings.plugin_states.get(cls_name, {})
+            self.toggle_plugin(cls_name, enabled, state)
 
     def get_action(self, action_path: str) -> QAction:
         return self.main_window.get_action(action_path)

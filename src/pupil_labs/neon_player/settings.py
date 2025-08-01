@@ -2,6 +2,7 @@ from PySide6.QtCore import QObject, Qt, Signal
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player import Plugin
 
 class GeneralSettings(PersistentPropertiesMixin, QObject):
     changed = Signal()
@@ -23,24 +24,20 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._enabled_plugin_names = [
-            "GazeDataPlugin",
-            "SceneRendererPlugin",
-        ]
+        self._enabled_plugins = { k.__name__: False for k in Plugin.known_classes }
+        self._enabled_plugins.update({
+            "GazeDataPlugin": True,
+            "SceneRendererPlugin": True,
+        })
         self._plugin_states: dict[str, dict] = {}
 
     @property
-    @property_params(widget=None)
-    def enabled_plugin_names(self) -> list[str]:
-        app = neon_player.instance()
-        if app.applicationState() == Qt.ApplicationState.ApplicationActive:
-            return list(app.plugins_by_class.keys())
+    def enabled_plugins(self) -> dict[str, bool]:
+        return self._enabled_plugins
 
-        return self._enabled_plugin_names
-
-    @enabled_plugin_names.setter
-    def enabled_plugin_names(self, value: list[str]) -> None:
-        self._enabled_plugin_names = value.copy()
+    @enabled_plugins.setter
+    def enabled_plugins(self, value: dict[str, bool]) -> None:
+        self._enabled_plugins = value.copy()
 
     @property
     @property_params(widget=None)

@@ -97,3 +97,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @property_params(widget=None, dont_encode=True)
     def app(self) -> "NeonPlayerApp":
         return neon_player.instance()
+
+    @staticmethod
+    def get_class_by_name(name: str) -> type["Plugin"]:
+        for cls in Plugin.known_classes:
+            if cls.__name__ == name:
+                return cls
+
+        raise ValueError(f"Plugin class {name} not found")
