@@ -235,9 +235,6 @@ class NeonPlayerApp(QApplication):
             logging.exception("Failed to load settings")
             self.recording_settings = RecordingSettings()
 
-        for plugin in self.plugins:
-            plugin.on_recording_loaded(self.recording)
-
         if self.settings.skip_gray_frames_on_load:
             self.seek_to(self.recording.scene[0].time)
         else:

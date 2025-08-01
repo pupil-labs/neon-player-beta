@@ -1,3 +1,4 @@
+import logging
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
@@ -8,40 +9,24 @@ class EventsPlugin(neon_player.Plugin):
     label = "Events"
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self.add_timeline_scatter(
-            "Events",
-            [(event.time, 0) for event in self.recording.events],
-        )
-        events_by_name: dict[str, list[int]] = {}
+        self.events = {}
 
-        for event in self.recording.events:
-            event_name = str(event.event)
-            if event_name not in events_by_name:
-                events_by_name[event_name] = []
+        try:
+            cached_events = self.load_cached_json('events.json')
+        except Exception:
+            logging.exception("Failed to load events json")
+            cached_events = None
 
-            events_by_name[event_name].append(int(event.time))
-
-        for event_name, timestamps in events_by_name.items():
-            self.add_timeline_scatter(
-                f"Events/{event_name}",
-                [(ts, 0) for ts in timestamps],
-            )
-
-            if event_name not in ['recording.begin', 'recording.end']:
-                self.add_dynamic_action(
-                    f"add_{event_name}",
-                    lambda self, evt=event_name: self.add_event(evt),
-                )
-
-        self.recorded_events = events_by_name
-        self.deleted_events: dict[str, list[int]] = {}
-        self.added_events: dict[str, list[int]] = {}
-
-        self.event_names = list(events_by_name.keys()) + list(self.added_events.keys())
+        if cached_events is None:
+            for event in self.recording.events:
+                self._add_event(event.event, event.time)
+        else:
+            for name, tss in cached_events.items():
+                self._add_event(name, tss)
 
     def on_disabled(self) -> None:
         self.remove_timeline_plot("Events")
-        for event_name in self.event_names:
+        for event_name in self.events:
             self.remove_timeline_plot(f"Events/{event_name}")
 
     @action
@@ -49,24 +34,46 @@ class EventsPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        if event_name not in self.event_names:
-            self.event_names.append(event_name)
+        if event_name not in self.events:
+            self.events[event_name] = []
             self.add_timeline_scatter(
                 f"Events/{event_name}", [],
             )
 
             self.register_timeline_action(f"Add Event/{event_name}", lambda: self.add_event(event_name))
 
-    def add_event(self, event_name: str) -> None:
+    def _add_event(self, event_name: str, ts: list[int]|int) -> None:
         if self.recording is None:
             return
 
+        if not isinstance(ts, list):
+            ts = [ts]
+
+        self.add_timeline_scatter(
+            "Events", [(t, 0) for t in ts],
+        )
+
         self.add_timeline_scatter(
             f"Events/{event_name}",
-            [(self.app.current_ts, 0)],
+            [(t, 0) for t in ts],
         )
 
-        self.add_timeline_scatter(
-            "Events", [(self.app.current_ts, 0)],
-        )
+        if event_name not in self.events:
+            self.events[event_name] = []
+            if event_name not in ['recording.begin', 'recording.end']:
+                self.register_timeline_action(
+                    f"Add Event/{event_name}",
+                    lambda: self.add_event(event_name)
+                )
 
+        self.events[event_name].extend(ts)
+
+    def add_event(self, event_name: str, ts: int|None = None) -> None:
+        if self.recording is None:
+            return
+
+        if ts is None:
+            ts = self.app.current_ts
+
+        self._add_event(event_name, ts)
+        self.save_cached_json('events.json', self.events)

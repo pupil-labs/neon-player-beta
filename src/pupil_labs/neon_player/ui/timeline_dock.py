@@ -205,18 +205,13 @@ class TimelineDock(QWidget):
 
         return QRect(tl, br)
 
-    def adjust_playhead_to_mouse(self, event: QMouseEvent) -> None:
-        if not event.buttons() & Qt.MouseButton.LeftButton:
-            event.ignore()
-            return
-
+    def _adjust_playhead_to_global_pos(self, pos) -> None:
         app = neon_player.instance()
         if app.recording is None:
             return
 
-        pos = self.playhead.mapFromGlobal(event.globalPosition())
         rect = QRect(QPoint(), self.playhead.size())
-
+        pos = self.playhead.mapFromGlobal(pos)
         left = (pos - rect.topLeft()).x()
         v = left / rect.width()
         t = (
@@ -226,6 +221,8 @@ class TimelineDock(QWidget):
         )
         app.seek_to(int(t))
 
+    def adjust_playhead_to_mouse(self, event: QMouseEvent) -> None:
+        self._adjust_playhead_to_global_pos(event.globalPosition())
         event.accept()
 
     def add_timeline_plot(  # noqa: C901
@@ -389,10 +386,8 @@ class TimelineDock(QWidget):
         menu = neon_player.instance().main_window.get_menu("Timeline", auto_create=False)
         if menu is None:
             return
-
-        menu_copy = self.clone_menu(menu)
-
-        menu_copy.exec(self.mapToGlobal(position))
+        context_menu = self.clone_menu(menu)
+        context_menu.exec(self.mapToGlobal(position))
 
     def register_action(self, name: str, func: T.Callable) -> None:
         self.app.register_action(f"Timeline/{name}", None, func)

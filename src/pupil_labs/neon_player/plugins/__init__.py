@@ -1,5 +1,8 @@
+import json
 import typing as T
+from pathlib import Path
 
+from numpyencoder import NumpyEncoder
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
@@ -55,6 +58,35 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
     def remove_timeline_plot(self, name: str) -> None:
         self.app.main_window.timeline_dock.remove_timeline_plot(name)
+
+    def get_cache_path(self) -> Path:
+        if self.recording is None:
+            return None
+
+        cache_dir = self.recording._rec_dir / ".neon_player" / "cache"
+        return cache_dir / self.__class__.__name__
+
+    def load_cached_json(self, filename: str) -> T.Any:
+        if self.recording is None:
+            return None
+
+        cache_file = self.get_cache_path() / filename
+
+        if not cache_file.exists():
+            return None
+
+        with cache_file.open("r") as f:
+            return json.load(f)
+
+    def save_cached_json(self, filename: str, data: T.Any) -> None:
+        if self.recording is None:
+            return
+
+        cache_file = self.get_cache_path() / filename
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+        with cache_file.open("w") as f:
+            json.dump(data, f, cls=NumpyEncoder)
 
     @property
     @property_params(widget=None, dont_encode=True)
