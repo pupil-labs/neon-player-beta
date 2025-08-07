@@ -139,17 +139,11 @@ class FixationsPlugin(neon_player.Plugin):
             job.finished.connect(self._load_optic_flow)
 
         self.fixations = recording.fixations
-        self.fixation_ids = 1 + np.arange(len(self.fixations))
-        for fixation_idx, fixation in enumerate(self.fixations):
-            self.add_timeline_line(
-                "Fixations",
-                [
-                    (fixation.start_time, 0),
-                    (fixation.stop_time, 0),
-                ],
-                f"Fixation {fixation_idx + 1}",
-            )
 
+        self.add_timeline_broken_bar(
+            "Fixations",
+            self.fixations[["start_time", "stop_time"]]
+        )
 
     def _load_optic_flow(self) -> None:
         if self.recording is None:

@@ -171,7 +171,11 @@ class NeonPlayerApp(QApplication):
         state: dict | None = None,
     ) -> Plugin | None:
         if isinstance(kls, str):
-            kls = Plugin.get_class_by_name(kls)
+            try:
+                kls = Plugin.get_class_by_name(kls)
+            except ValueError:
+                logging.exception(f"Couldn't find plugin class: {kls}")
+                return None
 
         currently_enabled = kls.__name__ in self.plugins_by_class
 

@@ -25,14 +25,12 @@ from PySide6.QtWidgets import (
 from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ui import QtShortcutType
-from pupil_labs.neon_player.ui.expander import ExpanderList
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_recording import NeonRecording
 
 from .console import ConsoleWindow
-from .timeline_dock import TimelineDock
+from .timeline_dock import TimeLineDock
 from .video_render_widget import VideoRenderWidget
 
 
@@ -119,7 +117,7 @@ class MainWindow(QMainWindow):
             self.settings_panel, "Control Panel", Qt.DockWidgetArea.RightDockWidgetArea
         )
 
-        self.timeline_dock = TimelineDock()
+        self.timeline_dock = TimeLineDock()
         self.add_dock(
             self.timeline_dock, "Timeline", Qt.DockWidgetArea.BottomDockWidgetArea
         )
@@ -129,7 +127,9 @@ class MainWindow(QMainWindow):
         )
         self.setCorner(Qt.Corner.BottomLeftCorner, Qt.DockWidgetArea.LeftDockWidgetArea)
 
-        app.recording_loaded.connect(lambda recording: self.rec_settings_action.setDisabled(recording is None))
+        app.recording_loaded.connect(
+            lambda recording: self.rec_settings_action.setDisabled(recording is None)
+        )
 
     def on_open_action(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "Open Recording")
@@ -170,8 +170,8 @@ class MainWindow(QMainWindow):
             ),
         )
 
-    def get_menu(self, menu_path: str, auto_create: bool = True) -> typing.Union[QMenu, QMenuBar]:
-        menu: typing.Union[QMenu, QMenuBar] = self.menuBar()
+    def get_menu(self, menu_path: str, auto_create: bool = True) -> QMenu | QMenuBar:
+        menu: QMenu | QMenuBar = self.menuBar()
         parts = menu_path.split("/")
         for depth, part in enumerate(parts):
             for action in menu.actions():

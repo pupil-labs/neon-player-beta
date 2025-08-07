@@ -24,6 +24,7 @@ dependencies = [
     "opencv-python>=4.11.0.86",
     "pandas>=2.2.3",
     "pupil-labs-neon-recording>=1.0.1",
+    "pyqtgraph>=0.13.7",
     "pyside6>=6.9.0",
     "qt-property-widgets",
     "scipy>=1.15.2",

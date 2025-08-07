@@ -1,29 +1,16 @@
-import typing as T
-
-from PySide6.QtCharts import QChart, QChartView, QLineSeries, QScatterSeries, QValueAxis
-from PySide6.QtCore import QMargins, QPoint, QPropertyAnimation, QRect, Qt, QTimer
-from PySide6.QtGui import (
-    QColor,
-    QIcon,
-    QMouseEvent,
-    QPainter,
-    QPaintEvent,
-    QResizeEvent,
-    QWheelEvent,
-)
+import pyqtgraph as pg
+from PySide6.QtCore import QPoint, QRect, Qt
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMenu,
-    QScrollArea,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player.ui import GUIEventNotifier
 
 
 class TimestampLabel(QLabel):
@@ -40,67 +27,7 @@ class TimestampLabel(QLabel):
         self.setText(f"{hours:0>2,.0f}:{minutes:0>2.0f}:{seconds:0>6.3f}")
 
 
-class PlayHead(GUIEventNotifier, QWidget):
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-
-        neon_player.instance().position_changed.connect(self.on_position_changed)
-        self.player_position = 0
-
-    def on_position_changed(self, t: int) -> None:
-        app = neon_player.instance()
-        if app.recording is None:
-            return
-
-        duration = app.recording.stop_time - app.recording.start_time + 2e9
-        self.player_position = (t - app.recording.start_time + 1e9) / duration
-        self.update()
-
-    def paintEvent(self, event: QPaintEvent) -> None:
-        painter = QPainter(self)
-
-        painter.fillRect(
-            int(self.player_position * self.width() - 1),
-            0,
-            2,
-            self.height(),
-            QColor("#6d7be0"),
-        )
-
-
-class TimelineTable(GUIEventNotifier, QWidget):
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.grid_layout = GridLayout()
-        self.grid_layout.setSpacing(0)
-        self.setLayout(self.grid_layout)
-
-
-class GridLayout(QGridLayout):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def row_count(self) -> int:
-        return self.count() // self.columnCount()
-
-    def delete_row(self, row: int) -> None:
-        for col in range(self.columnCount()):
-            item = self.itemAtPosition(row, col)
-            if item is not None:
-                item.widget().deleteLater()
-                self.removeItem(item)
-
-        # move all of the items in rows below this one up
-        for below_row in range(row + 1, self.row_count() + 1):
-            for col in range(self.columnCount()):
-                item = self.itemAtPosition(below_row, col)
-                if item is not None:
-                    widget = item.widget()
-                    self.removeItem(item)
-                    self.addWidget(widget, below_row - 1, col)
-
-
-class TimelineDock(QWidget):
+class TimeLineDock(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -108,9 +35,22 @@ class TimelineDock(QWidget):
 
         app = neon_player.instance()
 
-        self.scroll_animation: QPropertyAnimation | None = None
-
-        self.timeline_chart_views: dict[str, QChartView] = {}
+        self.timeline_plots: dict[str, pg.PlotItem] = {}
+        self.timeline_labels: dict[str, pg.LabelItem] = {}
+        self.playhead_lines: dict[str, pg.InfiniteLine] = {}
+        self.plot_colors = [
+            QColor("#1f77b4"),
+            QColor("#ff7f0e"),
+            QColor("#2ca02c"),
+            QColor("#d62728"),
+            QColor("#9467bd"),
+            QColor("#8c564b"),
+            QColor("#e377c2"),
+            QColor("#7f7f7f"),
+            QColor("#bcbd22"),
+            QColor("#17becf"),
+        ]
+        self.plot_count: dict[str, int] = {}
 
         self.main_layout = QVBoxLayout()
         self.setLayout(self.main_layout)
@@ -128,269 +68,42 @@ class TimelineDock(QWidget):
 
         self.main_layout.addLayout(self.toolbar_layout)
 
-        self.header_widget = QWidget()
-        self.zoom_controls = QWidget(self.header_widget)
+        self.graphics_view = pg.GraphicsView()
+        self.graphics_layout = pg.GraphicsLayout()
+        self.graphics_view.setCentralItem(self.graphics_layout)
 
-        self.header_widget.setContentsMargins(0, 0, 0, 0)
-        self.header_widget.setMinimumSize(self.zoom_controls.size())
-
-        self.main_layout.addWidget(self.header_widget)
-
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.timeline_table = TimelineTable()
-        self.timeline_table.resized.connect(self.adjust_playhead_geometry)
-
-        self.scroll_area.setWidget(self.timeline_table)
-        self.main_layout.addWidget(self.scroll_area)
-
-        self.playhead = PlayHead(self)
-        self.playhead.mouse_pressed.connect(self.adjust_playhead_to_mouse)
-        self.playhead.mouse_moved.connect(self.adjust_playhead_to_mouse)
-        self.playhead.mouse_wheel_moved.connect(self.on_scroll_wheel)
+        self.main_layout.addWidget(self.graphics_view)
 
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
 
-    def on_scroll_wheel(self, event: QWheelEvent) -> None:
-        app = neon_player.instance()
-        if event.angleDelta().x() != 0:
-            direction = 1 if event.angleDelta().x() < 0 else -1
-            app.seek_to(app.current_ts + direction * 5e8)
-            event.accept()
-            return
+        self.setMouseTracking(True)
 
-        if event.modifiers() & Qt.ShiftModifier:
-            direction = 1 if event.angleDelta().y() < 0 else -1
-            app.seek_to(app.current_ts + direction * 5e8)
-            event.accept()
-            return
+    def on_playback_state_changed(self, is_playing: bool):
+        icon_name = "pause.svg" if is_playing else "play.svg"
+        self.play_button.setIcon(QIcon(str(neon_player.asset_path(icon_name))))
 
-        self.scroll_area.wheelEvent(event)
-
-    def on_playback_state_changed(self, is_playing: bool) -> None:
-        self.play_button.setIcon(
-            QIcon(
-                str(neon_player.asset_path("pause.svg" if is_playing else "play.svg"))
-            )
-        )
-
-    def on_position_changed(self, t: int) -> None:
+    def on_position_changed(self, t: int):
         app = neon_player.instance()
         if app.recording is None:
             return
 
         self.timestamp_label.set_time(t - app.recording.start_time)
-        self.adjust_playhead_geometry()
 
-    def resizeEvent(self, event: QResizeEvent) -> None:
-        self.adjust_playhead_geometry()
-        return super().resizeEvent(event)
-
-    def adjust_playhead_geometry(self) -> None:
-        rect = self.get_chart_area()
-        tl = self.mapFromGlobal(rect.topLeft())
-        br = self.mapFromGlobal(rect.bottomRight())
-        tl.setY(self.header_widget.geometry().top())
-        br.setY(self.scroll_area.geometry().bottom())
-        self.playhead.setGeometry(QRect(tl, br))
+        for line in self.playhead_lines.values():
+            line.setValue(t)
 
     def get_chart_area(self) -> QRect:
-        if self.timeline_table.grid_layout.count() == 0:
-            return QRect()
-
-        first_chart = self.timeline_table.grid_layout.itemAtPosition(0, 1).widget()
-        tl = first_chart.parent().mapToGlobal(first_chart.geometry().topLeft())
-        br = first_chart.parent().mapToGlobal(first_chart.geometry().bottomRight())
-
-        return QRect(tl, br)
-
-    def _adjust_playhead_to_global_pos(self, pos) -> None:
-        app = neon_player.instance()
-        if app.recording is None:
-            return
-
-        rect = QRect(QPoint(), self.playhead.size())
-        pos = self.playhead.mapFromGlobal(pos)
-        left = (pos - rect.topLeft()).x()
-        v = left / rect.width()
-        t = (
-            app.recording.start_time
-            - 1e9
-            + v * (app.recording.stop_time - app.recording.start_time + 2e9)
-        )
-        app.seek_to(int(t))
-
-    def adjust_playhead_to_mouse(self, event: QMouseEvent) -> None:
-        self._adjust_playhead_to_global_pos(event.globalPosition())
-        event.accept()
-
-    def add_timeline_plot(  # noqa: C901
-        self,
-        name: str,
-        data: list[tuple[int, int]],
-        series_cls: type = QLineSeries,
-        item_name: str = "",
-        color: QColor|None = None,
-    ) -> None:
-        app = neon_player.instance()
-        if app.recording is None:
-            return
-
-        if name not in self.timeline_chart_views:
-            chart = QChart()
-
-            chart.legend().setVisible(False)
-            chart.setTheme(QChart.ChartTheme.ChartThemeDark)
-            chart.setBackgroundVisible(False)
-            chart.layout().setContentsMargins(0, 0, 0, 0)
-            chart.setMargins(QMargins(0, 0, 0, 0))
-            chart.setBackgroundRoundness(0)
-
-            axes = {
-                Qt.AlignmentFlag.AlignBottom: QValueAxis(),
-                Qt.AlignmentFlag.AlignLeft: QValueAxis(),
-            }
-
-            axes[Qt.AlignmentFlag.AlignBottom].setRange(
-                app.recording.start_time - 1e9, app.recording.stop_time + 1e9
-            )
-            axes[Qt.AlignmentFlag.AlignBottom].setTickCount(2)
-            axes[Qt.AlignmentFlag.AlignLeft].setTickCount(3)
-
-            for alignment, axis in axes.items():
-                axis.setGridLineVisible(False)
-                axis.setLineVisible(False)
-                axis.setLabelsVisible(False)
-                chart.addAxis(axis, alignment)
-
-            chart_view = QChartView(chart)
-            chart_view.setMaximumHeight(100)
-
-            chart_view.setInteractive(True)
-            self.timeline_chart_views[name] = chart_view
-
-            row_idx = self.timeline_table.grid_layout.row_count()
-
-            self.timeline_table.grid_layout.addWidget(QLabel(name), row_idx, 0)
-            self.timeline_table.grid_layout.addWidget(chart_view, row_idx, 1)
-
-            QTimer.singleShot(100, self.scroll_to_bottom)
-            QTimer.singleShot(1, self.adjust_playhead_geometry)
-        else:
-            chart_view = self.timeline_chart_views[name]
-            chart = chart_view.chart()
-
-            for row_idx in range(self.timeline_table.grid_layout.row_count()):
-                item = self.timeline_table.grid_layout.itemAtPosition(row_idx, 1)
-                if item is not None and item.widget() == chart_view:
-                    break
-
-        series = series_cls()
-        for x, y in data:
-            series.append(x, y)
-
-        if color is not None:
-            series.setColor(color)
-
-        chart.addSeries(series)
-        for series_axis in chart.axes():
-            series.attachAxis(series_axis)
-
-        series.setVisible(True)
-
-        chart_y_range = None
-        for chart_series in chart.series():
-            if not hasattr(chart_series, "points"):
-                continue
-
-            for point in chart_series.points():
-                if chart_y_range is None:
-                    chart_y_range = [point.y(), point.y()]
-                else:
-                    chart_y_range[0] = min(chart_y_range[0], point.y())
-                    chart_y_range[1] = max(chart_y_range[1], point.y())
-
-        pen = series.pen()
-
-        if chart_y_range is not None and chart_y_range[0] == chart_y_range[1]:
-            chart_y_range[0] -= 1
-            chart_y_range[1] += 1
-
-            pen = series.pen()
-            pen.setWidth(15)
-
-        else:
-            pen.setWidth(2)
-
-        for v_axis in chart_view.chart().axes(Qt.Orientation.Vertical):
-            if chart_y_range is not None:
-                v_axis.setRange(chart_y_range[0], chart_y_range[1])
-
-        if series_cls == QLineSeries:
-            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
-            series.setPen(pen)
-        elif series_cls == QScatterSeries:
-            series.setMarkerShape(
-                QScatterSeries.MarkerShape.MarkerShapeRotatedRectangle
-            )
-            series.setMarkerSize(8)
-
-        rec = app.recording
-        h_axis = chart_view.chart().axes(Qt.Orientation.Horizontal)[0]
-        if isinstance(h_axis, QValueAxis):
-            h_axis.setTickInterval(rec.stop_time - rec.start_time)
-            h_axis.setTickAnchor(rec.start_time)
-
-    def remove_timeline_plot(self, name: str) -> None:
-        if name not in self.timeline_chart_views:
-            return
-
-        chart_view = self.timeline_chart_views[name]
-        for row_idx in range(self.timeline_table.grid_layout.row_count()):
-            item = self.timeline_table.grid_layout.itemAtPosition(row_idx, 1)
-            if item.widget() == chart_view:
-                self.timeline_table.grid_layout.delete_row(row_idx)
-                del self.timeline_chart_views[name]
-                break
-
-        QTimer.singleShot(1, self.adjust_playhead_geometry)
-
-    def scroll_to_bottom(self) -> None:
-        scroll_bar = self.scroll_area.verticalScrollBar()
-        if self.scroll_animation is not None:
-            self.scroll_animation.stop()
-
-        self.scroll_animation = QPropertyAnimation(scroll_bar, b"value")
-        self.scroll_animation.setDuration(500)
-        self.scroll_animation.setEndValue(scroll_bar.maximum())
-        self.scroll_animation.start()
-
-    def add_timeline_line(
-        self, name: str, data: list[tuple[int, int]], item_name: str = ""
-    ) -> None:
-        self.add_timeline_plot(name, data, QLineSeries, item_name)
-
-    def add_timeline_scatter(
-        self, name: str, data: list[tuple[int, int]], item_name: str = ""
-    ) -> None:
-        self.add_timeline_plot(
-            name,
-            data,
-            QScatterSeries,
-            item_name,
-            Qt.GlobalColor.white
-        )
+        return self.graphics_view.geometry()
 
     def show_context_menu(self, position: QPoint) -> None:
-        menu = neon_player.instance().main_window.get_menu("Timeline", auto_create=False)
+        menu = neon_player.instance().main_window.get_menu(
+            "Timeline", auto_create=False
+        )
         if menu is None:
             return
         context_menu = self.clone_menu(menu)
         context_menu.exec(self.mapToGlobal(position))
-
-    def register_action(self, name: str, func: T.Callable) -> None:
-        self.app.register_action(f"Timeline/{name}", None, func)
 
     def clone_menu(self, menu: QMenu) -> QMenu:
         menu_copy = QMenu(menu.title(), self)
@@ -401,3 +114,154 @@ class TimelineDock(QWidget):
                 menu_copy.addAction(action)
 
         return menu_copy
+
+    def on_plot_clicked(self, event, plot_item: pg.PlotItem):
+        app = neon_player.instance()
+        if app.recording is None:
+            return
+
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+
+        mouse_point = plot_item.getViewBox().mapSceneToView(event.scenePos())
+        time_ns = int(mouse_point.x())
+
+        time_ns = max(app.recording.start_time, time_ns)
+        time_ns = min(app.recording.stop_time, time_ns)
+
+        app.seek_to(time_ns)
+
+    def get_timeline_plot(
+        self, timeline_row_name: str, create_if_missing: bool = True
+    ) -> pg.PlotItem | None:
+        if timeline_row_name in self.timeline_plots:
+            return self.timeline_plots[timeline_row_name]
+
+        if not create_if_missing:
+            return None
+
+        app = neon_player.instance()
+        if app.recording is None:
+            return None
+
+        # Add a label for the plot
+        row = self.graphics_layout.nextRow()
+        label = pg.LabelItem(timeline_row_name, justify="right")
+        self.graphics_layout.addItem(label, row=row, col=0)
+        self.timeline_labels[timeline_row_name] = label
+
+        # Add the plot
+        plot_item = self.graphics_layout.addPlot(row=row, col=1)
+        plot_item.setMouseEnabled(x=True, y=False)
+        plot_item.setMenuEnabled(False)
+        plot_item.setXRange(
+            app.recording.start_time, app.recording.stop_time, padding=0
+        )
+        plot_item.getAxis("left").setWidth(0)
+        plot_item.getAxis("bottom").setHeight(0)
+        plot_item.showGrid(x=True, y=False, alpha=0.3)
+
+        plot_item.scene().sigMouseClicked.connect(
+            lambda event: self.on_plot_clicked(event, plot_item)
+        )
+
+        # Add a playhead line
+        playhead_line = pg.InfiniteLine(angle=90, movable=False, pen=pg.mkPen("red"))
+        plot_item.addItem(playhead_line)
+        self.playhead_lines[timeline_row_name] = playhead_line
+
+        self.timeline_plots[timeline_row_name] = plot_item
+
+        # Link x-axes of all plots
+        plots = list(self.timeline_plots.values())
+        if len(plots) > 1:
+            for i in range(1, len(plots)):
+                plots[i].setXLink(plots[0])
+
+        return plot_item
+
+    def add_timeline_plot(
+        self,
+        timeline_row_name: str,
+        data: list[tuple[int, int]],
+        plot_name: str = "",
+        **kwargs,
+    ):
+        app = neon_player.instance()
+        if app.recording is None:
+            return
+
+        plot_item = self.get_timeline_plot(timeline_row_name)
+        if plot_item is None:
+            return
+
+        plot_index = self.plot_count.get(timeline_row_name, 0)
+        color = self.plot_colors[plot_index % len(self.plot_colors)]
+        self.plot_count[timeline_row_name] = plot_index + 1
+
+        if "pen" not in kwargs:
+            kwargs["pen"] = pg.mkPen(color=color, width=2, cap="flat")
+
+        plot_item.plot(
+            [p[0] for p in data], [p[1] for p in data], name=plot_name, **kwargs
+        )
+
+    def remove_timeline_plot(self, name: str):
+        if name not in self.timeline_plots:
+            return
+
+        plot_item = self.timeline_plots[name]
+        self.graphics_layout.removeItem(plot_item)
+
+        if name in self.timeline_labels:
+            self.graphics_layout.removeItem(self.timeline_labels[name])
+            del self.timeline_labels[name]
+
+        if name in self.playhead_lines:
+            del self.playhead_lines[name]
+
+        del self.timeline_plots[name]
+        if name in self.plot_count:
+            del self.plot_count[name]
+
+    def add_timeline_line(
+        self, timeline_row_name: str, data: list[tuple[int, int]], plot_name: str = ""
+    ) -> None:
+        self.add_timeline_plot(timeline_row_name, data, plot_name)
+
+    def add_timeline_scatter(
+        self, name: str, data: list[tuple[int, int]], item_name: str = ""
+    ) -> None:
+        self.add_timeline_plot(
+            name,
+            data,
+            item_name,
+            pen=None,
+            symbol="o",
+            symbolBrush=pg.mkColor("white"),
+        )
+
+    def add_timeline_broken_bar(
+        self, timeline_row_name: str, start_and_stop_times, item_name: str = ""
+    ) -> None:
+        plot_widget = self.get_timeline_plot(timeline_row_name)
+        pen = pg.mkPen("white")
+
+        import numpy as np
+
+        # data is a list of (start, end) tuples
+        x_values = np.array(start_and_stop_times).flatten()
+        x_values = np.repeat(x_values, 3)
+
+        # y_values should be 0 when we aren't in an interval and 1 when we are
+        y_values = np.zeros(len(x_values))
+        y_values[1::6] = 1
+        y_values[2::6] = 1
+        y_values[3::6] = 1
+
+        curve1 = plot_widget.plot(x_values, y_values, pen=pen)
+        curve2 = plot_widget.plot(x_values, -y_values, pen=pen)
+
+        brush = pg.mkBrush(255, 255, 255)  # RGBA
+        fill = pg.FillBetweenItem(curve1, curve2, brush=brush)
+        plot_widget.addItem(fill)

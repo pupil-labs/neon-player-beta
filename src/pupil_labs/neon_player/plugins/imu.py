@@ -48,6 +48,7 @@ class IMUPlugin(neon_player.Plugin):
             self.add_timeline_line(
                 "IMU Euler",
                 data.to_numpy().tolist(),
+                item_name=euler_axis,
             )
 
         for gyro_axis in "xyz":
