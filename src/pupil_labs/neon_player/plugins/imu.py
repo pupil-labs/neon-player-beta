@@ -47,7 +47,7 @@ class IMUPlugin(neon_player.Plugin):
             data = self.imu_data[["timestamp [ns]", f"{euler_axis} [deg]"]]
             self.add_timeline_line(
                 "IMU Euler",
-                data.to_numpy().tolist(),
+                data.to_numpy(),
                 item_name=euler_axis,
             )
 
@@ -55,14 +55,14 @@ class IMUPlugin(neon_player.Plugin):
             data = self.imu_data[["timestamp [ns]", f"gyro {gyro_axis} [deg/s]"]]
             self.add_timeline_line(
                 "IMU Gyro",
-                data.to_numpy().tolist(),
+                data.to_numpy(),
             )
 
         for acc_axis in "xyz":
             data = self.imu_data[["timestamp [ns]", f"acceleration {acc_axis} [g]"]]
             self.add_timeline_line(
                 "IMU Acceleration",
-                data.to_numpy().tolist(),
+                data.to_numpy(),
             )
 
     def on_disabled(self) -> None:

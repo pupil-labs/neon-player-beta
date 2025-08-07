@@ -1,4 +1,6 @@
 
+import time
+
 from PySide6.QtCore import (
     QPoint,
     QSize,
@@ -6,6 +8,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QColorConstants,
+    QFont,
     QPainter,
     QPaintEvent,
     QResizeEvent,
@@ -32,6 +35,9 @@ class VideoRenderWidget(QOpenGLWidget):
         self.scale = 1.0
         self.offset = QPoint(0, 0)
 
+        self._last_frame_time = time.monotonic()
+        self._fps = 0.0
+
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.adjust_size()
 
@@ -52,7 +58,19 @@ class VideoRenderWidget(QOpenGLWidget):
         if self.ts is None:
             return
 
+        now = time.monotonic()
+        delta = now - self._last_frame_time
+        self._last_frame_time = now
+        if delta > 0:
+            instant_fps = 1.0 / delta
+            self._fps = self._fps * 0.95 + instant_fps * 0.05
+
         neon_player.instance().render_to(painter)
+
+        painter.resetTransform()
+        painter.setFont(QFont("Arial", 16))
+        painter.setPen(QColorConstants.White)
+        painter.drawText(10, 20, f"FPS: {self._fps:.2f}")
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)

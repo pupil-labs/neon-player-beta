@@ -1,5 +1,7 @@
 import logging
 
+import numpy as np
+
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_recording import NeonRecording
@@ -50,12 +52,12 @@ class EventsPlugin(neon_player.Plugin):
             ts = [ts]
 
         self.add_timeline_scatter(
-            "Events", [(t, 0) for t in ts],
+            "Events", np.array([[t, 0] for t in ts]),
         )
 
         self.add_timeline_scatter(
             f"Events/{event_name}",
-            [(t, 0) for t in ts],
+            np.array([[t, 0] for t in ts]),
         )
 
         if event_name not in self.events:
