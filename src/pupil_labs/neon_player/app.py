@@ -239,14 +239,14 @@ class NeonPlayerApp(QApplication):
             logging.exception("Failed to load settings")
             self.recording_settings = RecordingSettings()
 
-        self.toggle_plugins_by_settings()
-        self.recording_settings.changed.connect(self.toggle_plugins_by_settings)
-        self.recording_settings.changed.connect(self.save_settings)
-
         if self.settings.skip_gray_frames_on_load:
             self.seek_to(self.recording.scene[0].time)
         else:
             self.seek_to(self.recording.start_time)
+
+        self.toggle_plugins_by_settings()
+        self.recording_settings.changed.connect(self.toggle_plugins_by_settings)
+        self.recording_settings.changed.connect(self.save_settings)
 
         self.recording_loaded.emit(self.recording)
 
