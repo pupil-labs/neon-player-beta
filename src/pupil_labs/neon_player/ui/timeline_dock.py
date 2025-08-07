@@ -88,6 +88,7 @@ class TimeLineDock(QWidget):
         self.main_layout.addLayout(self.toolbar_layout)
 
         self.graphics_view = pg.GraphicsView()
+        self.graphics_view.setBackground("transparent")
         self.graphics_layout = pg.GraphicsLayout()
         self.graphics_view.setCentralItem(self.graphics_layout)
 
