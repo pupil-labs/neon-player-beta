@@ -65,6 +65,9 @@ class Plugin(PersistentPropertiesMixin, QObject):
             item_name
         )
 
+    def get_timeline_plot(self, name: str, create_if_missing: bool = False) -> None:
+        return self.app.main_window.timeline_dock.get_timeline_plot(name, create_if_missing)
+
     def remove_timeline_plot(self, name: str) -> None:
         self.app.main_window.timeline_dock.remove_timeline_plot(name)
 

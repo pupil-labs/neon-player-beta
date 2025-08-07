@@ -1,4 +1,6 @@
+import numpy as np
 import pyqtgraph as pg
+from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
 from PySide6.QtCore import QPoint, QRect, QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter
 from PySide6.QtWidgets import (
@@ -94,6 +96,8 @@ class TimeLineDock(QWidget):
 
         self.main_layout.addWidget(self.graphics_view)
 
+        self.graphics_view.scene().sigMouseClicked.connect(self.on_chart_area_clicked)
+
         self.playhead = PlayHead(self)
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
@@ -188,9 +192,7 @@ class TimeLineDock(QWidget):
         menu = neon_player.instance().main_window.get_menu(
             "Timeline", auto_create=False
         )
-        if menu is None:
-            return
-        context_menu = self.clone_menu(menu)
+        context_menu = QMenu() if menu is None else self.clone_menu(menu)
         context_menu.exec(self.mapToGlobal(position))
 
     def clone_menu(self, menu: QMenu) -> QMenu:
@@ -203,15 +205,14 @@ class TimeLineDock(QWidget):
 
         return menu_copy
 
-    def on_plot_clicked(self, event, plot_item: pg.PlotItem):
+    def on_chart_area_clicked(self, event: MouseClickEvent):
         app = neon_player.instance()
         if app.recording is None:
             return
 
-        if event.button() != Qt.MouseButton.LeftButton:
-            return
+        first_plot_item = next(iter(self.timeline_plots.values()))
 
-        mouse_point = plot_item.getViewBox().mapSceneToView(event.scenePos())
+        mouse_point = first_plot_item.getViewBox().mapSceneToView(event.scenePos())
         time_ns = int(mouse_point.x())
 
         time_ns = max(app.recording.start_time, time_ns)
@@ -220,7 +221,7 @@ class TimeLineDock(QWidget):
         app.seek_to(time_ns)
 
     def get_timeline_plot(
-        self, timeline_row_name: str, create_if_missing: bool = True
+        self, timeline_row_name: str, create_if_missing: bool = False
     ) -> pg.PlotItem | None:
         if timeline_row_name in self.timeline_plots:
             return self.timeline_plots[timeline_row_name]
@@ -252,9 +253,6 @@ class TimeLineDock(QWidget):
         plot_item.getAxis("bottom").hide()
         plot_item.showGrid(x=True, y=False, alpha=0.3)
 
-        plot_item.scene().sigMouseClicked.connect(
-            lambda event: self.on_plot_clicked(event, plot_item)
-        )
 
         self.timeline_plots[timeline_row_name] = plot_item
 
@@ -281,7 +279,7 @@ class TimeLineDock(QWidget):
         if app.recording is None:
             return
 
-        plot_item = self.get_timeline_plot(timeline_row_name)
+        plot_item = self.get_timeline_plot(timeline_row_name, True)
         if plot_item is None:
             return
 
@@ -292,9 +290,10 @@ class TimeLineDock(QWidget):
         if "pen" not in kwargs:
             kwargs["pen"] = pg.mkPen(color=color, width=2, cap="flat")
 
-        plot_item.plot(
-            data[:, 0], data[:, 1], name=plot_name, **kwargs
-        )
+        if len(data) > 0:
+            plot_item.plot(
+                data[:, 0], data[:, 1], name=plot_name, **kwargs
+            )
 
         self.update_chart_area_params()
 
@@ -333,10 +332,8 @@ class TimeLineDock(QWidget):
     def add_timeline_broken_bar(
         self, timeline_row_name: str, start_and_stop_times, item_name: str = ""
     ) -> None:
-        plot_widget = self.get_timeline_plot(timeline_row_name)
+        plot_widget = self.get_timeline_plot(timeline_row_name, True)
         pen = pg.mkPen("white")
-
-        import numpy as np
 
         # data is a list of (start, end) tuples
         x_values = np.array(start_and_stop_times).flatten()
