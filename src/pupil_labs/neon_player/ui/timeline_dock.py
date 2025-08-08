@@ -74,7 +74,6 @@ class TimeLineDock(QWidget):
             QColor("#bcbd22"),
             QColor("#17becf"),
         ]
-        self.plot_count: dict[str, int] = {}
         self.data_point_actions = {}
 
         self.main_layout = QVBoxLayout()
@@ -301,9 +300,10 @@ class TimeLineDock(QWidget):
         if plot_item is None:
             return
 
-        plot_index = self.plot_count.get(timeline_row_name, 0)
+        plot_index = len(plot_item.items)
         color = self.plot_colors[plot_index % len(self.plot_colors)]
-        self.plot_count[timeline_row_name] = plot_index + 1
+
+        logging.info(f"Adding plot {timeline_row_name}.{plot_name} to timeline {plot_index}")
 
         if "pen" not in kwargs:
             kwargs["pen"] = pg.mkPen(color=color, width=2, cap="flat")
