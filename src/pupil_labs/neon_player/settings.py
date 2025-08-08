@@ -1,8 +1,9 @@
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, Signal
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
+
 
 class GeneralSettings(PersistentPropertiesMixin, QObject):
     changed = Signal()
@@ -56,3 +57,9 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
     @plugin_states.setter
     def plugin_states(self, value: dict[str, dict]) -> None:
         self._plugin_states = value.copy()
+
+    def __setstate__(self, state: dict) -> None:
+        super().__setstate__(state)
+        for kls in Plugin.known_classes:
+            if kls.__name__ not in state["enabled_plugins"]:
+                self._enabled_plugins[kls.__name__] = False
