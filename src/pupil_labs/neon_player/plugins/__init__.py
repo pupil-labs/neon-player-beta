@@ -31,6 +31,13 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def register_timeline_action(self, name: str, func: T.Callable) -> None:
         self.app.main_window.register_action(f"Timeline/{name}", None, func)
 
+    def register_data_point_action(self, event_name: str, action_name: str, callback: T.Callable) -> None:
+        self.app.main_window.timeline_dock.register_data_point_action(
+            event_name,
+            action_name,
+            callback
+        )
+
     def add_dynamic_action(self, name: str, func: T.Callable) -> None:
         my_prop_form = self.app.main_window.settings_panel.plugin_class_expanders[self.__class__.__name__].content_widget
         my_prop_form.add_action(name, func)

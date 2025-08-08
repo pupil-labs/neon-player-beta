@@ -1,3 +1,5 @@
+import typing as T
+
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
@@ -72,6 +74,7 @@ class TimeLineDock(QWidget):
             QColor("#17becf"),
         ]
         self.plot_count: dict[str, int] = {}
+        self.data_point_actions = {}
 
         self.main_layout = QVBoxLayout()
         self.setLayout(self.main_layout)
@@ -206,6 +209,10 @@ class TimeLineDock(QWidget):
         return menu_copy
 
     def on_chart_area_clicked(self, event: MouseClickEvent):
+        if event.button() != Qt.LeftButton:
+            event.ignore()
+            return
+
         app = neon_player.instance()
         if app.recording is None:
             return
@@ -253,7 +260,6 @@ class TimeLineDock(QWidget):
         plot_item.getAxis("bottom").hide()
         plot_item.showGrid(x=True, y=False, alpha=0.3)
 
-
         self.timeline_plots[timeline_row_name] = plot_item
 
         # Link x-axes of all plots
@@ -291,9 +297,17 @@ class TimeLineDock(QWidget):
             kwargs["pen"] = pg.mkPen(color=color, width=2, cap="flat")
 
         if len(data) > 0:
-            plot_item.plot(
+            plot_data_item = plot_item.plot(
                 data[:, 0], data[:, 1], name=plot_name, **kwargs
             )
+            if hasattr(plot_data_item, "sigPointsClicked"):
+                plot_data_item.sigPointsClicked.connect(
+                    lambda _, points, event: self.on_data_point_clicked(
+                        timeline_row_name,
+                        plot_name,
+                        points, event
+                    )
+                )
 
         self.update_chart_area_params()
 
@@ -311,6 +325,20 @@ class TimeLineDock(QWidget):
         del self.timeline_plots[name]
         if name in self.plot_count:
             del self.plot_count[name]
+
+    def on_data_point_clicked(self, timeline_name, plot_name, data_points, event):
+        if timeline_name not in self.data_point_actions:
+            return
+
+        context_menu = QMenu()
+
+        for action_name, callback in self.data_point_actions[timeline_name]:
+            action = context_menu.addAction(action_name)
+            action.triggered.connect(
+                lambda _, cb=callback: cb(timeline_name, plot_name, data_points, event)
+            )
+
+        context_menu.exec(QPoint(event.screenPos().toQPoint()))
 
     def add_timeline_line(
         self, timeline_row_name: str, data: list[tuple[int, int]], plot_name: str = ""
@@ -353,3 +381,14 @@ class TimeLineDock(QWidget):
         plot_widget.addItem(fill)
 
         self.update_chart_area_params()
+
+    def register_data_point_action(
+        self,
+        row_name: str,
+        action_name: str,
+        callback: T.Callable
+    ) -> None:
+        if row_name not in self.data_point_actions:
+            self.data_point_actions[row_name] = []
+
+        self.data_point_actions[row_name].append((action_name, callback))
