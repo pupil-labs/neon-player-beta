@@ -15,6 +15,10 @@ class IMUPlugin(neon_player.Plugin):
         super().__init__()
         self.imu_data: pd.DataFrame | None = None
 
+        self._show_rotation = True
+        self._show_gyro = True
+        self._show_acceleration = True
+
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         try:
             if len(recording.imu) == 0:
@@ -43,31 +47,52 @@ class IMUPlugin(neon_player.Plugin):
             "quaternion w": recording.imu.rotation[:, 3],
         })
 
-        for euler_axis in ["roll", "pitch", "yaw"]:
-            data = self.imu_data[["timestamp [ns]", f"{euler_axis} [deg]"]]
-            self.add_timeline_line(
-                "IMU Euler",
-                data.to_numpy(),
-                item_name=euler_axis,
-            )
-
-        for gyro_axis in "xyz":
-            data = self.imu_data[["timestamp [ns]", f"gyro {gyro_axis} [deg/s]"]]
-            self.add_timeline_line(
-                "IMU Gyro",
-                data.to_numpy(),
-            )
-
-        for acc_axis in "xyz":
-            data = self.imu_data[["timestamp [ns]", f"acceleration {acc_axis} [g]"]]
-            self.add_timeline_line(
-                "IMU Acceleration",
-                data.to_numpy(),
-            )
+        self.update_plots()
 
     def on_disabled(self) -> None:
-        for name in ["Euler", "Gyro", "Acceleration"]:
-            self.remove_timeline_plot(f"IMU {name}")
+        for name in ["Rotation", "Gyroscope", "Acceleration"]:
+            self.remove_timeline_plot(name)
+
+
+    def update_plots(self) -> None:
+        if self.imu_data is None:
+            return
+
+        rotation_plot = self.get_timeline_plot("Rotation")
+        if self._show_rotation and rotation_plot is None:
+            for euler_axis in ["roll", "pitch", "yaw"]:
+                data = self.imu_data[["timestamp [ns]", f"{euler_axis} [deg]"]]
+                self.add_timeline_line(
+                    "Rotation",
+                    data.to_numpy(),
+                    item_name=euler_axis,
+                )
+        elif not self._show_rotation and rotation_plot is not None:
+            self.remove_timeline_plot("Rotation")
+
+        gyro_plot = self.get_timeline_plot("Gyroscope")
+        if self._show_gyro and gyro_plot is None:
+            for gyro_axis in "xyz":
+                data = self.imu_data[["timestamp [ns]", f"gyro {gyro_axis} [deg/s]"]]
+                self.add_timeline_line(
+                    "Gyroscope",
+                    data.to_numpy(),
+                    item_name=gyro_axis,
+            )
+        elif not self._show_gyro and gyro_plot is not None:
+            self.remove_timeline_plot("Gyroscope")
+
+        acc_plot = self.get_timeline_plot("Acceleration")
+        if self._show_acceleration and acc_plot is None:
+            for acc_axis in "xyz":
+                data = self.imu_data[["timestamp [ns]", f"acceleration {acc_axis} [g]"]]
+                self.add_timeline_line(
+                    "Acceleration",
+                    data.to_numpy(),
+                    item_name=acc_axis,
+            )
+        elif not self._show_acceleration and acc_plot is not None:
+            self.remove_timeline_plot("Acceleration")
 
     @action
     def export(self, destination: Path = Path()) -> None:
@@ -76,3 +101,30 @@ class IMUPlugin(neon_player.Plugin):
 
         export_file = destination / "imu.csv"
         self.imu_data.to_csv(export_file, index=False)
+
+    @property
+    def rotation(self) -> bool:
+        return self._show_rotation
+
+    @rotation.setter
+    def rotation(self, value: bool) -> None:
+        self._show_rotation = value
+        self.update_plots()
+
+    @property
+    def gyroscope(self) -> bool:
+        return self._show_gyro
+
+    @gyroscope.setter
+    def gyroscope(self, value: bool) -> None:
+        self._show_gyro = value
+        self.update_plots()
+
+    @property
+    def acceleration(self) -> bool:
+        return self._show_acceleration
+
+    @acceleration.setter
+    def acceleration(self, value: bool) -> None:
+        self._show_acceleration = value
+        self.update_plots()
