@@ -75,8 +75,14 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def get_timeline_plot(self, name: str, create_if_missing: bool = False) -> None:
         return self.app.main_window.timeline_dock.get_timeline_plot(name, create_if_missing)
 
+    def get_timeline_series(self, plot_name: str, series_name: str) -> None:
+        return self.app.main_window.timeline_dock.get_timeline_series(plot_name, series_name)
+
     def remove_timeline_plot(self, name: str) -> None:
         self.app.main_window.timeline_dock.remove_timeline_plot(name)
+
+    def remove_timeline_series(self, name: str, series_name: str) -> None:
+        self.app.main_window.timeline_dock.remove_timeline_series(name, series_name)
 
     def get_cache_path(self) -> Path:
         if self.recording is None:

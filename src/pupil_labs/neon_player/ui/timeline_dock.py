@@ -1,3 +1,4 @@
+import logging
 import typing as T
 
 import numpy as np
@@ -274,6 +275,17 @@ class TimeLineDock(QWidget):
 
         return plot_item
 
+    def get_timeline_series(
+        self, plot_name: str, series_name: str
+    ):
+        plot_item = self.get_timeline_plot(plot_name)
+        if plot_item is None:
+            return None
+
+        for series in plot_item.items:
+            if series.name == series_name:
+                return series
+
     def add_timeline_plot(
         self,
         timeline_row_name: str,
@@ -300,6 +312,7 @@ class TimeLineDock(QWidget):
             plot_data_item = plot_item.plot(
                 data[:, 0], data[:, 1], name=plot_name, **kwargs
             )
+            plot_data_item.name = plot_name
             if hasattr(plot_data_item, "sigPointsClicked"):
                 plot_data_item.sigPointsClicked.connect(
                     lambda _, points, event: self.on_data_point_clicked(
@@ -311,20 +324,40 @@ class TimeLineDock(QWidget):
 
         self.update_chart_area_params()
 
-    def remove_timeline_plot(self, name: str):
-        if name not in self.timeline_plots:
+    def remove_timeline_plot(self, plot_name: str):
+        plot = self.get_timeline_plot(plot_name)
+        if plot is None:
             return
 
-        plot_item = self.timeline_plots[name]
-        self.graphics_layout.removeItem(plot_item)
+        self.graphics_layout.removeItem(plot)
 
-        if name in self.timeline_labels:
-            self.graphics_layout.removeItem(self.timeline_labels[name])
-            del self.timeline_labels[name]
+        if plot_name in self.timeline_labels:
+            self.graphics_layout.removeItem(self.timeline_labels[plot_name])
+            del self.timeline_labels[plot_name]
 
-        del self.timeline_plots[name]
-        if name in self.plot_count:
-            del self.plot_count[name]
+        del self.timeline_plots[plot_name]
+
+    def remove_timeline_series(self, plot_name: str, series_name: str):
+        if plot_name not in self.timeline_plots:
+            return
+
+        plot = self.get_timeline_plot(plot_name)
+        if plot is None:
+            return
+
+        series = self.get_timeline_series(plot_name, series_name)
+        if series is None:
+            return
+
+        plot.removeItem(series)
+        if len(plot.items) == 0:
+            self.graphics_layout.removeItem(plot)
+
+            if plot_name in self.timeline_labels:
+                self.graphics_layout.removeItem(self.timeline_labels[plot_name])
+                del self.timeline_labels[plot_name]
+
+            del self.timeline_plots[plot_name]
 
     def on_data_point_clicked(self, timeline_name, plot_name, data_points, event):
         if timeline_name not in self.data_point_actions:
