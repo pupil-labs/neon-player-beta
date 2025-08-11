@@ -10,13 +10,136 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMenu,
+    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from pupil_labs import neon_player
+from pupil_labs import neon_recording as nr
 
+
+class TimeAxisItem(pg.AxisItem):
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            *args,
+            tickPen=pg.mkPen({'color': '#aaaaaa'}),
+            **kwargs
+        )
+        self.recording_start_time_ns = 0
+        self.recording_stop_time_ns = 0
+
+        self.interval = 1
+
+    def tickValues(self, minVal, maxVal, size):
+        if self.recording_start_time_ns == 0 or self.recording_stop_time_ns == 0:
+            return []
+
+        minVal = max(minVal, self.recording_start_time_ns)
+        maxVal = min(maxVal, self.recording_stop_time_ns)
+
+        # Calculate the visible time range in seconds
+        visible_range_ns = maxVal - minVal
+        visible_range_sec = visible_range_ns / 1e9
+
+        # Define nice intervals in seconds and their corresponding minor tick counts
+        intervals = [
+            (0.005, 5),
+            (0.01, 2),
+            (0.05, 5),
+            (0.1, 10),
+            (0.25, 5),
+            (0.5, 5),
+            (1.0, 10),
+            (5.0, 5),
+            (10.0, 10),
+            (30.0, 6),
+            (60.0, 6),
+            (300.0, 5),
+            (600.0, 10),
+        ]
+
+        # Find the largest interval that fits the current zoom level
+        pixels_per_second = size / visible_range_sec if visible_range_sec > 0 else 0
+        interval_sec, minor_ticks = intervals[-1]  # Start with largest interval
+
+        # Find the largest interval where ticks won't be too close together
+        for int_sec, minor_count in intervals:
+            if pixels_per_second * int_sec >= 120:  # At least 120 pixels between major ticks
+                interval_sec = int_sec
+                minor_ticks = minor_count
+                break
+
+        self.interval = interval_sec
+
+        # Calculate the first major tick at or after minVal that aligns with the interval from recording start
+        interval_ns = int(interval_sec * 1e9)
+        minor_interval_ns = interval_ns // minor_ticks
+        offset_from_start = (minVal - self.recording_start_time_ns) % interval_ns
+        first_major_tick_ns = minVal - offset_from_start
+
+        if first_major_tick_ns < self.recording_start_time_ns:
+            first_major_tick_ns += interval_ns
+
+        # Generate major and minor ticks
+        major_ticks = []
+        minor_tick_list = []
+
+        current_major_tick_ns = first_major_tick_ns
+        while current_major_tick_ns <= maxVal + interval_ns:  # Add one extra interval to ensure coverage
+            if minVal <= current_major_tick_ns <= maxVal:
+                major_ticks.append(current_major_tick_ns)
+
+            # Add minor ticks between this major tick and the next
+            for i in range(1, minor_ticks):
+                minor_tick_ns = current_major_tick_ns + i * minor_interval_ns
+                if minVal <= minor_tick_ns <= maxVal and minor_tick_ns < current_major_tick_ns + interval_ns:
+                    minor_tick_list.append(minor_tick_ns)
+
+            current_major_tick_ns += interval_ns
+
+        # Always include the start time if it's in the visible range
+        if minVal <= self.recording_start_time_ns <= maxVal:
+            if not major_ticks or major_ticks[0] != self.recording_start_time_ns:
+                major_ticks.insert(0, self.recording_start_time_ns)
+
+        # Return in the format expected by PyQtGraph: [(tick_scale, [ticks]), ...]
+        return [
+            (1.0, major_ticks),
+            (0.5, minor_tick_list)
+        ]
+
+    def tickStrings(self, values, scale, spacing):
+        if self.recording_start_time_ns == 0:
+            return ["" for _ in values]
+
+        strings = []
+        for val in values:
+            if not (self.recording_start_time_ns <= val <= self.recording_stop_time_ns):
+                strings.append("")
+                continue
+
+            relative_time_ns = val - self.recording_start_time_ns
+            hours = relative_time_ns // (1e9 * 60 * 60)
+            minutes = (relative_time_ns // (1e9 * 60)) % 60
+            seconds = (relative_time_ns // 1e9) % 60
+            ms = (relative_time_ns / 1e6) % 1000
+            string = f"{minutes:0>2.0f}:{seconds:0>2.0f}"
+
+            if self.interval < 1:
+                string += f".{ms:0>3.0f}"
+
+            if hours > 0:
+                string = f"{hours:0>2,.0f}:{string}"
+
+            strings.append(string)
+
+        return strings
+
+    def set_time_frame(self, start: int, end: int):
+        self.recording_start_time_ns = start
+        self.recording_stop_time_ns = end
 
 class TimestampLabel(QLabel):
     def __init__(self) -> None:
@@ -95,6 +218,7 @@ class TimeLineDock(QWidget):
         self.graphics_view = pg.GraphicsView()
         self.graphics_view.setBackground("transparent")
         self.graphics_layout = pg.GraphicsLayout()
+        self.graphics_layout.setSpacing(3)
         self.graphics_view.setCentralItem(self.graphics_layout)
 
         self.main_layout.addWidget(self.graphics_view)
@@ -104,6 +228,7 @@ class TimeLineDock(QWidget):
         self.playhead = PlayHead(self)
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
+        app.recording_loaded.connect(self.on_recording_loaded)
 
         self.setMouseTracking(True)
 
@@ -113,6 +238,17 @@ class TimeLineDock(QWidget):
             "x_range": None,
         }
 
+        # Add a permanent timeline with timestamps
+        self.timestamps_plot = self.get_timeline_plot(
+            "Timestamps", create_if_missing=True
+        )
+        self.timestamps_plot.showAxis("top")
+        self.timestamps_plot.setMaximumHeight(50)
+        self.timestamps_plot.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed
+        )
+
     def resizeEvent(self, event):
         self.update_chart_area_params()
         return super().resizeEvent(event)
@@ -121,8 +257,21 @@ class TimeLineDock(QWidget):
         self.update_chart_area_params()
         return super().showEvent(event)
 
+    def on_recording_loaded(self, recording: nr.NeonRecording):
+        for plot_item in self.timeline_plots.values():
+            plot_item.setXRange(
+                recording.start_time, recording.stop_time, padding=0
+            )
+            axis = plot_item.getAxis("top")
+            axis.set_time_frame(recording.start_time, recording.stop_time)
+
+        self.update_chart_area_params()
+
     def update_chart_area_params(self):
-        if len(self.timeline_plots) == 0:
+        if neon_player.instance().recording is None:
+            return
+
+        if self.timestamps_plot.getViewBox().viewRange()[0][0] == 0:
             return
 
         chart_area_global = self.get_chart_area()
@@ -137,8 +286,7 @@ class TimeLineDock(QWidget):
             chart_area_local_top_left, chart_area_local_bottom_right
         )
 
-        first_chart = next(iter(self.timeline_plots.values()))
-        self.chart_area_parameters["x_range"] = first_chart.getViewBox().viewRange()[0]
+        self.chart_area_parameters["x_range"] = self.timestamps_plot.getViewBox().viewRange()[0]
         self.chart_area_parameters["x_size"] = self.chart_area_parameters["x_range"][1] - self.chart_area_parameters["x_range"][0]
 
         self.update_playhead_geometry()
@@ -228,7 +376,7 @@ class TimeLineDock(QWidget):
         app.seek_to(time_ns)
 
     def get_timeline_plot(
-        self, timeline_row_name: str, create_if_missing: bool = False
+        self, timeline_row_name: str, create_if_missing: bool = False, **kwargs
     ) -> pg.PlotItem | None:
         if timeline_row_name in self.timeline_plots:
             return self.timeline_plots[timeline_row_name]
@@ -236,28 +384,36 @@ class TimeLineDock(QWidget):
         if not create_if_missing:
             return None
 
-        app = neon_player.instance()
-        if app.recording is None:
-            return None
-
         # Add a label for the plot
         row = self.graphics_layout.nextRow()
+        if timeline_row_name == "Timestamps":
+            timeline_row_name = ""
+            time_axis = TimeAxisItem(orientation="top")
+        else:
+            time_axis = TimeAxisItem(
+                orientation="top",
+                showValues=False,
+                pen=pg.mkPen({'color': '#ffff0000'})
+            )
+
         label = pg.LabelItem(timeline_row_name, justify="right")
         self.graphics_layout.addItem(label, row=row, col=0)
         self.timeline_labels[timeline_row_name] = label
 
-        # Add the plot
-        plot_item = self.graphics_layout.addPlot(row=row, col=1)
-        plot_item.hideButtons()
+        app = neon_player.instance()
+        if app.recording is not None:
+            time_axis.set_time_frame(app.recording.start_time, app.recording.stop_time)
+
+        plot_item = pg.PlotItem(axisItems={"top": time_axis})
+        self.graphics_layout.addItem(plot_item, row=row, col=1)
+
         plot_item.setMouseEnabled(x=True, y=False)
+        plot_item.hideButtons()
         plot_item.setMenuEnabled(False)
-        plot_item.setXRange(
-            app.recording.start_time, app.recording.stop_time, padding=0
-        )
-        plot_item.getAxis("left").setWidth(0)
-        plot_item.getAxis("left").hide()
-        plot_item.getAxis("bottom").setHeight(0)
-        plot_item.getAxis("bottom").hide()
+        plot_item.setClipToView(True)
+        plot_item.hideAxis("left")
+        plot_item.hideAxis("right")
+        plot_item.hideAxis("bottom")
         plot_item.showGrid(x=True, y=False, alpha=0.3)
 
         self.timeline_plots[timeline_row_name] = plot_item
@@ -323,7 +479,6 @@ class TimeLineDock(QWidget):
                         points, event
                     )
                 )
-
         self.update_chart_area_params()
 
     def remove_timeline_plot(self, plot_name: str):
