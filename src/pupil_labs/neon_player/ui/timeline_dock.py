@@ -290,6 +290,7 @@ class TimeLineDock(QWidget):
         timeline_row_name: str,
         data: list[tuple[int, int]],
         plot_name: str = "",
+        color: QColor | None = None,
         **kwargs,
     ):
         app = neon_player.instance()
@@ -300,10 +301,11 @@ class TimeLineDock(QWidget):
         if plot_item is None:
             return
 
-        plot_index = len(plot_item.items)
-        color = self.plot_colors[plot_index % len(self.plot_colors)]
+        if color is None:
+            plot_index = len(plot_item.items)
+            color = self.plot_colors[plot_index % len(self.plot_colors)]
 
-        logging.info(f"Adding plot {timeline_row_name}.{plot_name} to timeline {plot_index}")
+        logging.info(f"Adding plot {timeline_row_name}.{plot_name} to timeline")
 
         if "pen" not in kwargs:
             kwargs["pen"] = pg.mkPen(color=color, width=2, cap="flat")
@@ -374,9 +376,9 @@ class TimeLineDock(QWidget):
         context_menu.exec(QPoint(event.screenPos().toQPoint()))
 
     def add_timeline_line(
-        self, timeline_row_name: str, data: list[tuple[int, int]], plot_name: str = ""
+        self, timeline_row_name: str, data: list[tuple[int, int]], plot_name: str = ""  , **kwargs
     ) -> None:
-        self.add_timeline_plot(timeline_row_name, data, plot_name)
+        self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
 
     def add_timeline_scatter(
         self, name: str, data: list[tuple[int, int]], item_name: str = ""

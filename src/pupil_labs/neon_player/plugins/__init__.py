@@ -60,8 +60,8 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def add_timeline_scatter(self, name: str, data: list[tuple[int, int]], item_name: str = "") -> None:
         self.app.main_window.timeline_dock.add_timeline_scatter(name, data, item_name)
 
-    def add_timeline_line(self, name: str, data: list[tuple[int, int]], item_name: str = "") -> None:
-        self.app.main_window.timeline_dock.add_timeline_line(name, data, item_name)
+    def add_timeline_line(self, name: str, data: list[tuple[int, int]], item_name: str = "", **kwargs) -> None:
+        self.app.main_window.timeline_dock.add_timeline_line(name, data, item_name, **kwargs)
 
     def add_timeline_broken_bar(
         self, timeline_row_name: str, start_and_stop_times, item_name: str = ""

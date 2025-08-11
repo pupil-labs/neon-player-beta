@@ -1,7 +1,8 @@
 from pathlib import Path
 
 import pandas as pd
-from scipy.spatial.transform import Rotation
+
+from PySide6.QtGui import QColor
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
@@ -27,16 +28,31 @@ class EyestatePlugin(neon_player.Plugin):
         self._eyelid_angle_plots = {
             f"{half} {side}": True
             for half in ("Top", "Bottom")
-            for side in ("Left", "Right")
+            for side in ("left", "right")
         }
         self._eyelid_aperture_plots = dict.fromkeys(("Left", "Right"), True)
         self.eyestate_data = None
         self.units = {
             "Pupil diameter": "mm",
             "Eyeball center": "mm",
-            "Optical axis": "mm",
             "Eyelid angle": "rad",
             "Eyelid aperture": "mm",
+        }
+
+        self.color_map = {
+            "left": QColor("#1f77b4"),
+            "right": QColor("#d62728"),
+            "left x": QColor("#1f77b4"),
+            "left y": QColor("#ff7f0e"),
+            "left z": QColor("#2ca02c"),
+            "right x": QColor("#d62728"),
+            "right y": QColor("#9467bd"),
+            "right z": QColor("#8c564b"),
+            "top left": QColor("#1f77b4"),
+            "bottom left": QColor("#ff7f0e"),
+            "top right": QColor("#d62728"),
+            "bottom right": QColor("#9467bd"),
+
         }
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
@@ -57,8 +73,8 @@ class EyestatePlugin(neon_player.Plugin):
             "eyeball center left y [mm]": eyeball.center_left[:, 1],
             "eyeball center left z [mm]": eyeball.center_left[:, 2],
             "eyeball center right x [mm]": eyeball.center_right[:, 0],
-            "eyeball center right y": eyeball.center_right[:, 1],
-            "eyeball center right z": eyeball.center_right[:, 2],
+            "eyeball center right y [mm]": eyeball.center_right[:, 1],
+            "eyeball center right z [mm]": eyeball.center_right[:, 2],
             "optical axis left x": eyeball.optical_axis_left[:, 0],
             "optical axis left y": eyeball.optical_axis_left[:, 1],
             "optical axis left z": eyeball.optical_axis_left[:, 2],
@@ -98,8 +114,10 @@ class EyestatePlugin(neon_player.Plugin):
                 if group_name in self.units:
                     key += f" [{self.units[group_name]}]"
 
+                color = self.color_map.get(plot_name.lower(), None)
+
                 data = self.eyestate_data[["timestamp [ns]", key]].to_numpy()
-                self.add_timeline_line(group_name, data, plot_name)
+                self.add_timeline_line(group_name, data, plot_name, color=color)
 
             elif not enabled and existing_plot is not None:
                 # remove plot
