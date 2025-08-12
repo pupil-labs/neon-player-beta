@@ -4,7 +4,7 @@ from pathlib import Path
 import av
 import numpy as np
 from PySide6.QtCore import QSize
-from PySide6.QtGui import QColorConstants, QImage, QPainter
+from PySide6.QtGui import QColorConstants, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 import pupil_labs.video as plv
@@ -23,13 +23,13 @@ def bg_export(recording_path: Path, destination: Path) -> T.Generator:
 
     recording = app.recording
 
-    gray_preamble = np.arange(recording.start_ts, recording.scene.ts[0], 1e9 // 30)
+    gray_preamble = np.arange(recording.start_time, recording.scene.time[0], 1e9 // 30)
     gray_prologue = np.arange(
-        recording.scene.ts[-1] + 1e9 // 30, recording.stop_ts, 1e9 // 30
+        recording.scene.time[-1] + 1e9 // 30, recording.stop_time, 1e9 // 30
     )
     combined_timestamps = np.concatenate((
         gray_preamble,
-        recording.scene.ts,
+        recording.scene.time,
         gray_prologue,
     ))
     frame_size = QSize(recording.scene.width or 1600, recording.scene.height or 1200)
@@ -101,3 +101,17 @@ class VideoExporter(neon_player.Plugin):
         self.app.render_to(painter)
         painter.end()
         frame.save(str(file_path))
+
+    @action
+    def copy_frame_to_clipboard(self) -> None:
+        frame_size = QSize(
+            self.recording.scene.width or 1, self.recording.scene.height or 1
+        )
+        frame = QImage(frame_size, QImage.Format.Format_RGB32)
+        painter = QPainter(frame)
+
+        self.app.render_to(painter)
+        painter.end()
+
+        clipboard = neon_player.instance().clipboard()
+        clipboard.setPixmap(QPixmap.fromImage(frame))
