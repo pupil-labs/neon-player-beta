@@ -12,6 +12,9 @@ from PySide6.QtCore import QObject, QTimer, Signal
 
 from pupil_labs import neon_player
 
+# Set the start method at module level before any multiprocessing objects are created
+mp.set_start_method('spawn', force=True)
+
 
 class ProgressUpdate:
     def __init__(self, progress: float, datum: T.Any = None) -> None:
@@ -72,6 +75,7 @@ class BGWorker:
     _job_counter = 0
     _log_queue = None
     _log_listener = None
+    _job_counter_lock = mp.Lock()  # Lock for job counter
 
     @classmethod
     def setup_logging(cls) -> None:
@@ -97,8 +101,9 @@ class BGWorker:
         super().__init__()
         self.qt_helper = BGWorkerQtHelper(self)
         self.name = name
-        BGWorker._job_counter += 1
-        self.id = BGWorker._job_counter
+        with BGWorker._job_counter_lock:
+            BGWorker._job_counter += 1
+            self.id = BGWorker._job_counter
 
         ctx = mp.get_context("spawn")
 
@@ -114,7 +119,8 @@ class BGWorker:
         )
         self.pipe = pipe_recv
         self.pipe_send = pipe_send
-        self.progress = 0.0
+        self._progress = 0.0
+        self._progress_lock = mp.Lock()  # Lock for progress updates
 
         self.finished = self.qt_helper.finished
         self.canceled = self.qt_helper.canceled
@@ -229,6 +235,16 @@ class BGWorker:
 
         if self.process is not None:
             self.process.join(timeout)
+
+    @property
+    def progress(self) -> float:
+        with self._progress_lock:
+            return self._progress
+
+    @progress.setter
+    def progress(self, value: float) -> None:
+        with self._progress_lock:
+            self._progress = value
 
     @property
     def was_completed(self) -> bool:
