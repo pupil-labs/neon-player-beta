@@ -5,7 +5,7 @@ from pathlib import Path
 import pkg_resources
 from qt_property_widgets.utilities import action as object_action
 
-from pupil_labs.neon_player.job_manager import BGWorker, ProgressUpdate
+from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_player.plugins import Plugin
 
 if T.TYPE_CHECKING:

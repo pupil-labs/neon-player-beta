@@ -5,7 +5,6 @@ from .app import NeonPlayerApp
 
 
 def main() -> None:
-    mp.set_start_method("spawn")
     app = NeonPlayerApp(sys.argv)
     sys.exit(app.run())
 

@@ -123,6 +123,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def app(self) -> "NeonPlayerApp":
         return neon_player.instance()
 
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def job_manager(self) -> "JobManager":
+        return neon_player.instance().job_manager
+
     @staticmethod
     def get_class_by_name(name: str) -> type["Plugin"]:
         for cls in Plugin.known_classes:

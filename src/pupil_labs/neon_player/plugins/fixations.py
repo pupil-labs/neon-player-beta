@@ -24,95 +24,6 @@ from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries import FixationTimeseries
 
 
-def bg_optic_flow(recording_path: Path) -> T.Generator[ProgressUpdate, None, None]:
-    recording = nr.open(recording_path)
-
-    previous_frame = None
-    list_delta_vec = []
-    timestamps = []
-    delta_time = []
-
-    progress_total = len(recording.scene) + 10
-
-    for frame_idx, frame in enumerate(recording.scene):
-        if previous_frame is not None:
-            # get optic flow vectors on a grid
-            delta_vec, _, _ = calc_grid_optic_flow_LK(previous_frame.gray, frame.gray)
-
-            # average optic flow vectors over the whole image
-            delta_vec = np.nanmean(delta_vec, axis=(0, 1))
-
-            # keep results
-            list_delta_vec.append(delta_vec)
-            timestamps.append(frame.ts)
-            delta_time.append((frame.ts - previous_frame.ts) / 1e9)
-
-        previous_frame = frame
-        yield ProgressUpdate(frame_idx / progress_total)
-
-    # reshape data so that first axis is time axis
-    if not len(list_delta_vec):
-        time_axis: np.ndarray = np.array([])
-        optic_flow_x: np.ndarray = np.array([])
-        optic_flow_y: np.ndarray = np.array([])
-
-    else:
-        optic_flow_LK = np.stack(list_delta_vec, 0)
-        optic_flow_x = optic_flow_LK[:, 0]
-        optic_flow_y = optic_flow_LK[:, 1]
-        delta_time_array = np.array(delta_time).reshape(-1)
-
-        # convert to pixels/sec
-        optic_flow_x = optic_flow_x / delta_time_array
-        optic_flow_y = optic_flow_y / delta_time_array
-
-        # get time axis
-        ts_array = np.array(timestamps, dtype=np.uint64)
-        time_axis = (ts_array - recording.scene.time[0]) / 1e9
-
-    save_file = recording_path / "optic_flow_vectors.npz"
-    logging.info(f"Saving optic flow vectors to {save_file}")
-    with save_file.open("wb") as file_handle:
-        np.savez(
-            file_handle,
-            timestamps=time_axis,
-            optic_flow_x=optic_flow_x,
-            optic_flow_y=optic_flow_y,
-        )
-
-    yield ProgressUpdate(1.0)
-
-
-def bg_export(recording_path: Path, destination: Path) -> None:
-    recording = nr.open(recording_path)
-    fixations_only = recording.fixations[recording.fixations["event_type"] == 1]
-
-    scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(recording)
-    spherical_coords = cart_to_spherical(
-        unproject_points(
-            fixations_only.mean_gaze_xy,
-            scene_camera_matrix,
-            scene_distortion_coefficients,
-        )
-    )
-
-    fixations = pd.DataFrame({
-        "recording id": recording.info["recording_id"],
-        "fixation id": 1 + np.arange(len(fixations_only)),
-        "start timestamp [ns]": fixations_only.start_ts,
-        "end timestamp [ns]": fixations_only.end_ts,
-        "duration [ms]": (fixations_only.end_ts - fixations_only.start_ts) / 1e6,
-        "fixation x [px]": fixations_only.mean_gaze_xy[:, 0],
-        "fixation y [px]": fixations_only.mean_gaze_xy[:, 1],
-        "azimuth [deg]": spherical_coords[2],
-        "elevation [deg]": spherical_coords[1],
-    })
-
-    export_file = destination / "fixations.csv"
-    fixations.to_csv(export_file, index=False)
-    print(f"Wrote {export_file}")
-
-
 class FixationsPlugin(neon_player.Plugin):
     label = "Fixations"
 
@@ -132,9 +43,9 @@ class FixationsPlugin(neon_player.Plugin):
             return
 
         self._load_optic_flow()
-        if not self.optic_flow:
-            job = self.app.job_manager.create_job(
-                "Calculate optic flow", bg_optic_flow, self.recording._rec_dir
+        if not self.optic_flow and not self.app.headless:
+            job = self.job_manager.run_background_action(
+                "Calculate optic flow", "FixationsPlugin.bg_optic_flow"
             )
             job.finished.connect(self._load_optic_flow)
 
@@ -149,7 +60,7 @@ class FixationsPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        optic_flow_file = self.recording._rec_dir / "optic_flow_vectors.npz"
+        optic_flow_file = self.get_cache_path() / "optic_flow_vectors.npz"
         if optic_flow_file.exists():
             data = np.load(optic_flow_file)
             self.optic_flow = OpticFlow(
@@ -223,9 +134,32 @@ class FixationsPlugin(neon_player.Plugin):
 
     @action
     def export(self, destination: Path = Path()) -> None:
-        self.app.job_manager.create_job(
-            "Export Fixations", bg_export, self.recording._rec_dir, destination
+        fixations = self.recording.fixations
+
+        scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(self.recording)
+        spherical_coords = cart_to_spherical(
+            unproject_points(
+                fixations.mean_gaze,
+                scene_camera_matrix,
+                scene_distortion_coefficients,
+            )
         )
+
+        fixations = pd.DataFrame({
+            "recording id": self.recording.info["recording_id"],
+            "fixation id": 1 + np.arange(len(fixations)),
+            "start timestamp [ns]": fixations.start_time,
+            "end timestamp [ns]": fixations.stop_time,
+            "duration [ms]": (fixations.stop_time - fixations.start_time) / 1e6,
+            "fixation x [px]": fixations.mean_gaze[:, 0],
+            "fixation y [px]": fixations.mean_gaze[:, 1],
+            "azimuth [deg]": spherical_coords[2],
+            "elevation [deg]": spherical_coords[1],
+        })
+
+        export_file = destination / "fixations.csv"
+        fixations.to_csv(export_file, index=False)
+        print(f"Wrote {export_file}")
 
     @property
     @property_params(use_subclass_selector=True, add_button_text="Add visualization")
@@ -240,6 +174,65 @@ class FixationsPlugin(neon_player.Plugin):
             viz.changed.connect(self.changed.emit)
             if self.recording is not None:
                 viz.on_recording_loaded(self.recording)
+
+    def bg_optic_flow(self) -> T.Generator[ProgressUpdate, None, None]:
+        recording = self.app.recording
+
+        previous_frame = None
+        list_delta_vec = []
+        timestamps = []
+        delta_time = []
+
+        progress_total = len(recording.scene) + 10
+
+        for frame_idx, frame in enumerate(recording.scene):
+            if previous_frame is not None:
+                # get optic flow vectors on a grid
+                delta_vec, _, _ = calc_grid_optic_flow_LK(previous_frame.gray, frame.gray)
+
+                # average optic flow vectors over the whole image
+                delta_vec = np.nanmean(delta_vec, axis=(0, 1))
+
+                # keep results
+                list_delta_vec.append(delta_vec)
+                timestamps.append(frame.time)
+                delta_time.append((frame.time - previous_frame.time) / 1e9)
+
+            previous_frame = frame
+            yield ProgressUpdate(frame_idx / progress_total)
+
+        # reshape data so that first axis is time axis
+        if not len(list_delta_vec):
+            time_axis: np.ndarray = np.array([])
+            optic_flow_x: np.ndarray = np.array([])
+            optic_flow_y: np.ndarray = np.array([])
+
+        else:
+            optic_flow_LK = np.stack(list_delta_vec, 0)
+            optic_flow_x = optic_flow_LK[:, 0]
+            optic_flow_y = optic_flow_LK[:, 1]
+            delta_time_array = np.array(delta_time).reshape(-1)
+
+            # convert to pixels/sec
+            optic_flow_x = optic_flow_x / delta_time_array
+            optic_flow_y = optic_flow_y / delta_time_array
+
+            # get time axis
+            ts_array = np.array(timestamps, dtype=np.uint64)
+            time_axis = (ts_array - recording.scene.time[0]) / 1e9
+
+        save_file = self.get_cache_path() / "optic_flow_vectors.npz"
+        logging.info(f"Saving optic flow vectors to {save_file}")
+        save_file.parent.mkdir(parents=True, exist_ok=True)
+        with save_file.open("wb") as file_handle:
+            np.savez(
+                file_handle,
+                timestamps=time_axis,
+                optic_flow_x=optic_flow_x,
+                optic_flow_y=optic_flow_y,
+            )
+
+        yield ProgressUpdate(1.0)
 
 
 class FixationVisualization(PersistentPropertiesMixin, QObject):

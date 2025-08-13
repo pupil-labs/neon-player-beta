@@ -14,13 +14,13 @@ from PySide6.QtGui import QAction, QPainter
 from PySide6.QtWidgets import (
     QApplication,
 )
-from qt_property_widgets.utilities import ComplexEncoder
+from qt_property_widgets.utilities import ComplexEncoder, create_action_object
 
 from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin
 
-from .job_manager import BGWorker, JobManager
+from .job_manager import JobManager
 from .settings import GeneralSettings, RecordingSettings
 from .ui.main_window import MainWindow
 
@@ -57,9 +57,6 @@ def setup_logging() -> None:
     logging.info("Neon Player starting up")
     logging.info(f"Logging to file: {log_file}")
 
-    BGWorker.setup_logging()
-
-
 class NeonPlayerApp(QApplication):
     playback_state_changed = Signal(bool)
     position_changed = Signal(object)
@@ -87,9 +84,27 @@ class NeonPlayerApp(QApplication):
 
         parser = argparse.ArgumentParser()
         parser.add_argument("recording", nargs="?", default=None, help="")
-        args = parser.parse_args()
+        parser.add_argument("--progress_stream_fd", type=int, default=None)
+        parser.add_argument(
+            "--plugin-action",
+            action="append",
+            nargs="+",
+            default=[],
+            help="Run a named action with arguments",
+        )
+        parser.add_argument(
+            "--job",
+            nargs="+",
+            default=None,
+        )
+
+
+        self.args = parser.parse_args()
+
+        self.progress_stream_fd = self.args.progress_stream_fd
 
         self.main_window = MainWindow()
+
         setup_logging()
 
         # Iterate through all modules within plugins and register them
@@ -100,10 +115,40 @@ class NeonPlayerApp(QApplication):
         except Exception:
             logging.exception("Failed to load settings")
 
-        if args.recording:
-            QTimer.singleShot(1, lambda: self.load(Path(args.recording)))
+        if self.args.recording:
+            QTimer.singleShot(1, lambda: self.load(Path(self.args.recording)))
 
         self._initializing = False
+
+        if self.args.plugin_action:
+            QTimer.singleShot(100, lambda: self.run_plugin_actions(self.args.plugin_action))
+
+        if self.args.job:
+            QTimer.singleShot(100, lambda: self.run_jobs(self.args.job))
+
+    def run_jobs(self, job):
+        plugin_name, action_name = job[0].split(".")
+        job_args = job[1:]
+
+        for plugin in self.plugins:
+            if plugin.__class__.__name__ == plugin_name:
+                # use an action object to provide type conversion for arguments
+                if action_name not in plugin._action_objects:
+                    action_obj = create_action_object(
+                        getattr(plugin, action_name),
+                        plugin
+                    )
+                else:
+                    action_obj = plugin._action_objects[action_name]
+
+                keys = list(action_obj.args.keys())[1:1 + len(job_args)]
+                args = dict(zip(keys, job_args))
+                action_obj.__setstate__(args)
+                self.job_manager.work_job(action_obj())
+
+                break
+
+        self.quit()
 
     def load_global_settings(self) -> typing.Any:
         settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
@@ -216,8 +261,14 @@ class NeonPlayerApp(QApplication):
         self.save_settings()
 
     def run(self) -> int:
-        self.main_window.show()
+        if not self.headless:
+            self.main_window.show()
+
         return self.exec()
+
+    @property
+    def headless(self) -> bool:
+        return self.args.job is not None
 
     def load(self, path: Path) -> None:
         """Load a recording from the given path."""
@@ -244,7 +295,7 @@ class NeonPlayerApp(QApplication):
         else:
             self.seek_to(self.recording.start_time)
 
-        self.toggle_plugins_by_settings()
+        QTimer.singleShot(0, self.toggle_plugins_by_settings)
         self.recording_settings.changed.connect(self.toggle_plugins_by_settings)
         self.recording_settings.changed.connect(self.save_settings)
 

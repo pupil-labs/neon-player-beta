@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player.job_manager import BGWorker
+from pupil_labs.neon_player.job_manager import BackgroundJob
 
 
 class QTextEditLogger(logging.Handler):
@@ -83,7 +83,7 @@ class QTextEditLogger(logging.Handler):
 
 
 class JobProgressBar(QWidget):
-    def __init__(self, worker: BGWorker, *args: T.Any, **kwargs: T.Any) -> None:
+    def __init__(self, job: BackgroundJob, *args: T.Any, **kwargs: T.Any) -> None:
         super().__init__(*args, **kwargs)
 
         self.main_layout = QHBoxLayout()
@@ -97,11 +97,11 @@ class JobProgressBar(QWidget):
         self.cancel_button = QToolButton()
         self.cancel_button.setText("🗑")
         self.cancel_button.setAutoRaise(True)
-        self.cancel_button.clicked.connect(worker.cancel)
+        self.cancel_button.clicked.connect(job.cancel)
         self.main_layout.addWidget(self.cancel_button)
 
-        self.worker = worker
-        self.worker.qt_helper.progress_changed.connect(
+        self.worker = job
+        self.worker.progress_changed.connect(
             lambda v: self.progress_bar.setValue(v * 100)
         )
 
@@ -191,14 +191,14 @@ class ConsoleWindow(QWidget):
         self.console_widget.clear()
         logging.info("Log display cleared")
 
-    def on_job_added(self, worker: BGWorker) -> None:
-        self.job_table_layout.addRow(worker.name, JobProgressBar(worker))
+    def on_job_added(self, job: BackgroundJob) -> None:
+        self.job_table_layout.addRow(job.name, JobProgressBar(job))
 
-    def remove_job(self, worker: BGWorker) -> None:
+    def remove_job(self, job: BackgroundJob) -> None:
         for row_idx in range(self.job_table_layout.rowCount()):
             item = self.job_table_layout.itemAt(row_idx, QFormLayout.ItemRole.FieldRole)
             widget = item.widget()
-            if isinstance(widget, JobProgressBar) and widget.worker == worker:
+            if isinstance(widget, JobProgressBar) and widget.worker == job:
                 self.job_table_layout.removeRow(row_idx)
                 break
 
