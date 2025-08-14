@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pandas as pd
-
 from PySide6.QtGui import QColor
 
 from pupil_labs import neon_player
@@ -52,7 +51,6 @@ class EyestatePlugin(neon_player.Plugin):
             "bottom left": QColor("#ff7f0e"),
             "top right": QColor("#d62728"),
             "bottom right": QColor("#9467bd"),
-
         }
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
@@ -96,7 +94,11 @@ class EyestatePlugin(neon_player.Plugin):
         self._update_plot_visibilities("Eyelid aperture", self._eyelid_aperture_plots)
 
     def on_disabled(self) -> None:
-        pass
+        self.remove_timeline_plot("Pupil diameter")
+        self.remove_timeline_plot("Eyeball center")
+        self.remove_timeline_plot("Optical axis")
+        self.remove_timeline_plot("Eyelid angle")
+        self.remove_timeline_plot("Eyelid aperture")
 
     def _update_plot_visibilities(
         self,
