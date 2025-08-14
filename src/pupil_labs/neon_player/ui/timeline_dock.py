@@ -246,6 +246,9 @@ class TimeLineDock(QWidget):
             QSizePolicy.Policy.Fixed
         )
 
+    def sizeHint(self) -> QSize:
+        return QSize(100, 100)
+
     def resizeEvent(self, event):
         self.update_chart_area_params()
         return super().resizeEvent(event)

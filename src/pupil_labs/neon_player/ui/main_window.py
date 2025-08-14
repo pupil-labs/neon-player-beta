@@ -39,7 +39,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Neon Player")
-        self.resize(1200, 800)
+        self.resize(1600, 1000)
 
         app = neon_player.instance()
         app.setPalette(QPalette(QColor("#1c2021")))
