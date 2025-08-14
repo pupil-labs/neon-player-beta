@@ -20,9 +20,12 @@ class EventsPlugin(neon_player.Plugin):
             cached_events = None
 
         if cached_events is None:
-            for event_name in self.recording.events:
-                self._setup_gui_for_event(event_name.event)
-                self.events[event_name.event].append(event_name.time)
+            for event in self.recording.events:
+                self._setup_gui_for_event(event.event)
+                if event.event not in self.events:
+                    self.events[event.event] = []
+
+                self.events[event.event].append(event.time)
         else:
             self.events = cached_events
             for name in self.events:
