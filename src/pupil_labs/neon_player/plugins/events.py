@@ -3,12 +3,27 @@ import logging
 import numpy as np
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player import action
+from pupil_labs.neon_player import GlobalPluginProperties, action
 from pupil_labs.neon_recording import NeonRecording
+
+
+class EventsPluginGlobalProps(GlobalPluginProperties):
+    def __init__(self) -> None:
+        super().__init__()
+        self._global_event_types: list[str] = []
+
+    @property
+    def global_event_types(self) -> list[str]:
+        return self._global_event_types
+
+    @global_event_types.setter
+    def global_event_types(self, value: list[str]) -> None:
+        self._global_event_types = value
 
 
 class EventsPlugin(neon_player.Plugin):
     label = "Events"
+    global_properties = EventsPluginGlobalProps()
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.events = {}
@@ -33,6 +48,11 @@ class EventsPlugin(neon_player.Plugin):
 
         for event_name in self.events:
             self._update_timeline_data(event_name)
+
+        for event_name in self.global_properties.global_event_types:
+            if event_name not in self.events:
+                self.events[event_name] = []
+                self._setup_gui_for_event(event_name)
 
     def on_disabled(self) -> None:
         self.remove_timeline_plot("Events")

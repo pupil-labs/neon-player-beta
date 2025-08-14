@@ -62,8 +62,7 @@ class SettingsPanel(ExpanderList):
         class_name = cls.__name__
 
         settings_form = PropertyForm(instance)
-        label = cls.label if hasattr(cls, "label") else cls.__name__
-        expander = self.add_expander(label, settings_form)
+        expander = self.add_expander(cls.get_label(), settings_form)
         self.plugin_class_expanders[class_name] = expander
 
     def remove_plugin_settings(self, class_name: str) -> None:

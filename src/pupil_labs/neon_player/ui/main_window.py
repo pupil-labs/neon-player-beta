@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_recording import NeonRecording
@@ -259,6 +260,14 @@ class GlobalSettingsDialog(QDialog):
 
         layout.addWidget(QLabel("<h2>Global Settings</h2>"))
         layout.addWidget(global_settings_form)
+
+        layout.addWidget(QLabel("<h2>Plugin Settings</h2>"))
+        for cls in Plugin.known_classes:
+            if cls.global_properties is not None:
+                plugin_props_form = PropertyForm(cls.global_properties)
+                plugin_props_form.property_changed.connect(self.on_property_changed)
+                layout.addWidget(QLabel(f"<h3>{cls.get_label()}</h3>"))
+                layout.addWidget(plugin_props_form)
 
     def on_property_changed(self, prop_name: str, value: typing.Any) -> None:
         neon_player.instance().save_settings()

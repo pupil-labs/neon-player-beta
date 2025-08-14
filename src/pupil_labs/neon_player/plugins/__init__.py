@@ -14,9 +14,21 @@ if T.TYPE_CHECKING:
     from pupil_labs.neon_player.app import NeonPlayerApp
 
 
+class GlobalPluginProperties(PersistentPropertiesMixin):
+    _known_types: T.ClassVar[list[type["GlobalPluginProperties"]]] = []
+
+    def __init_subclass__(cls) -> None:
+        GlobalPluginProperties._known_types.append(cls)
+        return super().__init_subclass__()
+
+    def to_dict(self, include_class_name: bool = True) -> dict:
+        return super().to_dict(include_class_name=include_class_name)
+
+
 class Plugin(PersistentPropertiesMixin, QObject):
     changed = Signal()
     known_classes: T.ClassVar[list] = []
+    global_properties: T.ClassVar[GlobalPluginProperties|None] = None
 
     def __init__(self) -> None:
         super().__init__()
@@ -135,3 +147,10 @@ class Plugin(PersistentPropertiesMixin, QObject):
                 return cls
 
         raise ValueError(f"Plugin class {name} not found")
+
+    @classmethod
+    def get_label(cls: type["Plugin"]) -> str:
+        if hasattr(cls, "label"):
+            return cls.label
+
+        return cls.__name__

@@ -2,16 +2,17 @@ from PySide6.QtCore import QObject, Signal
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player import GlobalPluginProperties, Plugin
 
 
 class GeneralSettings(PersistentPropertiesMixin, QObject):
     changed = Signal()
+
     def __init__(self) -> None:
         super().__init__()
         self._skip_gray_frames_on_load = True
 
-        plugin_names = [k.get_label() for k in Plugin.known_classes]
+        plugin_names = [k.__name__ for k in Plugin.known_classes]
         plugin_names.sort()
         self._default_plugins = dict.fromkeys(plugin_names, False)
         self._default_plugins.update({
@@ -35,6 +36,23 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     @default_plugins.setter
     def default_plugins(self, value: dict[str, bool]) -> None:
         self._default_plugins = value.copy()
+
+    @property
+    @property_params(widget=None)
+    def plugin_globals(self) -> dict[str, GlobalPluginProperties]:
+        value = {}
+        for cls in Plugin.known_classes:
+            if cls.global_properties is not None:
+                value[cls.__name__] = cls.global_properties
+
+        return value
+
+    @plugin_globals.setter
+    def plugin_globals(self, value: dict[str, GlobalPluginProperties]) -> None:
+        for k, v in value.items():
+            for cls in Plugin.known_classes:
+                if k == cls.__name__:
+                    cls.global_properties = v
 
 
 class RecordingSettings(PersistentPropertiesMixin, QObject):
