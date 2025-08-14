@@ -11,6 +11,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     def __init__(self) -> None:
         super().__init__()
         self._skip_gray_frames_on_load = True
+        self._show_fps = False
 
         plugin_names = [k.__name__ for k in Plugin.known_classes]
         plugin_names.sort()
@@ -28,6 +29,14 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     @skip_gray_frames_on_load.setter
     def skip_gray_frames_on_load(self, value: bool) -> None:
         self._skip_gray_frames_on_load = value
+
+    @property
+    def show_fps(self) -> bool:
+        return self._show_fps
+
+    @show_fps.setter
+    def show_fps(self, value: bool) -> None:
+        self._show_fps = value
 
     @property
     def default_plugins(self) -> dict[str, bool]:

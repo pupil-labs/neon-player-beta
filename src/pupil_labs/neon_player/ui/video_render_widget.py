@@ -3,18 +3,20 @@ import time
 
 from PySide6.QtCore import (
     QPoint,
+    QPropertyAnimation,
     QSize,
     Qt,
 )
 from PySide6.QtGui import (
     QColorConstants,
-    QFont,
     QPainter,
     QPaintEvent,
     QResizeEvent,
 )
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
+    QGraphicsOpacityEffect,
+    QLabel,
     QWidget,
 )
 
@@ -35,8 +37,23 @@ class VideoRenderWidget(QOpenGLWidget):
         self.scale = 1.0
         self.offset = QPoint(0, 0)
 
-        self._last_frame_time = time.monotonic()
+        self._last_frame_time = None
         self._fps = 0.0
+        self.fps_label = QLabel(self)
+        self.fps_label.resize(1024, 24)
+
+        self.opacity_effect = QGraphicsOpacityEffect()
+        self.fps_label.setGraphicsEffect(self.opacity_effect)
+        self.opacity_effect.setOpacity(0.0)
+
+        self.fade_anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.fade_anim.setDuration(1000)
+        self.fade_anim.setStartValue(1.0)
+        self.fade_anim.setEndValue(0.0)
+        self.fade_anim.finished.connect(self.on_fade_finished)
+
+    def on_fade_finished(self):
+        self._last_frame_time = None
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.adjust_size()
@@ -58,19 +75,20 @@ class VideoRenderWidget(QOpenGLWidget):
         if self.ts is None:
             return
 
-        now = time.monotonic()
-        delta = now - self._last_frame_time
-        self._last_frame_time = now
-        if delta > 0:
-            instant_fps = 1.0 / delta
-            self._fps = self._fps * 0.95 + instant_fps * 0.05
+        if neon_player.instance().settings.show_fps:
+            now = time.monotonic()
+            if self._last_frame_time is not None:
+                delta = now - self._last_frame_time
+                self.fade_anim.stop()
+                instant_fps = 1.0 / delta
+                self._fps = self._fps * 0.98 + instant_fps * 0.02
+                self.fps_label.setText(f"{self._fps:.2f} fps")
+                self.opacity_effect.setOpacity(1.0)
+                self.fade_anim.start()
+
+            self._last_frame_time = now
 
         neon_player.instance().render_to(painter)
-
-        painter.resetTransform()
-        painter.setFont(QFont("Arial", 16))
-        painter.setPen(QColorConstants.White)
-        painter.drawText(10, 20, f"FPS: {self._fps:.2f}")
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
