@@ -80,9 +80,15 @@ class EventsPlugin(neon_player.Plugin):
 
             self.register_data_point_action(
                 f"Events/{event_name}",
-                "Delete event instance",
-                self.delete_event_instance
+                f"Delete {event_name} instance",
+                lambda data_point: self.delete_event_instance(f"Events/{event_name}", data_point)
             )
+
+        self.register_data_point_action(
+            f"Events/{event_name}",
+            f"Seek to this {event_name}",
+            self.seek_to_event_instance
+        )
 
     def add_event(self, event_name: str, ts: int|None = None) -> None:
         if self.recording is None:
@@ -95,13 +101,15 @@ class EventsPlugin(neon_player.Plugin):
         self.save_cached_json('events.json', self.events)
         self._update_timeline_data(event_name)
 
-    def delete_event_instance(self, timeline_name, plot_name, data_points, mouse_event) -> None:
+    def delete_event_instance(self, timeline_name, data_point) -> None:
         event_name = timeline_name.split("/", 1)[-1]
-        for point in data_points:
-            self.events[event_name].remove(point.pos().x())
+        self.events[event_name].remove(data_point[0])
 
         self.save_cached_json('events.json', self.events)
         self._update_timeline_data(event_name)
+
+    def seek_to_event_instance(self, data_point) -> None:
+        self.app.seek_to(data_point[0])
 
     def _update_timeline_data(self, event_name: str) -> None:
         plot_item = self.get_timeline_plot(f"Events/{event_name}")

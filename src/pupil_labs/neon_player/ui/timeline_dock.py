@@ -178,9 +178,6 @@ class PlayHead(QWidget):
 class TimeLineDock(QWidget):
     def __init__(self) -> None:
         super().__init__()
-        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_context_menu)
-
         app = neon_player.instance()
 
         self.timeline_plots: dict[str, pg.PlotItem] = {}
@@ -339,12 +336,12 @@ class TimeLineDock(QWidget):
             self.graphics_view.mapToGlobal(rect.bottomRight())
         )
 
-    def show_context_menu(self, position: QPoint) -> None:
+    def show_context_menu(self, global_position: QPoint) -> None:
         menu = neon_player.instance().main_window.get_menu(
             "Timeline", auto_create=False
         )
         context_menu = QMenu() if menu is None else self.clone_menu(menu)
-        context_menu.exec(self.mapToGlobal(position))
+        context_menu.exec(global_position)
 
     def clone_menu(self, menu: QMenu) -> QMenu:
         menu_copy = QMenu(menu.title(), self)
@@ -357,23 +354,43 @@ class TimeLineDock(QWidget):
         return menu_copy
 
     def on_chart_area_clicked(self, event: MouseClickEvent):
-        if event.button() != Qt.LeftButton:
-            event.ignore()
-            return
-
         app = neon_player.instance()
         if app.recording is None:
             return
 
-        first_plot_item = next(iter(self.timeline_plots.values()))
+        if event.button() == Qt.LeftButton:
+            first_plot_item = next(iter(self.timeline_plots.values()))
 
-        mouse_point = first_plot_item.getViewBox().mapSceneToView(event.scenePos())
-        time_ns = int(mouse_point.x())
+            mouse_point = first_plot_item.getViewBox().mapSceneToView(event.scenePos())
+            time_ns = int(mouse_point.x())
 
-        time_ns = max(app.recording.start_time, time_ns)
-        time_ns = min(app.recording.stop_time, time_ns)
+            time_ns = max(app.recording.start_time, time_ns)
+            time_ns = min(app.recording.stop_time, time_ns)
 
-        app.seek_to(time_ns)
+            app.seek_to(time_ns)
+            return
+
+        if event.button() == Qt.RightButton:
+            nearby_items = self.graphics_layout.scene().itemsNearEvent(event)
+            clicked_plot_item = None
+            clicked_data_point = None
+            for item in nearby_items:
+                if isinstance(item, pg.PlotItem):
+                    clicked_plot_item = item
+                elif isinstance(item, pg.ScatterPlotItem):
+                    p = item.mapFromScene(event.scenePos())
+                    spot_item = item.pointsAt(p)[0].pos()
+                    clicked_data_point = (spot_item.x(), spot_item.y())
+
+
+            if clicked_plot_item is None or clicked_data_point is None:
+                self.show_context_menu(event.screenPos().toPoint())
+                return
+
+            for k, v in self.timeline_plots.items():
+                if v == clicked_plot_item:
+                    self.on_data_point_clicked(k, clicked_data_point, event)
+                    break
 
     def get_timeline_plot(
         self, timeline_row_name: str, create_if_missing: bool = False, **kwargs
@@ -476,14 +493,7 @@ class TimeLineDock(QWidget):
                 data[:, 0], data[:, 1], name=plot_name, **kwargs
             )
             plot_data_item.name = plot_name
-            if hasattr(plot_data_item, "sigPointsClicked"):
-                plot_data_item.sigPointsClicked.connect(
-                    lambda _, points, event: self.on_data_point_clicked(
-                        timeline_row_name,
-                        plot_name,
-                        points, event
-                    )
-                )
+
         self.update_chart_area_params()
 
     def remove_timeline_plot(self, plot_name: str):
@@ -521,7 +531,7 @@ class TimeLineDock(QWidget):
 
             del self.timeline_plots[plot_name]
 
-    def on_data_point_clicked(self, timeline_name, plot_name, data_points, event):
+    def on_data_point_clicked(self, timeline_name, data_point, event):
         if timeline_name not in self.data_point_actions:
             return
 
@@ -530,7 +540,7 @@ class TimeLineDock(QWidget):
         for action_name, callback in self.data_point_actions[timeline_name]:
             action = context_menu.addAction(action_name)
             action.triggered.connect(
-                lambda _, cb=callback: cb(timeline_name, plot_name, data_points, event)
+                lambda _, cb=callback: cb(data_point)
             )
 
         context_menu.exec(QPoint(event.screenPos().toQPoint()))
