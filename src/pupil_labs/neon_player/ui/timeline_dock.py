@@ -386,9 +386,11 @@ class TimeLineDock(QWidget):
 
         # Add a label for the plot
         row = self.graphics_layout.nextRow()
+        is_timestamps_row = timeline_row_name == "Timestamps"
         if timeline_row_name == "Timestamps":
             timeline_row_name = ""
             time_axis = TimeAxisItem(orientation="top")
+
         else:
             time_axis = TimeAxisItem(
                 orientation="top",
@@ -418,15 +420,18 @@ class TimeLineDock(QWidget):
 
         self.timeline_plots[timeline_row_name] = plot_item
 
-        # Link x-axes of all plots
-        plots = list(self.timeline_plots.values())
-        if len(plots) > 1:
-            for i in range(1, len(plots)):
-                plots[i].setXLink(plots[0])
-        else:
+        if is_timestamps_row:
             plot_item.getViewBox().sigXRangeChanged.connect(
                 self.update_chart_area_params
             )
+        else:
+            # make this plot item's viewbox match the viewbox of the timestamps plot
+            plot_item.getViewBox().setXRange(
+                self.timestamps_plot.getViewBox().viewRange()[0][0],
+                self.timestamps_plot.getViewBox().viewRange()[0][1]
+            )
+            plot_item.setXLink(self.timestamps_plot)
+
 
         return plot_item
 
@@ -566,7 +571,7 @@ class TimeLineDock(QWidget):
         curve1 = plot_widget.plot(x_values, y_values, pen=pen)
         curve2 = plot_widget.plot(x_values, -y_values, pen=pen)
 
-        brush = pg.mkBrush(255, 255, 255)  # RGBA
+        brush = pg.mkBrush("white")
         fill = pg.FillBetweenItem(curve1, curve2, brush=brush)
         plot_widget.addItem(fill)
 
