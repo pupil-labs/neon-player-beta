@@ -11,6 +11,15 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         super().__init__()
         self._skip_gray_frames_on_load = True
 
+        plugin_names = [k.get_label() for k in Plugin.known_classes]
+        plugin_names.sort()
+        self._default_plugins = dict.fromkeys(plugin_names, False)
+        self._default_plugins.update({
+            "GazeDataPlugin": True,
+            "SceneRendererPlugin": True,
+            "EventsPlugin": True,
+        })
+
     @property
     def skip_gray_frames_on_load(self) -> bool:
         return self._skip_gray_frames_on_load
@@ -19,17 +28,21 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
     def skip_gray_frames_on_load(self, value: bool) -> None:
         self._skip_gray_frames_on_load = value
 
+    @property
+    def default_plugins(self) -> dict[str, bool]:
+        return self._default_plugins
+
+    @default_plugins.setter
+    def default_plugins(self, value: dict[str, bool]) -> None:
+        self._default_plugins = value.copy()
+
 
 class RecordingSettings(PersistentPropertiesMixin, QObject):
     changed = Signal()
 
     def __init__(self) -> None:
         super().__init__()
-        self._enabled_plugins = { k.__name__: False for k in Plugin.known_classes }
-        self._enabled_plugins.update({
-            "GazeDataPlugin": True,
-            "SceneRendererPlugin": True,
-        })
+        self._enabled_plugins = neon_player.instance().settings.default_plugins.copy()
         self._plugin_states: dict[str, dict] = {}
 
     @property
