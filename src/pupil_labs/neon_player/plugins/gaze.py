@@ -21,52 +21,6 @@ from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries.gaze import GazeArray
 
 
-def bg_export(recording_path: Path, destination: Path) -> None:
-    recording = nr.open(recording_path)
-
-    scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(recording)
-    fixations = recording.fixations[recording.fixations["event_type"] == 1]
-
-    fixation_ids = (
-        find_ranged_index(recording.gaze.ts, fixations.start_ts, fixations.end_ts) + 1
-    )
-
-    blink_ids = (
-        find_ranged_index(
-            recording.gaze.ts, recording.blinks.start_ts, recording.blinks.end_ts
-        )
-        + 1
-    )
-
-    spherical_coords = cart_to_spherical(
-        unproject_points(
-            recording.gaze.xy,
-            scene_camera_matrix,
-            scene_distortion_coefficients,
-        )
-    )
-
-    gaze = pd.DataFrame({
-        "recording id": recording.info["recording_id"],
-        "timestamp [ns]": recording.gaze.ts,
-        "gaze x [px]": recording.gaze.x,
-        "gaze y [px]": recording.gaze.y,
-        "worn": recording.worn.worn,
-        "fixation id": fixation_ids,
-        "blink id": blink_ids,
-        "azimuth [deg]": spherical_coords[2],
-        "elevation [deg]": spherical_coords[1],
-    })
-
-    gaze["fixation id"] = gaze["fixation id"].replace(0, None)
-    gaze["blink id"] = gaze["blink id"].replace(0, None)
-
-    export_file = destination / "gaze.csv"
-    gaze.to_csv(export_file, index=False)
-
-    logging.info(f"Wrote {export_file}")
-
-
 class GazeDataPlugin(neon_player.Plugin):
     label = "Gaze Data"
 
@@ -90,14 +44,14 @@ class GazeDataPlugin(neon_player.Plugin):
 
         scene_idx = np.searchsorted(self.recording.scene.time, time_in_recording) - 1
         if scene_idx >= len(self.recording.scene) - 1 or scene_idx < 0:
-            gaze_start_ts = time_in_recording
-            gaze_end_ts = gaze_start_ts + 1e9 / 30
+            gaze_start_time = time_in_recording
+            gaze_end_ts = gaze_start_time + 1e9 / 30
 
         else:
-            gaze_start_ts = self.recording.scene[scene_idx].time
+            gaze_start_time = self.recording.scene[scene_idx].time
             gaze_end_ts = self.recording.scene[scene_idx + 1].time
 
-        after_mask = self.recording.gaze.time >= gaze_start_ts
+        after_mask = self.recording.gaze.time >= gaze_start_time
         before_mask = self.recording.gaze.time < gaze_end_ts
         gazes = self.recording.gaze[after_mask & before_mask]
 
@@ -109,9 +63,49 @@ class GazeDataPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        self.app.job_manager.create_job(
-            "Export Gaze Data", bg_export, self.recording._rec_dir, destination
+        recording = self.recording
+
+        scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(recording)
+        fixations = recording.fixations
+
+        fixation_ids = (
+            find_ranged_index(recording.gaze.time, fixations.start_time, fixations.stop_time) + 1
         )
+
+        blink_ids = (
+            find_ranged_index(
+                recording.gaze.time, recording.blinks.start_time, recording.blinks.stop_time
+            )
+            + 1
+        )
+
+        spherical_coords = cart_to_spherical(
+            unproject_points(
+                recording.gaze.point,
+                scene_camera_matrix,
+                scene_distortion_coefficients,
+            )
+        )
+
+        gaze = pd.DataFrame({
+            "recording id": recording.info["recording_id"],
+            "timestamp [ns]": recording.gaze.time,
+            "gaze x [px]": recording.gaze.point[:, 0],
+            "gaze y [px]": recording.gaze.point[:, 1],
+            "worn": recording.worn.worn,
+            "fixation id": fixation_ids,
+            "blink id": blink_ids,
+            "azimuth [deg]": spherical_coords[2],
+            "elevation [deg]": spherical_coords[1],
+        })
+
+        gaze["fixation id"] = gaze["fixation id"].replace(0, None)
+        gaze["blink id"] = gaze["blink id"].replace(0, None)
+
+        export_file = destination / "gaze.csv"
+        gaze.to_csv(export_file, index=False)
+
+        logging.info(f"Wrote {export_file}")
 
     @property
     @property_params(min=-1, max=1, step=0.01, decimals=3)
