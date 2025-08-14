@@ -1,6 +1,8 @@
 import logging
+from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
@@ -55,6 +57,9 @@ class EventsPlugin(neon_player.Plugin):
                 self._setup_gui_for_event(event_name)
 
     def on_disabled(self) -> None:
+        if self.recording is None:
+            return
+
         self.remove_timeline_plot("Events")
         for event_name in self.events:
             self.remove_timeline_plot(f"Events/{event_name}")
@@ -123,3 +128,17 @@ class EventsPlugin(neon_player.Plugin):
             plot_item.items[0].setData(
                 np.array([[t, 0] for t in self.events[event_name]])
             )
+
+    @action
+    def export(self, destination: Path = Path(".")):
+        events_df = pd.DataFrame({
+            "recording id": self.recording.info["recording_id"],
+            "timestamp [ns]": list(self.events.values()),
+            "event": list(self.events.keys()),
+        })
+
+        events_df = events_df.explode("timestamp [ns]").reset_index(drop=True).dropna()
+        events_df["timestamp [ns]"] = events_df["timestamp [ns]"].astype(
+            self.recording.events.time.dtype
+        )
+        events_df.to_csv(destination / "events.csv", index=False)
