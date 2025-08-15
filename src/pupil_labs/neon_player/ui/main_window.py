@@ -81,6 +81,25 @@ class MainWindow(QMainWindow):
                 background-color: #0f1314;
                 padding: 5px;
             }
+
+            TextWidget>QLineEdit {
+                height: 24px;
+                border-radius: 5px;
+                border: 1px solid #555;
+                background-color: #111;
+            }
+
+            ValueListItemWidget>QPushButton {
+                width: 24px;
+                height: 20px;
+                border-radius: 5px;
+                border: 1px solid #555;
+                background-color: #440808;
+            }
+
+            ValueListItemWidget>QPushButton::hover {
+                background-color: #c11;
+            }
         """)
 
         self.video_widget = VideoRenderWidget()
@@ -248,7 +267,6 @@ class GlobalSettingsDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Neon Player -Global Settings")
-        self.setMinimumSize(400, 400)
 
         app = neon_player.instance()
 
