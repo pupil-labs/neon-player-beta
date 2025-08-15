@@ -48,8 +48,6 @@ class VideoExporter(neon_player.Plugin):
 
         with plv.Writer(destination / "world.mp4") as writer:
             for frame_idx, ts in enumerate(combined_timestamps):
-                if frame_idx > 300:
-                    break
                 rel_ts = (ts - combined_timestamps[0]) / 1e9
 
                 frame = QImage(frame_size, QImage.Format.Format_BGR888)
