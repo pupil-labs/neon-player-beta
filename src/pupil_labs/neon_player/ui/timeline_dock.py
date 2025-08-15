@@ -141,6 +141,7 @@ class TimeAxisItem(pg.AxisItem):
         self.recording_start_time_ns = start
         self.recording_stop_time_ns = end
 
+
 class TimestampLabel(QLabel):
     def __init__(self) -> None:
         super().__init__()
@@ -181,7 +182,7 @@ class TimeLineDock(QWidget):
         app = neon_player.instance()
 
         self.timeline_plots: dict[str, pg.PlotItem] = {}
-        self.timeline_labels: dict[str, pg.LabelItem] = {}
+        self.timeline_legends: dict[str, pg.LegendItem] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
             QColor("#ff7f0e"),
@@ -382,7 +383,11 @@ class TimeLineDock(QWidget):
                     clicked_plot_item = item
                 elif isinstance(item, pg.ScatterPlotItem):
                     p = item.mapFromScene(event.scenePos())
-                    spot_item = item.pointsAt(p)[0].pos()
+                    points_at = item.pointsAt(p)
+                    if len(points_at) == 0:
+                        continue
+
+                    spot_item = points_at[0].pos()
                     clicked_data_point = (spot_item.x(), spot_item.y())
 
 
@@ -404,13 +409,11 @@ class TimeLineDock(QWidget):
         if not create_if_missing:
             return None
 
-        # Add a label for the plot
         row = self.graphics_layout.nextRow()
         is_timestamps_row = timeline_row_name == "Timestamps"
-        if timeline_row_name == "Timestamps":
-            timeline_row_name = ""
-            time_axis = TimeAxisItem(orientation="top")
 
+        if is_timestamps_row:
+            time_axis = TimeAxisItem(orientation="top")
         else:
             time_axis = TimeAxisItem(
                 orientation="top",
@@ -418,16 +421,25 @@ class TimeLineDock(QWidget):
                 pen=pg.mkPen({'color': '#ffff0000'})
             )
 
-        label = pg.LabelItem(timeline_row_name, justify="right")
-        self.graphics_layout.addItem(label, row=row, col=0)
-        self.timeline_labels[timeline_row_name] = label
-
         app = neon_player.instance()
         if app.recording is not None:
             time_axis.set_time_frame(app.recording.start_time, app.recording.stop_time)
 
         plot_item = pg.PlotItem(axisItems={"top": time_axis})
+
+        legend = pg.LegendItem()
+        label = pg.LabelItem()
+        label.setText(f"<b>{timeline_row_name}</b>")
+
+        legend.layout.addItem(label, 0, 0, 1, 2)
+
+        legend.layout.setSpacing(0)
+        if not is_timestamps_row:
+            self.timeline_legends[timeline_row_name] = legend
+            self.graphics_layout.addItem(legend, row=row, col=0)
+
         self.graphics_layout.addItem(plot_item, row=row, col=1)
+
 
         plot_item.setMouseEnabled(x=True, y=False)
         plot_item.hideButtons()
@@ -445,13 +457,8 @@ class TimeLineDock(QWidget):
                 self.update_chart_area_params
             )
         else:
-            # make this plot item's viewbox match the viewbox of the timestamps plot
-            plot_item.getViewBox().setXRange(
-                self.timestamps_plot.getViewBox().viewRange()[0][0],
-                self.timestamps_plot.getViewBox().viewRange()[0][1]
-            )
-            plot_item.setXLink(self.timestamps_plot)
-
+            if self.timestamps_plot:
+                plot_item.setXLink(self.timestamps_plot)
 
         return plot_item
 
@@ -463,7 +470,7 @@ class TimeLineDock(QWidget):
             return None
 
         for series in plot_item.items:
-            if series.name == series_name:
+            if hasattr(series, 'name') and series.name == series_name:
                 return series
 
     def add_timeline_plot(
@@ -496,6 +503,10 @@ class TimeLineDock(QWidget):
                 data[:, 0], data[:, 1], name=plot_name, **kwargs
             )
             plot_data_item.name = plot_name
+            if timeline_row_name in self.timeline_legends and plot_name != "":
+                legend = self.timeline_legends[timeline_row_name]
+                legend.addItem(plot_data_item, plot_name)
+
 
         self.update_chart_area_params()
 
@@ -505,12 +516,12 @@ class TimeLineDock(QWidget):
             return
 
         self.graphics_layout.removeItem(plot)
-
-        if plot_name in self.timeline_labels:
-            self.graphics_layout.removeItem(self.timeline_labels[plot_name])
-            del self.timeline_labels[plot_name]
-
         del self.timeline_plots[plot_name]
+
+        if plot_name in self.timeline_legends:
+            legend = self.timeline_legends[plot_name]
+            self.graphics_layout.removeItem(legend)
+            del self.timeline_legends[plot_name]
 
     def remove_timeline_series(self, plot_name: str, series_name: str):
         if plot_name not in self.timeline_plots:
@@ -525,14 +536,12 @@ class TimeLineDock(QWidget):
             return
 
         plot.removeItem(series)
+        if plot_name in self.timeline_legends:
+            legend = self.timeline_legends[plot_name]
+            legend.removeItem(series_name)
+
         if len(plot.items) == 0:
-            self.graphics_layout.removeItem(plot)
-
-            if plot_name in self.timeline_labels:
-                self.graphics_layout.removeItem(self.timeline_labels[plot_name])
-                del self.timeline_labels[plot_name]
-
-            del self.timeline_plots[plot_name]
+            self.remove_timeline_plot(plot_name)
 
     def on_data_point_clicked(self, timeline_name, data_point, event):
         if timeline_name not in self.data_point_actions:
@@ -587,6 +596,11 @@ class TimeLineDock(QWidget):
         brush = pg.mkBrush("white")
         fill = pg.FillBetweenItem(curve1, curve2, brush=brush)
         plot_widget.addItem(fill)
+
+        if item_name and timeline_row_name in self.timeline_legends:
+            legend = self.timeline_legends[timeline_row_name]
+            legend.addItem(fill, name=item_name)
+
 
         self.update_chart_area_params()
 
