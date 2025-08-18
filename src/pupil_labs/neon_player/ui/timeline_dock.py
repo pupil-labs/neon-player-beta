@@ -614,3 +614,13 @@ class TimeLineDock(QWidget):
             self.data_point_actions[row_name] = []
 
         self.data_point_actions[row_name].append((action_name, callback))
+
+    def reset_view(self):
+        app = neon_player.instance()
+        if app.recording is None:
+            return
+
+        self.timestamps_plot.getViewBox().setRange(xRange=[
+            app.recording.start_time,
+            app.recording.stop_time
+        ])

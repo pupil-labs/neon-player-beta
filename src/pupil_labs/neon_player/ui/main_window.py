@@ -109,6 +109,15 @@ class MainWindow(QMainWindow):
         self.statusBar().addWidget(self.job_status_label)
 
         self.console_window = ConsoleWindow()
+        self.settings_panel = SettingsPanel()
+        self.add_dock(
+            self.settings_panel, "Control Panel", Qt.DockWidgetArea.RightDockWidgetArea
+        )
+
+        self.timeline_dock = TimeLineDock()
+        self.add_dock(
+            self.timeline_dock, "Timeline", Qt.DockWidgetArea.BottomDockWidgetArea
+        )
 
         self.register_action(
             "&Help/&Online Documentation", on_triggered=self.on_documentation_action
@@ -124,21 +133,13 @@ class MainWindow(QMainWindow):
         )
         self.rec_settings_action.setDisabled(True)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
-
         self.register_action("&View/&Console", "Ctrl+Alt+c", self.console_window.show)
-
         self.play_action = self.register_action(
             "&Playback/&Play\\Pause", "Space", self.on_play_action
         )
 
-        self.settings_panel = SettingsPanel()
-        self.add_dock(
-            self.settings_panel, "Control Panel", Qt.DockWidgetArea.RightDockWidgetArea
-        )
-
-        self.timeline_dock = TimeLineDock()
-        self.add_dock(
-            self.timeline_dock, "Timeline", Qt.DockWidgetArea.BottomDockWidgetArea
+        self.register_action(
+            "&Timeline/&Reset view", None, self.timeline_dock.reset_view
         )
 
         self.setCorner(
