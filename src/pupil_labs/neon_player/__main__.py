@@ -1,7 +1,6 @@
-import multiprocessing as mp
 import sys
 
-from .app import NeonPlayerApp
+from pupil_labs.neon_player.app import NeonPlayerApp
 
 
 def main() -> None:

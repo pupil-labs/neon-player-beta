@@ -19,11 +19,7 @@ LOG_FORMAT_STRING = (
 def instance() -> "NeonPlayerApp":
     from pupil_labs.neon_player.app import NeonPlayerApp
 
-    instance = NeonPlayerApp.instance()
-    if instance is None or not isinstance(instance, NeonPlayerApp):
-        raise RuntimeError()
-
-    return instance
+    return NeonPlayerApp.instance()
 
 
 def action(func: T.Callable) -> T.Any:

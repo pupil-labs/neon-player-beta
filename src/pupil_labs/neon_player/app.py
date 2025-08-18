@@ -1,5 +1,4 @@
 import argparse
-import contextlib
 import importlib.util
 import json
 import logging
@@ -19,10 +18,9 @@ from qt_property_widgets.utilities import ComplexEncoder, create_action_object
 from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin
-
-from .job_manager import JobManager
-from .settings import GeneralSettings, RecordingSettings
-from .ui.main_window import MainWindow
+from pupil_labs.neon_player.job_manager import JobManager
+from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
+from pupil_labs.neon_player.ui.main_window import MainWindow
 
 
 def setup_logging() -> None:
@@ -296,6 +294,7 @@ class NeonPlayerApp(QApplication):
             self.seek_to(self.recording.start_time)
 
         QTimer.singleShot(0, self.toggle_plugins_by_settings)
+        QTimer.singleShot(10, self.main_window.timeline_dock.reset_view)
         self.recording_settings.changed.connect(self.toggle_plugins_by_settings)
         self.recording_settings.changed.connect(self.save_settings)
 
