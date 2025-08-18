@@ -74,6 +74,10 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
 
     @property
     def enabled_plugins(self) -> dict[str, bool]:
+        for cls in Plugin.known_classes:
+            if cls.__name__ not in self._enabled_plugins:
+                self._enabled_plugins[cls.__name__] = False
+
         return self._enabled_plugins
 
     @enabled_plugins.setter
