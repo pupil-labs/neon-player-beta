@@ -1,3 +1,4 @@
+import logging
 import os
 import pickle
 import subprocess
@@ -130,6 +131,10 @@ class JobManager(QObject):
                     pbar.refresh()
 
     def run_background_action(self, name: str, action_name: str, *args: T.Any) -> BackgroundJob:
+        if neon_player.instance().headless:
+            logging.warning("Not starting background job in headless mode")
+            return
+
         job = BackgroundJob(
             name,
             self.job_counter,
