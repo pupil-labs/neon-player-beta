@@ -21,6 +21,7 @@ classifiers = [
 dependencies = [
     "av>=14.3.0",
     "numpy",
+    "numpyencoder>=0.3.2",
     "opencv-python>=4.11.0.86",
     "pandas>=2.2.3",
     "pupil-labs-neon-recording>=1.0.1",
@@ -29,6 +30,7 @@ dependencies = [
     "qt-property-widgets",
     "scipy>=1.15.2",
     "setuptools>=78.1.0",
+    "tqdm>=4.67.1",
 ]
 
 [project.optional-dependencies]
@@ -76,7 +78,8 @@ dev-dependencies = [
 ]
 
 [tool.uv.sources]
-qt-property-widgets = { path = "../qt-property-widgets" }
+pupil-labs-neon-recording = { git = "https://github.com/pupil-labs/pl-neon-recording", branch = "api_update" }
+qt-property-widgets = { git = "https://github.com/domstoppable/qt-property-widgets" }
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
