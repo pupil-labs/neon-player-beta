@@ -19,6 +19,16 @@ from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.job_manager import JobManager
+from pupil_labs.neon_player.plugins import (
+    audio,  # noqa: F401
+    events,  # noqa: F401
+    eyestate,  # noqa: F401
+    fixations,  # noqa: F401
+    gaze,  # noqa: F401
+    imu,  # noqa: F401
+    scene_renderer,  # noqa: F401
+    video_exporter,  # noqa: F401
+)
 from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 
@@ -106,7 +116,9 @@ class NeonPlayerApp(QApplication):
         setup_logging()
 
         # Iterate through all modules within plugins and register them
-        self.find_plugins(Path(__file__).parent / "plugins")
+        plugin_search_path = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"
+        if plugin_search_path.exists():
+            self.find_plugins(plugin_search_path)
 
         try:
             self.settings = GeneralSettings.from_dict(self.load_global_settings())
@@ -178,12 +190,13 @@ class NeonPlayerApp(QApplication):
 
     def find_plugins(self, path: Path) -> None:
         sys.path.append(str(path))
+        sys.path.append(str(path / "site-packages"))
         logging.info(f"Searching for plugins in {path}")
         for d in path.iterdir():
             if d.is_file() and d.suffix != ".py":
                 continue
 
-            if d.name == "__pycache__":
+            if d.name in ["__pycache__", "site-packages"]:
                 continue
 
             try:
