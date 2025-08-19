@@ -40,6 +40,10 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
 
     @property
     def default_plugins(self) -> dict[str, bool]:
+        for cls in Plugin.known_classes:
+            if cls.__name__ not in self._default_plugins:
+                self._default_plugins[cls.__name__] = False
+
         return self._default_plugins
 
     @default_plugins.setter
