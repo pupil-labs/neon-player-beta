@@ -224,6 +224,7 @@ class TimeLineDock(QWidget):
         self.graphics_view.scene().sigMouseClicked.connect(self.on_chart_area_clicked)
 
         self.playhead = PlayHead(self)
+        self.playhead.hide()
         app.playback_state_changed.connect(self.on_playback_state_changed)
         app.position_changed.connect(self.on_position_changed)
         app.recording_loaded.connect(self.on_recording_loaded)
@@ -259,6 +260,7 @@ class TimeLineDock(QWidget):
         return super().showEvent(event)
 
     def on_recording_loaded(self, recording: nr.NeonRecording):
+        self.playhead.show()
         for plot_item in self.timeline_plots.values():
             plot_item.setXRange(
                 recording.start_time, recording.stop_time, padding=0
