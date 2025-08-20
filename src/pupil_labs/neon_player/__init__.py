@@ -1,8 +1,9 @@
 import functools
+import sys
 import typing as T
+from importlib import resources
 from pathlib import Path
 
-import pkg_resources
 from qt_property_widgets.utilities import action as object_action
 
 from pupil_labs.neon_player.job_manager import ProgressUpdate
@@ -31,7 +32,12 @@ def action(func: T.Callable) -> T.Any:
 
 
 def asset_path(resource: str) -> Path:
-    return Path(pkg_resources.resource_filename(__name__, "assets")) / resource
+    with resources.as_file(resources.files(__package__).joinpath("assets")) as assets_path:
+        return assets_path / resource
+
+
+def is_frozen() -> bool:
+    return getattr(sys, 'frozen', False) or "__compiled__" in globals()
 
 
 __all__ = [
