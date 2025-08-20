@@ -11,6 +11,7 @@ nuitka \
   --include-module=unittest \
   --include-module=unittest.mock \
   --include-module=cmath \
+  --include-module=http.cookies \
   --python-flag=isolated \
   --include-data-dir=./src/pupil_labs/neon_player/assets=pupil_labs/neon_player/assets \
   --macos-create-app-bundle \
