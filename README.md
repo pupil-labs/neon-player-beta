@@ -7,14 +7,9 @@
 [![pre-commit](https://img.shields.io/badge/pre_commit-black?logo=pre-commit&logoColor=FAB041)](https://github.com/pre-commit/pre-commit)
 [![pypi version](https://img.shields.io/pypi/v/pupil-labs-neon-player.svg)](https://pypi.org/project/pupil-labs-neon-player/)
 
-## Installation
-
-```
-pip install pupil-labs-neon-player
-```
-
-or
-
+# Plugin development
+* Drop your plugin python file or folder to `$HOME/Pupil Labs/Neon Player/plugins` (you may need to create the directory)
+* If you have python dependencies, they can be installed to `plugins/site-packages`. E.g., 
 ```bash
-pip install -e git+https://github.com/pupil-labs/pl-neon-player.git
+pip install --target "$HOME/Pupil Labs/Neon Player/plugins/site-packages" my-python-package
 ```
