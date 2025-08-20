@@ -51,8 +51,13 @@ class BackgroundJob(QObject):
             action_name,
         ] + [str(arg) for arg in args]
 
+        if neon_player.is_frozen():
+            cmd = [sys.executable] + args
+        else:
+            cmd = [sys.executable, "-m", "pupil_labs.neon_player"] + args
+
         self.proc = subprocess.Popen(
-            [sys.executable, "-m", "pupil_labs.neon_player"] + args,
+            cmd,
             pass_fds=(write_fd,),
             close_fds=False  # keep our read_fd open
         )
