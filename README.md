@@ -14,11 +14,74 @@ uv sync
 python -m pupil_labs.neon_player [path/to/my/recording]
 ```
 
+# Paths
+* Global settings are saved in `$HOME/Pupil Labs/Neon Player/settings.json`
+* Per-recording settings are saved in `recording/path/.neon_player/settings.json`
+* Plugin cache data is saved in `recording/path/.neon_player/cache/PluginName/`
+
 # Plugin development
-* Drop your plugin python file or folder to `$HOME/Pupil Labs/Neon Player/plugins` (you may need to create the directory)
-* If you have python dependencies, they can be installed to `plugins/site-packages`. E.g.,
+* Drop your plugin python file into `$HOME/Pupil Labs/Neon Player/plugins` (you may need to create the directory)
+* If your plugin has multiple files, put them in a folder that as a `__init__.py` file that either defines your `Plugin` class or imports a module which does
+* If your plugin needs python dependencies, they can be installed to `plugins/site-packages`. E.g.,
 ```bash
 pip install --target "$HOME/Pupil Labs/Neon Player/plugins/site-packages" my-python-package
+```
+
+To expose a variable from a plugin to the GUI, define a property with getter/setter functions and appropriate type hints. You can control some options of the parameter GUI widget using the`@property_params` decorator.
+
+You can also expose a function to the GUI by using the `@action` decorator. It will appear as a button, with each of its arguments as an input field
+```python
+from pupil_labs.neon_player import Plugin, action
+from PySide6.QtWidgets import QMessageBox
+from qt_property_widgets.utilities import property_params
+
+class MyPlugin(Plugin):
+    def __init__(self):
+        super().__init__()
+        self._my_variable = 0.5
+
+    @property
+    @property_params(min=-1, max=100, decimals=2)
+    def my_variable(self) -> float:
+        return self._my_variable
+
+    @my_variable.setter
+    def my_variable(self, value: float):
+        self._my_variable = value
+
+    @action
+    def show_message(self, text: str) -> None:
+        QMessageBox.information(None, "Message", text)
+```
+
+Long-running actions should be ran as a background job so you don't lock-up the GUI. You can report progress back to the GUI by `yield`ing a `ProgressUpdate`
+```python
+import logging
+import time
+import typing as T
+
+from pupil_labs.neon_player import Plugin, ProgressUpdate, action
+from PySide6.QtWidgets import QMessageBox
+
+
+class MyPlugin(Plugin):
+    def bg_task(self, zcount_to: int) -> T.Generator[ProgressUpdate, None, None]:
+        for i in range(zcount_to):
+            time.sleep(0.5)
+            logging.info(i)
+            yield ProgressUpdate(i / zcount_to)
+
+    @action
+    def start_slow_job(self, zcount_to: int = 5) -> None:
+        job = self.job_manager.run_background_action(
+            "Slow Job Test", "MyPlugin.bg_task", zcount_to
+        )
+
+        job.finished.connect(lambda: QMessageBox.information(
+            None,
+            "Attention",
+            "Slow job finished!"
+        ))
 ```
 
 # Scripting
