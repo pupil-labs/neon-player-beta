@@ -9,7 +9,7 @@ import typing
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Signal
-from PySide6.QtGui import QAction, QPainter
+from PySide6.QtGui import QAction, QIcon, QPainter
 from PySide6.QtWidgets import (
     QApplication,
 )
@@ -74,6 +74,7 @@ class NeonPlayerApp(QApplication):
         super().__init__(argv)
 
         self.setApplicationName("Neon Player")
+        self.setWindowIcon(QIcon(str(neon_player.asset_path("neon-player.svg"))))
 
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
