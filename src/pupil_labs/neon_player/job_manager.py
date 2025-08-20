@@ -129,6 +129,7 @@ class JobManager(QObject):
                     data = pickle.dumps(update)
                     length = len(data).to_bytes(4, byteorder='little')
                     progress_stream.write(length + data)
+                    progress_stream.flush()
         else:
             with tqdm(total=1.0) as pbar:
                 for update in job:
