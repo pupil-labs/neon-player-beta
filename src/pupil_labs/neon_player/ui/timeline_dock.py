@@ -3,8 +3,8 @@ import typing as T
 
 import numpy as np
 import pyqtgraph as pg
-from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent
-from PySide6.QtCore import QPoint, QRect, QSize, Qt
+from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent, MouseDragEvent
+from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -18,6 +18,25 @@ from PySide6.QtWidgets import (
 
 from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
+
+
+class ScrubbableViewBox(pg.ViewBox):
+    scrub_start = Signal(MouseDragEvent)
+    scrub_end = Signal(MouseDragEvent)
+    scrubbed = Signal(MouseDragEvent)
+
+    def mouseDragEvent(self, ev, axis=None):
+        if ev.button() == Qt.MouseButton.MiddleButton:
+            return super().mouseDragEvent(ev, axis)
+
+        if ev.start:
+            self.scrub_start.emit(ev)
+        elif ev.finish:
+            self.scrub_end.emit(ev)
+        else:
+            self.scrubbed.emit(ev)
+
+        ev.accept()
 
 
 class TimeAxisItem(pg.AxisItem):
@@ -427,7 +446,9 @@ class TimeLineDock(QWidget):
         if app.recording is not None:
             time_axis.set_time_frame(app.recording.start_time, app.recording.stop_time)
 
-        plot_item = pg.PlotItem(axisItems={"top": time_axis})
+        vb = ScrubbableViewBox()
+        vb.scrubbed.connect(self.on_chart_area_clicked)
+        plot_item = pg.PlotItem(axisItems={"top": time_axis}, viewBox=vb)
 
         legend = pg.LegendItem()
         label = pg.LabelItem()
