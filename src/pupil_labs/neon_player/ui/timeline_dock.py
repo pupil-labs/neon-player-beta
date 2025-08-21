@@ -5,7 +5,7 @@ import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent, MouseDragEvent
 from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter
+from PySide6.QtGui import QColor, QIcon, QPainter, QPolygon
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -181,18 +181,46 @@ class PlayHead(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
         self.color = QColor(255, 0, 0, 128)
+        self.mode = "line"
+
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), self.color)
+        painter.setPen(self.color)
+        painter.setBrush(self.color)
+        if self.mode == "line":
+            painter.fillRect(self.rect(), self.color)
 
-    @property
-    def dim(self) -> bool:
-        return self.color.alpha() < 128
+        elif self.mode == "left":
+            painter.drawPolygon(
+                QPolygon([
+                    QPoint(self.rect().left(), 10),
+                    QPoint(self.rect().right(), 0),
+                    QPoint(self.rect().right(), 20),
+                ])
+            )
 
-    @dim.setter
-    def dim(self, dim: bool) -> None:
-        self.color.setAlpha(48 if dim else 128)
+        elif self.mode == "right":
+            painter.drawPolygon(
+                QPolygon([
+                    QPoint(self.rect().right(), 10),
+                    QPoint(self.rect().left(), 0),
+                    QPoint(self.rect().left(), 20),
+                ])
+            )
+
+    def set_display(self, mode: str, x: int, y: int, height: int) -> None:
+        self.mode = mode
+        width = 10
+        if mode == "line":
+            width = 3
+            x -= 1
+
+        if mode == "right":
+            x -= width
+
+        self.setGeometry(x, y, width, height)
+        self.update()
 
 
 class TimeLineDock(QWidget):
@@ -235,7 +263,7 @@ class TimeLineDock(QWidget):
         self.graphics_view = pg.GraphicsView()
         self.graphics_view.setBackground("transparent")
         self.graphics_layout = pg.GraphicsLayout()
-        self.graphics_layout.setSpacing(3)
+        self.graphics_layout.setSpacing(0)
         self.graphics_view.setCentralItem(self.graphics_layout)
 
         self.main_layout.addWidget(self.graphics_view)
@@ -320,15 +348,13 @@ class TimeLineDock(QWidget):
         x_range = self.chart_area_parameters["x_range"]
         rel_t = neon_player.instance().current_ts - x_range[0]
         t_norm = rel_t / self.chart_area_parameters["x_size"]
-        x = self.chart_area_parameters["local_rect"].x() + t_norm * self.chart_area_parameters["local_rect"].width()
+        r_norm = max(0, min(1, t_norm))
+        x = self.chart_area_parameters["local_rect"].x() + r_norm * self.chart_area_parameters["local_rect"].width()
 
-        self.playhead.dim = t_norm < 0 or t_norm > 1
-
-        self.playhead.setGeometry(
-            QRect(
-                QPoint(x, self.chart_area_parameters["local_rect"].y()),
-                QSize(3, self.chart_area_parameters["global_rect"].height())
-            )
+        self.playhead.set_display(
+            "left" if t_norm < 0 else "right" if t_norm > 1 else "line",
+            x, self.chart_area_parameters["local_rect"].y(),
+            self.chart_area_parameters["global_rect"].height()
         )
 
     def on_playback_state_changed(self, is_playing: bool):
@@ -462,7 +488,6 @@ class TimeLineDock(QWidget):
             self.graphics_layout.addItem(legend, row=row, col=0)
 
         self.graphics_layout.addItem(plot_item, row=row, col=1)
-
 
         plot_item.setMouseEnabled(x=True, y=False)
         plot_item.hideButtons()
