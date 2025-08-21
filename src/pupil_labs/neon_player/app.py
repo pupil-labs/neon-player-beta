@@ -75,6 +75,7 @@ class NeonPlayerApp(QApplication):
 
         self.setApplicationName("Neon Player")
         self.setWindowIcon(QIcon(str(neon_player.asset_path("neon-player.svg"))))
+        self.setStyle("Fusion")
 
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []

@@ -143,8 +143,9 @@ class ConsoleWindow(QWidget):
 
         # Set monospace font for better log readability
         font = self.console_widget.font()
+        font.setStyleHint(QFont.StyleHint.Monospace)
+        font.setFixedPitch(True)
         font.setFamily("Monospace")
-        font.setStyleHint(QFont.StyleHint.TypeWriter)
         self.console_widget.setFont(font)
         self.console_widget.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
