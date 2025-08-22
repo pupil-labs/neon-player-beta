@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMenu,
+    QScrollArea,
     QSizePolicy,
     QToolButton,
     QVBoxLayout,
@@ -37,6 +38,12 @@ class ScrubbableViewBox(pg.ViewBox):
             self.scrubbed.emit(ev)
 
         ev.accept()
+
+    def wheelEvent(self, ev, axis=None):
+        if ev.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            return super().wheelEvent(ev, axis)
+
+        ev.ignore()
 
 
 class TimeAxisItem(pg.AxisItem):
@@ -224,7 +231,8 @@ class PlayHead(QWidget):
         if mode == "right":
             x -= width
 
-        self.setGeometry(x, y, width, height)
+        point = self.parent().mapFromGlobal(QPoint(x, y))
+        self.setGeometry(QRect(point, QSize(width, height)))
         self.update()
 
 
@@ -271,9 +279,12 @@ class TimeLineDock(QWidget):
         self.graphics_layout.setSpacing(0)
         self.graphics_view.setCentralItem(self.graphics_layout)
 
-        self.main_layout.addWidget(self.graphics_view)
-
         self.graphics_view.scene().sigMouseClicked.connect(self.on_chart_area_clicked)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.scroll_area.setWidget(self.graphics_view)
+        self.main_layout.addWidget(self.scroll_area)
 
         self.playhead = PlayHead(self)
         self.playhead.hide()
@@ -304,12 +315,10 @@ class TimeLineDock(QWidget):
         return QSize(100, 100)
 
     def resizeEvent(self, event):
-        self.update_chart_area_params()
+        w = self.scroll_area.width() - self.scroll_area.verticalScrollBar().width()
+        self.graphics_view.setFixedWidth(w)
+        self.update_playhead_geometry()
         return super().resizeEvent(event)
-
-    def showEvent(self, event):
-        self.update_chart_area_params()
-        return super().showEvent(event)
 
     def on_recording_loaded(self, recording: nr.NeonRecording):
         self.playhead.show()
@@ -320,46 +329,21 @@ class TimeLineDock(QWidget):
             axis = plot_item.getAxis("top")
             axis.set_time_frame(recording.start_time, recording.stop_time)
 
-        self.update_chart_area_params()
-
-    def update_chart_area_params(self):
-        if neon_player.instance().recording is None:
-            return
-
-        if self.timestamps_plot.getViewBox().viewRange()[0][0] == 0:
-            return
-
-        chart_area_global = self.get_chart_area()
-        chart_area_local_top_left = self.mapFromGlobal(
-            chart_area_global.topLeft()
-        )
-        chart_area_local_bottom_right = self.mapFromGlobal(
-            chart_area_global.bottomRight()
-        )
-        self.chart_area_parameters["global_rect"] = chart_area_global
-        self.chart_area_parameters["local_rect"] = QRect(
-            chart_area_local_top_left, chart_area_local_bottom_right
-        )
-
-        self.chart_area_parameters["x_range"] = self.timestamps_plot.getViewBox().viewRange()[0]
-        self.chart_area_parameters["x_size"] = self.chart_area_parameters["x_range"][1] - self.chart_area_parameters["x_range"][0]
-
-        self.update_playhead_geometry()
-
     def update_playhead_geometry(self):
-        if self.chart_area_parameters["x_range"] is None:
-            return
-
-        x_range = self.chart_area_parameters["x_range"]
+        x_range = self.timestamps_plot.getViewBox().viewRange()[0]
         rel_t = neon_player.instance().current_ts - x_range[0]
-        t_norm = rel_t / self.chart_area_parameters["x_size"]
+        t_norm = rel_t / (x_range[1] - x_range[0])
         r_norm = max(0, min(1, t_norm))
-        x = self.chart_area_parameters["local_rect"].x() + r_norm * self.chart_area_parameters["local_rect"].width()
+
+        ts_view_geometry = self.timestamps_plot.viewGeometry()
+        x = ts_view_geometry.x() + r_norm * ts_view_geometry.width()
+
+        scroll_area_global_y = self.scroll_area.mapToGlobal(QPoint(0, 0)).y()
 
         self.playhead.set_display(
             "left" if t_norm < 0 else "right" if t_norm > 1 else "line",
-            x, self.chart_area_parameters["local_rect"].y(),
-            self.chart_area_parameters["global_rect"].height()
+            x, scroll_area_global_y,
+            self.scroll_area.height()
         )
 
     def on_playback_state_changed(self, is_playing: bool):
@@ -374,23 +358,6 @@ class TimeLineDock(QWidget):
         self.timestamp_label.set_time(t - app.recording.start_time)
 
         self.update_playhead_geometry()
-
-    def get_chart_area(self) -> QRect:
-        if len(self.graphics_layout.items) == 0:
-            return QRect(0, 0, 100, 100)
-
-        plot_items = [item for item in self.graphics_layout.items if isinstance(item, pg.PlotItem)]
-        min_x = min(item.sceneBoundingRect().left() for item in plot_items)
-        max_x = max(item.sceneBoundingRect().right() for item in plot_items)
-        min_y = min(item.sceneBoundingRect().top() for item in plot_items)
-        max_y = max(item.sceneBoundingRect().bottom() for item in plot_items)
-        rect = QRect(int(min_x), int(min_y), int(max_x - min_x), int(max_y - min_y))
-
-        # convert the rect to global coordinates
-        return QRect(
-            self.graphics_view.mapToGlobal(rect.topLeft()),
-            self.graphics_view.mapToGlobal(rect.bottomRight())
-        )
 
     def show_context_menu(self, global_position: QPoint) -> None:
         menu = neon_player.instance().main_window.get_menu(
@@ -507,7 +474,7 @@ class TimeLineDock(QWidget):
 
         if is_timestamps_row:
             plot_item.getViewBox().sigXRangeChanged.connect(
-                self.update_chart_area_params
+                self.update_playhead_geometry
             )
         else:
             if self.timestamps_plot:
@@ -559,8 +526,6 @@ class TimeLineDock(QWidget):
             if timeline_row_name in self.timeline_legends and plot_name != "":
                 legend = self.timeline_legends[timeline_row_name]
                 legend.addItem(plot_data_item, plot_name)
-
-        self.update_chart_area_params()
 
     def remove_timeline_plot(self, plot_name: str):
         plot = self.get_timeline_plot(plot_name)
@@ -652,9 +617,6 @@ class TimeLineDock(QWidget):
         if item_name and timeline_row_name in self.timeline_legends:
             legend = self.timeline_legends[timeline_row_name]
             legend.addItem(fill, name=item_name)
-
-
-        self.update_chart_area_params()
 
     def register_data_point_action(
         self,
