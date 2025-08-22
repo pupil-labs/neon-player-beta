@@ -161,6 +161,11 @@ class TimeAxisItem(pg.AxisItem):
         self.recording_stop_time_ns = end
 
 
+class FixedLegend(pg.LegendItem):
+    def mouseDragEvent(self, event: MouseDragEvent) -> None:
+        event.ignore()
+
+
 class TimestampLabel(QLabel):
     def __init__(self) -> None:
         super().__init__()
@@ -476,7 +481,7 @@ class TimeLineDock(QWidget):
         vb.scrubbed.connect(self.on_chart_area_clicked)
         plot_item = pg.PlotItem(axisItems={"top": time_axis}, viewBox=vb)
 
-        legend = pg.LegendItem()
+        legend = FixedLegend()
         label = pg.LabelItem()
         label.setText(f"<b>{timeline_row_name}</b>")
 
@@ -554,7 +559,6 @@ class TimeLineDock(QWidget):
             if timeline_row_name in self.timeline_legends and plot_name != "":
                 legend = self.timeline_legends[timeline_row_name]
                 legend.addItem(plot_data_item, plot_name)
-
 
         self.update_chart_area_params()
 
