@@ -4,9 +4,11 @@ import typing as T
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent, MouseDragEvent
-from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
+from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPolygon
 from PySide6.QtWidgets import (
+    QGraphicsEllipseItem,
+    QGraphicsRectItem,
     QHBoxLayout,
     QLabel,
     QMenu,
@@ -187,54 +189,143 @@ class TimestampLabel(QLabel):
         self.setText(f"{hours:0>2,.0f}:{minutes:0>2.0f}:{seconds:0>6.3f}")
 
 
-class PlayHead(QWidget):
+class PlotOverlay(QWidget):
+    def __init__(self, linked_plot: pg.PlotItem,*args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.linked_plot = linked_plot
+
+        linked_plot.vb.sigResized.connect(self._on_plot_resized)
+
+    def get_x_pixel_for_x_value(self, x_value: float) -> float:
+        x_range = self.linked_plot.vb.viewRange()[0]
+        return (x_value - x_range[0]) / (x_range[1] - x_range[0]) * self.width()
+
+    def _on_plot_resized(self) -> None:
+        plot_rect = self.linked_plot.geometry()
+        self.setGeometry(
+            plot_rect.x(), 10,
+            plot_rect.width(), self.parent().height() - 10
+        )
+
+
+class PlayHead(PlotOverlay):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-
         self.color = QColor(255, 0, 0, 128)
-        self.mode = "line"
+        self.t = 0
 
+    def set_time(self, t: int) -> None:
+        self.t = t
+        self.update()
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setPen(self.color)
         painter.setBrush(self.color)
-        if self.mode == "line":
-            painter.fillRect(self.rect(), self.color)
 
-        elif self.mode == "left":
+        x = self.get_x_pixel_for_x_value(self.t)
+
+        if x < 0:
             painter.drawPolygon(
                 QPolygon([
-                    QPoint(self.rect().left(), 10),
-                    QPoint(self.rect().right(), 0),
-                    QPoint(self.rect().right(), 20),
+                    QPoint(0, 10),
+                    QPoint(10, 0),
+                    QPoint(10, 20),
                 ])
             )
 
-        elif self.mode == "right":
+        elif x > self.width():
             painter.drawPolygon(
                 QPolygon([
                     QPoint(self.rect().right(), 10),
-                    QPoint(self.rect().left(), 0),
-                    QPoint(self.rect().left(), 20),
+                    QPoint(self.rect().right() - 10, 0),
+                    QPoint(self.rect().right() - 10, 20),
                 ])
             )
 
-    def set_display(self, mode: str, x: int, y: int, height: int) -> None:
-        self.mode = mode
-        width = 10
-        if mode == "line":
-            width = 3
-            x -= 1
+        else:
+            painter.fillRect(QRect(x-1, 0, 3, self.height()), self.color)
 
-        if mode == "right":
-            x -= width
 
-        point = self.parent().mapFromGlobal(QPoint(x, y))
-        self.setGeometry(QRect(point, QSize(width, height)))
+class TrimEndMarker(QGraphicsEllipseItem):
+    def __init__(self, time, plot: pg.PlotItem, *args, **kwargs) -> None:
+        super().__init__(0, -1, 0, 2, *args, **kwargs)
+        self._time = time
+        self._plot = plot
+
+        class _Emitter(QObject):
+            time_changed = Signal(object)
+
+        self._emitter = _Emitter()
+        self.time_changed = self._emitter.time_changed
+
+        self.highlight_pen = pg.mkPen("#ffffff", width=2)
+        self.highlight_brush = pg.mkBrush("#ffffff")
+        self.normal_pen = pg.mkPen("#444", width=2)
+        self.normal_brush = pg.mkBrush("#444")
+
+        self.setPen(self.normal_pen)
+        self.setBrush(self.normal_brush)
+
+    @property
+    def time(self) -> int:
+        return self._time
+
+    @time.setter
+    def time(self, value: int) -> None:
+        self._time = value
+        self.time_changed.emit(value)
         self.update()
 
+    def set_highlighted(self, highlighted: bool) -> None:
+        if highlighted:
+            self.setPen(self.highlight_pen)
+            self.setBrush(self.highlight_brush)
+        else:
+            self.setPen(self.normal_pen)
+            self.setBrush(self.normal_brush)
+
+    def paint(self, painter: QPainter, option, widget: QWidget | None = None) -> None:
+        scale_x = painter.worldTransform().m11()
+        scale_y = painter.worldTransform().m22()
+        scaled_width = 2 * abs(scale_y) / scale_x
+        rect = self.rect()
+        rect.setWidth(scaled_width)
+        rect.setLeft(self._time - scaled_width / 2)
+        self.setRect(rect)
+
+        super().paint(painter, option, widget)
+
+    def nearby(self, pos: QPoint | QPointF, buffer = 0.25):
+        rect = self.rect()
+        dx = rect.width() * buffer
+        dy = rect.height() * buffer
+
+        return rect.adjusted(-dx, -dy, dx, dy).contains(pos)
+
+
+class TrimDurationMarker(QGraphicsRectItem):
+    def __init__(self, start_marker, end_marker, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.setPen(pg.mkPen("#777", width=0))
+        self.setBrush(pg.mkBrush("#777"))
+
+        self._start_marker = start_marker
+        self._end_marker = end_marker
+
+        self._start_marker.time_changed.connect(lambda _: self._update_ends())
+        self._end_marker.time_changed.connect(lambda _: self._update_ends())
+
+        self._update_ends()
+
+    def _update_ends(self) -> None:
+        self.setRect(
+            self._start_marker.time, -1,
+            self._end_marker.time - self._start_marker.time, 2
+        )
+        self.update()
 
 class TimeLineDock(QWidget):
     def __init__(self) -> None:
@@ -280,25 +371,14 @@ class TimeLineDock(QWidget):
         self.graphics_view.setCentralItem(self.graphics_layout)
 
         self.graphics_view.scene().sigMouseClicked.connect(self.on_chart_area_clicked)
+        self.graphics_view.scene().sigMouseMoved.connect(self.on_chart_area_mouse_moved)
         self.scroll_area = QScrollArea()
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.scroll_area.setWidget(self.graphics_view)
         self.main_layout.addWidget(self.scroll_area)
 
-        self.playhead = PlayHead(self)
-        self.playhead.hide()
-        app.playback_state_changed.connect(self.on_playback_state_changed)
-        app.position_changed.connect(self.on_position_changed)
-        app.recording_loaded.connect(self.on_recording_loaded)
-
         self.setMouseTracking(True)
-
-        self.chart_area_parameters = {
-            "global_rect": None,
-            "local_rect": None,
-            "x_range": None,
-        }
 
         # Add a permanent timeline with timestamps
         self.timestamps_plot = self.get_timeline_plot(
@@ -311,16 +391,26 @@ class TimeLineDock(QWidget):
             QSizePolicy.Policy.Fixed
         )
 
+        self.playhead = PlayHead(self.timestamps_plot, parent=self.graphics_view)
+        self.playhead.hide()
+
+        app.playback_state_changed.connect(self.on_playback_state_changed)
+        app.position_changed.connect(self.on_position_changed)
+        app.recording_loaded.connect(self.on_recording_loaded)
+
+        self.dragging = None
+
     def sizeHint(self) -> QSize:
         return QSize(100, 100)
 
     def resizeEvent(self, event):
         w = self.scroll_area.width() - self.scroll_area.verticalScrollBar().width()
         self.graphics_view.setFixedWidth(w)
-        self.update_playhead_geometry()
         return super().resizeEvent(event)
 
     def on_recording_loaded(self, recording: nr.NeonRecording):
+        app = neon_player.instance()
+
         self.playhead.show()
         for plot_item in self.timeline_plots.values():
             plot_item.setXRange(
@@ -329,22 +419,14 @@ class TimeLineDock(QWidget):
             axis = plot_item.getAxis("top")
             axis.set_time_frame(recording.start_time, recording.stop_time)
 
-    def update_playhead_geometry(self):
-        x_range = self.timestamps_plot.getViewBox().viewRange()[0]
-        rel_t = neon_player.instance().current_ts - x_range[0]
-        t_norm = rel_t / (x_range[1] - x_range[0])
-        r_norm = max(0, min(1, t_norm))
-
-        ts_view_geometry = self.timestamps_plot.viewGeometry()
-        x = ts_view_geometry.x() + r_norm * ts_view_geometry.width()
-
-        scroll_area_global_y = self.scroll_area.mapToGlobal(QPoint(0, 0)).y()
-
-        self.playhead.set_display(
-            "left" if t_norm < 0 else "right" if t_norm > 1 else "line",
-            x, scroll_area_global_y,
-            self.scroll_area.height()
-        )
+        trim_plot = self.get_timeline_plot("Trim", create_if_missing=True)
+        self.trim_markers = [
+            TrimEndMarker(app.recording_settings.export_window[0], plot=trim_plot),
+            TrimEndMarker(app.recording_settings.export_window[1], plot=trim_plot),
+        ]
+        self.duration_marker = TrimDurationMarker(*self.trim_markers)
+        for tm in [*self.trim_markers, self.duration_marker]:
+            trim_plot.addItem(tm)
 
     def on_playback_state_changed(self, is_playing: bool):
         icon_name = "pause.svg" if is_playing else "play.svg"
@@ -356,8 +438,7 @@ class TimeLineDock(QWidget):
             return
 
         self.timestamp_label.set_time(t - app.recording.start_time)
-
-        self.update_playhead_geometry()
+        self.playhead.set_time(t)
 
     def show_context_menu(self, global_position: QPoint) -> None:
         menu = neon_player.instance().main_window.get_menu(
@@ -376,7 +457,39 @@ class TimeLineDock(QWidget):
 
         return menu_copy
 
-    def on_chart_area_clicked(self, event: MouseClickEvent):
+    def on_chart_area_mouse_moved(self, pos: QPointF):
+        data_pos = self.timestamps_plot.getViewBox().mapSceneToView(pos)
+        for tm in self.trim_markers:
+            tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
+
+    def on_trim_area_drag_start(self, event: MouseDragEvent):
+        app = neon_player.instance()
+        if app.recording is None:
+            return
+
+        data_pos = self.timestamps_plot.getViewBox().mapSceneToView(event.scenePos())
+        for tm in self.trim_markers:
+            if tm.nearby(data_pos, 0.5):
+                self.dragging = tm
+                break
+
+    def on_trim_area_dragged(self, event: MouseDragEvent):
+        if self.dragging is None:
+            self.on_chart_area_clicked(event)
+            return
+
+        data_pos = self.timestamps_plot.getViewBox().mapSceneToView(event.scenePos())
+        self.dragging.time = data_pos.x()
+        app = neon_player.instance()
+        app.recording_settings.export_window = self.get_export_window()
+
+    def on_trim_area_drag_end(self, event: MouseDragEvent):
+        self.dragging = None
+        data_pos = self.timestamps_plot.getViewBox().mapSceneToView(event.scenePos())
+        for tm in self.trim_markers:
+            tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
+
+    def on_chart_area_clicked(self, event: MouseClickEvent | MouseDragEvent):
         app = neon_player.instance()
         if app.recording is None:
             return
@@ -437,7 +550,7 @@ class TimeLineDock(QWidget):
             time_axis = TimeAxisItem(
                 orientation="top",
                 showValues=False,
-                pen=pg.mkPen({'color': '#ffff0000'})
+                pen=pg.mkPen(color="#ffff0000")
             )
 
         app = neon_player.instance()
@@ -445,7 +558,13 @@ class TimeLineDock(QWidget):
             time_axis.set_time_frame(app.recording.start_time, app.recording.stop_time)
 
         vb = ScrubbableViewBox()
-        vb.scrubbed.connect(self.on_chart_area_clicked)
+        if is_timestamps_row:
+            vb.scrub_start.connect(self.on_trim_area_drag_start)
+            vb.scrubbed.connect(self.on_trim_area_dragged)
+            vb.scrub_end.connect(self.on_trim_area_drag_end)
+        else:
+            vb.scrubbed.connect(self.on_chart_area_clicked)
+
         plot_item = pg.PlotItem(axisItems={"top": time_axis}, viewBox=vb)
 
         legend = FixedLegend()
@@ -472,13 +591,8 @@ class TimeLineDock(QWidget):
 
         self.timeline_plots[timeline_row_name] = plot_item
 
-        if is_timestamps_row:
-            plot_item.getViewBox().sigXRangeChanged.connect(
-                self.update_playhead_geometry
-            )
-        else:
-            if self.timestamps_plot:
-                plot_item.setXLink(self.timestamps_plot)
+        if not is_timestamps_row and self.timestamps_plot:
+            plot_item.setXLink(self.timestamps_plot)
 
         return plot_item
 
@@ -638,3 +752,12 @@ class TimeLineDock(QWidget):
             app.recording.start_time,
             app.recording.stop_time
         ])
+
+    def get_export_window(self) -> list[int]:
+        times = [tm.time for tm in self.trim_markers]
+        times.sort()
+        return times
+
+    def set_export_window(self, times: list[int]) -> None:
+        self.trim_markers[0].time = times[0]
+        self.trim_markers[1].time = times[1]

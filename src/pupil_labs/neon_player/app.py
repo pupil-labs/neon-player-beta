@@ -297,6 +297,10 @@ class NeonPlayerApp(QApplication):
                 self.recording_settings = RecordingSettings.from_dict(json.loads(settings_path.read_text()))
             else:
                 self.recording_settings = RecordingSettings()
+                self.recording_settings.export_window = [
+                    self.recording.start_time,
+                    self.recording.stop_time,
+                ]
 
         except Exception:
             logging.exception("Failed to load settings")
