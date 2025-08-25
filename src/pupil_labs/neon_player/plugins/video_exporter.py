@@ -44,6 +44,11 @@ class VideoExporter(neon_player.Plugin):
             recording.scene.time,
             gray_prologue,
         ))
+        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        combined_timestamps = combined_timestamps[
+            (combined_timestamps >= start_time) & (combined_timestamps <= stop_time)
+        ]
+
         frame_size = QSize(recording.scene.width or 1600, recording.scene.height or 1200)
 
         with plv.Writer(destination / "world.mp4") as writer:
