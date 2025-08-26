@@ -170,6 +170,15 @@ class NeonPlayerApp(QApplication):
         if self._initializing:
             return
 
+        if not hasattr(self, "_save_timer"):
+            self._save_timer = QTimer(self)
+            self._save_timer.setSingleShot(True)
+            self._save_timer.timeout.connect(self._save_settings)
+            self._save_timer.setInterval(2000)
+
+        self._save_timer.start()
+
+    def _save_settings(self) -> None:
         logging.info("Saving settings")
         try:
             settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
