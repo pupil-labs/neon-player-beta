@@ -51,7 +51,7 @@ class FixationsPlugin(neon_player.Plugin):
 
         self.fixations = recording.fixations
 
-        self.add_timeline_broken_bar(
+        self.get_timeline_dock().add_timeline_broken_bar(
             "Fixations",
             self.fixations[["start_time", "stop_time"]]
         )
@@ -130,7 +130,7 @@ class FixationsPlugin(neon_player.Plugin):
         return self.gaze_plugin.offset_x, self.gaze_plugin.offset_y
 
     def on_disabled(self) -> None:
-        self.remove_timeline_plot("Fixations")
+        self.get_timeline_dock().remove_timeline_plot("Fixations")
 
     @action
     def export(self, destination: Path = Path()) -> None:

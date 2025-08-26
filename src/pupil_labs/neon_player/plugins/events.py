@@ -60,9 +60,10 @@ class EventsPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        self.remove_timeline_plot("Events")
+        timeline = self.get_timeline_dock()
+        timeline.remove_timeline_plot("Events")
         for event_name in self.events:
-            self.remove_timeline_plot(f"Events/{event_name}")
+            timeline.remove_timeline_plot(f"Events/{event_name}")
 
     @action
     def create_event_type(self, event_name: str) -> None:
@@ -74,7 +75,8 @@ class EventsPlugin(neon_player.Plugin):
             self._setup_gui_for_event(event_name)
 
     def _setup_gui_for_event(self, event_name: str) -> None:
-        self.add_timeline_scatter(
+        timeline = self.get_timeline_dock()
+        timeline.add_timeline_scatter(
             f"Events/{event_name}", [],
         )
         if event_name not in ['recording.begin', 'recording.end']:
@@ -117,10 +119,11 @@ class EventsPlugin(neon_player.Plugin):
         self.app.seek_to(data_point[0])
 
     def _update_timeline_data(self, event_name: str) -> None:
-        plot_item = self.get_timeline_plot(f"Events/{event_name}")
+        timeline = self.get_timeline_dock()
+        plot_item = timeline.get_timeline_plot(f"Events/{event_name}")
 
         if len(plot_item.items) == 0:
-            self.add_timeline_scatter(
+            timeline.add_timeline_scatter(
                 f"Events/{event_name}",
                 np.array([[t, 0] for t in self.events[event_name]]),
             )

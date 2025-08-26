@@ -94,11 +94,12 @@ class EyestatePlugin(neon_player.Plugin):
         self._update_plot_visibilities("Eyelid aperture", self._eyelid_aperture_plots)
 
     def on_disabled(self) -> None:
-        self.remove_timeline_plot("Pupil diameter")
-        self.remove_timeline_plot("Eyeball center")
-        self.remove_timeline_plot("Optical axis")
-        self.remove_timeline_plot("Eyelid angle")
-        self.remove_timeline_plot("Eyelid aperture")
+        timeline = self.get_timeline_dock()
+        timeline.remove_timeline_plot("Pupil diameter")
+        timeline.remove_timeline_plot("Eyeball center")
+        timeline.remove_timeline_plot("Optical axis")
+        timeline.remove_timeline_plot("Eyelid angle")
+        timeline.remove_timeline_plot("Eyelid aperture")
 
     def _update_plot_visibilities(
         self,
@@ -108,8 +109,9 @@ class EyestatePlugin(neon_player.Plugin):
         if self.eyestate_data is None:
             return
 
+        timeline = self.get_timeline_dock()
         for plot_name, enabled in plot_flags.items():
-            existing_plot = self.get_timeline_series(group_name, plot_name)
+            existing_plot = timeline.get_timeline_series(group_name, plot_name)
             if enabled and existing_plot is None:
                 # add plot
                 key = f"{group_name.lower()} {plot_name.lower()}"
@@ -119,11 +121,11 @@ class EyestatePlugin(neon_player.Plugin):
                 color = self.color_map.get(plot_name.lower(), None)
 
                 data = self.eyestate_data[["timestamp [ns]", key]].to_numpy()
-                self.add_timeline_line(group_name, data, plot_name, color=color)
+                timeline.add_timeline_line(group_name, data, plot_name, color=color)
 
             elif not enabled and existing_plot is not None:
                 # remove plot
-                self.remove_timeline_series(group_name, plot_name)
+                timeline.remove_timeline_series(group_name, plot_name)
 
     @action
     def export(self, destination: Path = Path()) -> None:

@@ -8,6 +8,7 @@ from PySide6.QtGui import QPainter
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_recording import NeonRecording
 
 if T.TYPE_CHECKING:
@@ -69,32 +70,8 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def on_disabled(self) -> None:
         pass
 
-    def add_timeline_scatter(self, name: str, data: list[tuple[int, int]], item_name: str = "") -> None:
-        self.app.main_window.timeline_dock.add_timeline_scatter(name, data, item_name)
-
-    def add_timeline_line(self, name: str, data: list[tuple[int, int]], item_name: str = "", **kwargs) -> None:
-        self.app.main_window.timeline_dock.add_timeline_line(name, data, item_name, **kwargs)
-
-    def add_timeline_broken_bar(
-        self, timeline_row_name: str, start_and_stop_times, item_name: str = ""
-    ) -> None:
-        self.app.main_window.timeline_dock.add_timeline_broken_bar(
-            timeline_row_name,
-            start_and_stop_times,
-            item_name
-        )
-
-    def get_timeline_plot(self, name: str, create_if_missing: bool = False) -> None:
-        return self.app.main_window.timeline_dock.get_timeline_plot(name, create_if_missing)
-
-    def get_timeline_series(self, plot_name: str, series_name: str) -> None:
-        return self.app.main_window.timeline_dock.get_timeline_series(plot_name, series_name)
-
-    def remove_timeline_plot(self, name: str) -> None:
-        self.app.main_window.timeline_dock.remove_timeline_plot(name)
-
-    def remove_timeline_series(self, name: str, series_name: str) -> None:
-        self.app.main_window.timeline_dock.remove_timeline_series(name, series_name)
+    def get_timeline_dock(self) -> TimeLineDock:
+        return self.app.main_window.timeline_dock
 
     def get_cache_path(self) -> Path:
         if self.recording is None:
