@@ -260,9 +260,9 @@ class TrimEndMarker(QGraphicsEllipseItem):
         self._emitter = _Emitter()
         self.time_changed = self._emitter.time_changed
 
-        self.highlight_pen = pg.mkPen("#ffffff", width=2)
-        self.highlight_brush = pg.mkBrush("#ffffff")
-        self.normal_pen = pg.mkPen("#444", width=2)
+        self.highlight_pen = pg.mkPen("#888", width=2)
+        self.highlight_brush = pg.mkBrush("#00000000")
+        self.normal_pen = pg.mkPen("#444", width=1)
         self.normal_brush = pg.mkBrush("#444")
 
         self.setPen(self.normal_pen)
@@ -309,8 +309,8 @@ class TrimDurationMarker(QGraphicsRectItem):
     def __init__(self, start_marker, end_marker, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.setPen(pg.mkPen("#777", width=0))
-        self.setBrush(pg.mkBrush("#777"))
+        self.setPen(pg.mkPen("#ccc", width=0))
+        self.setBrush(pg.mkBrush("#ccc"))
 
         self._start_marker = start_marker
         self._end_marker = end_marker
@@ -326,6 +326,7 @@ class TrimDurationMarker(QGraphicsRectItem):
             self._end_marker.time - self._start_marker.time, 2
         )
         self.update()
+
 
 class TimeLineDock(QWidget):
     def __init__(self) -> None:
@@ -382,7 +383,7 @@ class TimeLineDock(QWidget):
 
         # Add a permanent timeline with timestamps
         self.timestamps_plot = self.get_timeline_plot(
-            "Timestamps", create_if_missing=True
+            "Export window", create_if_missing=True
         )
         self.timestamps_plot.showAxis("top")
         self.timestamps_plot.setMaximumHeight(50)
@@ -419,7 +420,7 @@ class TimeLineDock(QWidget):
             axis = plot_item.getAxis("top")
             axis.set_time_frame(recording.start_time, recording.stop_time)
 
-        trim_plot = self.get_timeline_plot("Trim", create_if_missing=True)
+        trim_plot = self.get_timeline_plot("Export window", create_if_missing=True)
         self.trim_markers = [
             TrimEndMarker(app.recording_settings.export_window[0], plot=trim_plot),
             TrimEndMarker(app.recording_settings.export_window[1], plot=trim_plot),
@@ -542,7 +543,7 @@ class TimeLineDock(QWidget):
             return None
 
         row = self.graphics_layout.nextRow()
-        is_timestamps_row = timeline_row_name == "Timestamps"
+        is_timestamps_row = timeline_row_name == "Export window"
 
         if is_timestamps_row:
             time_axis = TimeAxisItem(orientation="top")
@@ -568,15 +569,15 @@ class TimeLineDock(QWidget):
         plot_item = pg.PlotItem(axisItems={"top": time_axis}, viewBox=vb)
 
         legend = FixedLegend()
-        label = pg.LabelItem()
-        label.setText(f"<b>{timeline_row_name}</b>")
+        label = pg.LabelItem(f"<b>{timeline_row_name}</b>")
+        if timeline_row_name == "Export window":
+            legend.setContentsMargins(0, 15, 0, 0)
 
         legend.layout.addItem(label, 0, 0, 1, 2)
 
         legend.layout.setSpacing(0)
-        if not is_timestamps_row:
-            self.timeline_legends[timeline_row_name] = legend
-            self.graphics_layout.addItem(legend, row=row, col=0)
+        self.timeline_legends[timeline_row_name] = legend
+        self.graphics_layout.addItem(legend, row=row, col=0)
 
         self.graphics_layout.addItem(plot_item, row=row, col=1)
 
