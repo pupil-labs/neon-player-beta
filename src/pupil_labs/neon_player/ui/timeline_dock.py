@@ -479,9 +479,15 @@ class TimeLineDock(QWidget):
             self.on_chart_area_clicked(event)
             return
 
-        data_pos = self.timestamps_plot.getViewBox().mapSceneToView(event.scenePos())
-        self.dragging.time = data_pos.x()
         app = neon_player.instance()
+        if app.recording is None:
+            return
+
+        data_pos = self.timestamps_plot.getViewBox().mapSceneToView(event.scenePos())
+        self.dragging.time = max(
+            min(data_pos.x(), app.recording.stop_time),
+            app.recording.start_time
+        )
         app.recording_settings.export_window = self.get_export_window()
 
     def on_trim_area_drag_end(self, event: MouseDragEvent):
