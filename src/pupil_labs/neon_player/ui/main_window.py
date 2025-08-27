@@ -132,6 +132,9 @@ class MainWindow(QMainWindow):
             self.show_recording_settings
         )
         self.rec_settings_action.setDisabled(True)
+        self.register_action(
+            "&File/&Export All", on_triggered=app.export_all
+        )
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
         self.register_action("&View/&Console", "Ctrl+Alt+c", self.console_window.show)
         self.play_action = self.register_action(

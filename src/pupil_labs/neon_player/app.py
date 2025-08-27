@@ -12,6 +12,7 @@ from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QAction, QIcon, QPainter
 from PySide6.QtWidgets import (
     QApplication,
+    QFileDialog,
 )
 from qt_property_widgets.utilities import ComplexEncoder, create_action_object
 
@@ -153,6 +154,8 @@ class NeonPlayerApp(QApplication):
                     action_obj = plugin._action_objects[action_name]
 
                 keys = list(action_obj.args.keys())
+                if keys[0] == "self":
+                    keys = keys[1:]
                 args = dict(zip(keys, job_args))
                 action_obj.__setstate__(args)
                 self.job_manager.work_job(action_obj())
@@ -395,9 +398,22 @@ class NeonPlayerApp(QApplication):
             plugin.render(painter, ts)
 
     def export_all(self) -> None:
+        if self.recording is None:
+            return
+
+        # ask user for export path
+        export_path = QFileDialog.getExistingDirectory(
+            self.main_window,
+            "Select export directory",
+            str(self.recording._rec_dir),
+        )
+
+        if not export_path:
+            return
+
         for plugin in self.plugins:
-            if hasattr(plugin, "run_export"):
-                plugin.run_export()
+            if hasattr(plugin, "export"):
+                plugin.export(Path(export_path))
 
     @property
     def is_playing(self) -> bool:
