@@ -198,6 +198,38 @@ class TimestampLabel(QLabel):
         self.setText(f"{hours:0>2,.0f}:{minutes:0>2.0f}:{seconds:0>6.3f}")
 
 
+class SmartSizePlotItem(pg.PlotItem):
+    def __init__(self, legend, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.legend_handle = legend
+
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred
+        )
+
+    def addItem(self, *args, **kwargs) -> None:
+        super().addItem(*args, **kwargs)
+        self.adjust_size()
+
+    def removeItem(self, *args, **kwargs) -> None:
+        super().removeItem(*args, **kwargs)
+        self.adjust_size()
+
+    def adjust_size(self):
+        has_line = False
+        for item in self.items:
+            if isinstance(item, pg.PlotDataItem) and len(item.curve.xData) > 0:
+                has_line = True
+                break
+
+        height = 150 if has_line else 50
+
+        self.setFixedHeight(height)
+        self.legend_handle.parentItem().setFixedHeight(height)
+
+
+
 class PlotOverlay(QWidget):
     def __init__(self, linked_plot: pg.PlotItem,*args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -582,20 +614,14 @@ class TimeLineDock(QWidget):
         else:
             vb.scrubbed.connect(self.on_chart_area_clicked)
 
-        plot_item = pg.PlotItem(axisItems={"top": time_axis}, viewBox=vb)
-        plot_item.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Preferred
-        )
-
         legend = FixedLegend()
         legend_container = pg.GraphicsLayout()
         legend_container.setSpacing(0)
         legend_label = pg.LabelItem(f"<b>{timeline_row_name}</b>")
         legend_container.addItem(legend_label)
         legend_container.addItem(legend, row=1, col=0)
-        plot_item.setFixedHeight(50)
-        legend_container.setFixedHeight(50)
+
+        plot_item = SmartSizePlotItem(legend=legend, axisItems={"top": time_axis}, viewBox=vb)
         legend_container.setSizePolicy(
             QSizePolicy.Policy.Minimum,
             QSizePolicy.Policy.Minimum
@@ -670,9 +696,6 @@ class TimeLineDock(QWidget):
             plot_data_item.name = plot_name
             if timeline_row_name in self.timeline_legends and plot_name != "":
                 legend.addItem(plot_data_item, plot_name)
-
-        plot_item.setFixedHeight(150)
-        legend.parentItem().setFixedHeight(150)
 
         self.fix_scroll_size()
 
