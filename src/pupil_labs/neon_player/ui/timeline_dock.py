@@ -1,4 +1,5 @@
 import logging
+import math
 import typing as T
 
 import numpy as np
@@ -174,6 +175,14 @@ class FixedLegend(pg.LegendItem):
     def mouseDragEvent(self, event: MouseDragEvent) -> None:
         event.ignore()
 
+    def addItem(self, *args, **kwargs):
+        super().addItem(*args, **kwargs)
+        self.setColumnCount(max(1, math.ceil(len(self.items) / 3)))
+
+    def removeItem(self, *args, **kwargs):
+        super().removeItem(*args, **kwargs)
+        self.setColumnCount(max(1, math.ceil(len(self.items) / 3)))
+
 
 class TimestampLabel(QLabel):
     def __init__(self) -> None:
@@ -194,13 +203,13 @@ class PlotOverlay(QWidget):
         super().__init__(*args, **kwargs)
         self.linked_plot = linked_plot
 
-        linked_plot.vb.sigResized.connect(self._on_plot_resized)
+        linked_plot.vb.sigResized.connect(self.refresh_geometry)
 
     def get_x_pixel_for_x_value(self, x_value: float) -> float:
         x_range = self.linked_plot.vb.viewRange()[0]
         return (x_value - x_range[0]) / (x_range[1] - x_range[0]) * self.width()
 
-    def _on_plot_resized(self) -> None:
+    def refresh_geometry(self) -> None:
         plot_rect = self.linked_plot.geometry()
         self.setGeometry(
             plot_rect.x(), 10,
@@ -407,6 +416,7 @@ class TimeLineDock(QWidget):
     def resizeEvent(self, event):
         w = self.scroll_area.width() - self.scroll_area.verticalScrollBar().width()
         self.graphics_view.setFixedWidth(w)
+        self.playhead.refresh_geometry()
         return super().resizeEvent(event)
 
     def on_recording_loaded(self, recording: nr.NeonRecording):
@@ -573,17 +583,30 @@ class TimeLineDock(QWidget):
             vb.scrubbed.connect(self.on_chart_area_clicked)
 
         plot_item = pg.PlotItem(axisItems={"top": time_axis}, viewBox=vb)
+        plot_item.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred
+        )
 
         legend = FixedLegend()
-        label = pg.LabelItem(f"<b>{timeline_row_name}</b>")
-        if timeline_row_name == "Export window":
-            legend.setContentsMargins(0, 15, 0, 0)
+        legend_container = pg.GraphicsLayout()
+        legend_container.setSpacing(0)
+        legend_label = pg.LabelItem(f"<b>{timeline_row_name}</b>")
+        legend_container.addItem(legend_label)
+        legend_container.addItem(legend, row=1, col=0)
+        plot_item.setFixedHeight(50)
+        legend_container.setFixedHeight(50)
+        legend_container.setSizePolicy(
+            QSizePolicy.Policy.Minimum,
+            QSizePolicy.Policy.Minimum
+        )
 
-        legend.layout.addItem(label, 0, 0, 1, 2)
+        if is_timestamps_row:
+            legend_label.anchor((.5, 0), (.5, 0), (0, 20))
 
         legend.layout.setSpacing(0)
         self.timeline_legends[timeline_row_name] = legend
-        self.graphics_layout.addItem(legend, row=row, col=0)
+        self.graphics_layout.addItem(legend_container, row=row, col=0)
 
         self.graphics_layout.addItem(plot_item, row=row, col=1)
 
@@ -639,14 +662,23 @@ class TimeLineDock(QWidget):
         if "pen" not in kwargs:
             kwargs["pen"] = pg.mkPen(color=color, width=2, cap="flat")
 
+        legend = self.timeline_legends[timeline_row_name]
         if len(data) > 0:
             plot_data_item = plot_item.plot(
                 data[:, 0], data[:, 1], name=plot_name, **kwargs
             )
             plot_data_item.name = plot_name
             if timeline_row_name in self.timeline_legends and plot_name != "":
-                legend = self.timeline_legends[timeline_row_name]
                 legend.addItem(plot_data_item, plot_name)
+
+        plot_item.setFixedHeight(150)
+        legend.parentItem().setFixedHeight(150)
+
+        self.fix_scroll_size()
+
+    def fix_scroll_size(self):
+        h = sum([p.preferredHeight() for p in self.timeline_plots.values()])
+        self.graphics_view.setFixedHeight(h)
 
     def remove_timeline_plot(self, plot_name: str):
         plot = self.get_timeline_plot(plot_name)
@@ -658,8 +690,10 @@ class TimeLineDock(QWidget):
 
         if plot_name in self.timeline_legends:
             legend = self.timeline_legends[plot_name]
-            self.graphics_layout.removeItem(legend)
+            self.graphics_layout.removeItem(legend.parentItem())
             del self.timeline_legends[plot_name]
+
+        self.fix_scroll_size()
 
     def remove_timeline_series(self, plot_name: str, series_name: str):
         if plot_name not in self.timeline_plots:
@@ -738,6 +772,8 @@ class TimeLineDock(QWidget):
         if item_name and timeline_row_name in self.timeline_legends:
             legend = self.timeline_legends[timeline_row_name]
             legend.addItem(fill, name=item_name)
+
+        self.fix_scroll_size()
 
     def register_data_point_action(
         self,
