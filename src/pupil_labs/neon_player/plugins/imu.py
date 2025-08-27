@@ -68,7 +68,7 @@ class IMUPlugin(neon_player.Plugin):
                 timeline.add_timeline_line(
                     "Rotation",
                     data.to_numpy(),
-                    item_name=euler_axis,
+                    euler_axis,
                 )
         elif not self._show_rotation and rotation_plot is not None:
             timeline.remove_timeline_plot("Rotation")
@@ -80,7 +80,7 @@ class IMUPlugin(neon_player.Plugin):
                 timeline.add_timeline_line(
                     "Gyroscope",
                     data.to_numpy(),
-                    item_name=gyro_axis,
+                    gyro_axis,
             )
         elif not self._show_gyro and gyro_plot is not None:
             timeline.remove_timeline_plot("Gyroscope")
@@ -92,7 +92,7 @@ class IMUPlugin(neon_player.Plugin):
                 timeline.add_timeline_line(
                     "Acceleration",
                     data.to_numpy(),
-                    item_name=acc_axis,
+                    acc_axis,
             )
         elif not self._show_acceleration and acc_plot is not None:
             timeline.remove_timeline_plot("Acceleration")
