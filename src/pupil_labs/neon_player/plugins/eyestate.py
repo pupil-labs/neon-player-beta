@@ -133,7 +133,12 @@ class EyestatePlugin(neon_player.Plugin):
             return
 
         export_file = destination / "eyestate.csv"
-        self.eyestate_data.to_csv(export_file, index=False)
+
+        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_mask = self.eyestate_data["timestamp [ns]"] >= start_time
+        stop_mask = self.eyestate_data["timestamp [ns]"] <= stop_time
+
+        self.eyestate_data[start_mask & stop_mask].to_csv(export_file, index=False)
 
     @property
     def pupil_diameter(self) -> dict[str, bool]:

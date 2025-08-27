@@ -134,6 +134,7 @@ class EventsPlugin(neon_player.Plugin):
 
     @action
     def export(self, destination: Path = Path(".")):
+        start_time, stop_time = neon_player.instance().recording_settings.export_window
         events_df = pd.DataFrame({
             "recording id": self.recording.info["recording_id"],
             "timestamp [ns]": list(self.events.values()),
@@ -144,4 +145,7 @@ class EventsPlugin(neon_player.Plugin):
         events_df["timestamp [ns]"] = events_df["timestamp [ns]"].astype(
             self.recording.events.time.dtype
         )
+        start_mask = (events_df["timestamp [ns]"] >= start_time)
+        stop_mask = (events_df["timestamp [ns]"] <= stop_time)
+        events_df = events_df[start_mask & stop_mask]
         events_df.to_csv(destination / "events.csv", index=False)

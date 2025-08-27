@@ -63,38 +63,49 @@ class GazeDataPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        recording = self.recording
+        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_mask = self.recording.gaze.time >= start_time
+        stop_mask = self.recording.gaze.time <= stop_time
 
-        scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(recording)
-        fixations = recording.fixations
+        export_gazes = self.recording.gaze[start_mask & stop_mask]
+        export_worn = self.recording.worn[start_mask & stop_mask]
 
-        fixation_ids = (
-            find_ranged_index(recording.gaze.time, fixations.start_time, fixations.stop_time) + 1
+        scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(
+            self.recording
         )
 
-        blink_ids = (
+        matched_fixation_ids = (
             find_ranged_index(
-                recording.gaze.time, recording.blinks.start_time, recording.blinks.stop_time
-            )
-            + 1
+                export_gazes.time,
+                self.recording.fixations.start_time,
+                self.recording.fixations.stop_time
+            ) + 1
+        )
+
+        matched_blink_ids = (
+            find_ranged_index(
+                export_gazes.time,
+                self.recording.blinks.start_time,
+                self.recording.blinks.stop_time
+            ) + 1
         )
 
         spherical_coords = cart_to_spherical(
             unproject_points(
-                recording.gaze.point,
+                export_gazes.point,
                 scene_camera_matrix,
                 scene_distortion_coefficients,
             )
         )
 
         gaze = pd.DataFrame({
-            "recording id": recording.info["recording_id"],
-            "timestamp [ns]": recording.gaze.time,
-            "gaze x [px]": recording.gaze.point[:, 0],
-            "gaze y [px]": recording.gaze.point[:, 1],
-            "worn": recording.worn.worn,
-            "fixation id": fixation_ids,
-            "blink id": blink_ids,
+            "recording id": self.recording.info["recording_id"],
+            "timestamp [ns]": export_gazes.time,
+            "gaze x [px]": export_gazes.point[:, 0],
+            "gaze y [px]": export_gazes.point[:, 1],
+            "worn": export_worn.worn,
+            "fixation id": matched_fixation_ids,
+            "blink id": matched_blink_ids,
             "azimuth [deg]": spherical_coords[2],
             "elevation [deg]": spherical_coords[1],
         })

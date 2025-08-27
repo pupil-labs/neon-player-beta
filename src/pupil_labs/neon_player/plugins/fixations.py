@@ -134,7 +134,14 @@ class FixationsPlugin(neon_player.Plugin):
 
     @action
     def export(self, destination: Path = Path()) -> None:
-        fixations = self.recording.fixations
+        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_mask = self.recording.fixations.start_time >= start_time
+        stop_mask = self.recording.fixations.stop_time <= stop_time
+
+        fixations_ids = np.arange(len(self.recording.fixations)) + 1
+
+        fixations = self.recording.fixations[start_mask & stop_mask]
+        fixation_ids = fixations_ids[start_mask & stop_mask]
 
         scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(self.recording)
         spherical_coords = cart_to_spherical(
@@ -145,9 +152,9 @@ class FixationsPlugin(neon_player.Plugin):
             )
         )
 
-        fixations = pd.DataFrame({
+        export_data = pd.DataFrame({
             "recording id": self.recording.info["recording_id"],
-            "fixation id": 1 + np.arange(len(fixations)),
+            "fixation id": fixation_ids,
             "start timestamp [ns]": fixations.start_time,
             "end timestamp [ns]": fixations.stop_time,
             "duration [ms]": (fixations.stop_time - fixations.start_time) / 1e6,
@@ -158,7 +165,7 @@ class FixationsPlugin(neon_player.Plugin):
         })
 
         export_file = destination / "fixations.csv"
-        fixations.to_csv(export_file, index=False)
+        export_data.to_csv(export_file, index=False)
         print(f"Wrote {export_file}")
 
     @property
