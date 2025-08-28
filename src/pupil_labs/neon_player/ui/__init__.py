@@ -10,6 +10,8 @@ from PySide6.QtGui import (
     QWheelEvent,
 )
 
+from .progress_action_form import ProgressActionForm  # noqa: F401
+
 QtShortcutType = (
     QKeySequence | QKeyCombination | QKeySequence.StandardKey | str | int | None
 )

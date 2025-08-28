@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QFileDialog, QMessageBox
 import pupil_labs.video as plv
 from pupil_labs import neon_player
 from pupil_labs.neon_player import ProgressUpdate, action
+from pupil_labs.neon_player.job_manager import BackgroundJob
 from pupil_labs.neon_player.utilities import ndarray_from_qimage
 
 
@@ -22,13 +23,12 @@ class VideoExporter(neon_player.Plugin):
         self.gray = QColorConstants.Gray
 
     @action
-    def export(self, destination: Path = Path()) -> None:
+    def export(self, destination: Path = Path()) -> BackgroundJob | T.Generator:
         app = neon_player.instance()
         if not app.headless:
-            self.job_manager.run_background_action(
+            return self.job_manager.run_background_action(
                 "Video Export", "VideoExporter.export", destination
             )
-            return
 
         return self.bg_export(destination)
 
