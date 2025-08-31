@@ -154,8 +154,9 @@ class NeonPlayerApp(QApplication):
                     action_obj = plugin._action_objects[action_name]
 
                 keys = list(action_obj.args.keys())
-                if keys[0] == "self":
+                if len(keys) > 0 and keys[0] == "self":
                     keys = keys[1:]
+
                 args = dict(zip(keys, job_args))
                 action_obj.__setstate__(args)
                 self.job_manager.work_job(action_obj())

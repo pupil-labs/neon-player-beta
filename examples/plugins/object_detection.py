@@ -23,7 +23,6 @@ class ObjectDetection(neon_player.Plugin):
 
     def __init__(self):
         super().__init__()
-        self.bg_worker = None
         self.gens = None
 
         self._model = DetectionModel.YOLO11N_SEG
