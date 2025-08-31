@@ -27,6 +27,7 @@ class GazeDataPlugin(neon_player.Plugin):
     def __init__(self) -> None:
         super().__init__()
 
+        self.render_layer = 10
         self._offset_x = 0.0
         self._offset_y = 0.0
 
