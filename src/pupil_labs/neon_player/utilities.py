@@ -17,7 +17,10 @@ def qimage_from_frame(frame: np.ndarray | None) -> QImage:
         image_format = QImage.Format.Format_Grayscale8
     else:
         height, width, channel = frame.shape
-        image_format = QImage.Format.Format_BGR888
+        if channel == 3:
+            image_format = QImage.Format.Format_BGR888
+        else:
+            image_format = QImage.Format.Format_RGBA8888
 
     bytes_per_line = channel * width
 
