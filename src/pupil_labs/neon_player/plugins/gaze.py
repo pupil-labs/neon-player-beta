@@ -44,20 +44,25 @@ class GazeDataPlugin(neon_player.Plugin):
             return
 
         scene_idx = np.searchsorted(self.recording.scene.time, time_in_recording) - 1
-        if scene_idx >= len(self.recording.scene) - 1 or scene_idx < 0:
-            gaze_start_time = time_in_recording
-            gaze_end_ts = gaze_start_time + 1e9 / 30
+        if scene_idx >= len(self.recording.scene) or scene_idx < 0:
+            return
 
-        else:
-            gaze_start_time = self.recording.scene[scene_idx].time
-            gaze_end_ts = self.recording.scene[scene_idx + 1].time
-
-        after_mask = self.recording.gaze.time >= gaze_start_time
-        before_mask = self.recording.gaze.time < gaze_end_ts
-        gazes = self.recording.gaze[after_mask & before_mask]
-
+        gazes = self.get_gazes_for_scene(scene_idx)
         for viz in self._visualizations:
             viz.render(painter, gazes, self._offset_x, self._offset_y)
+
+    def get_gazes_for_scene(self, scene_idx: int):
+        gaze_start_time = self.recording.scene[scene_idx].time
+        after_mask = self.recording.gaze.time >= gaze_start_time
+
+        if scene_idx < len(self.recording.scene) - 1:
+            gaze_end_ts = self.recording.scene[scene_idx + 1].time
+            before_mask = self.recording.gaze.time < gaze_end_ts
+            time_mask = after_mask & before_mask
+        else:
+            time_mask = after_mask
+
+        return self.recording.gaze[time_mask]
 
     @action
     def export(self, destination: Path = Path()) -> None:

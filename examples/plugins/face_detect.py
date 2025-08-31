@@ -3,7 +3,8 @@ import typing as T
 
 import mediapipe as mp
 import numpy as np
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPolygonF
+from PySide6.QtCore import QPointF, QRectF, QSizeF
 from qt_property_widgets.utilities import property_params
 
 from pupil_labs.neon_player import Plugin, ProgressUpdate, utilities
@@ -26,6 +27,13 @@ class FaceDetection(Plugin):
         self._mesh_alpha = 128
 
         self._render_meshes = True
+
+        self.aoi_indices = {
+            "left_eye": [263, 466, 388, 387, 386, 385, 384, 398, 362, 382, 381, 380, 374, 477, 373, 390, 249],
+            "right_eye": [33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7],
+            "mouth": [0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146, 61, 185, 40, 39, 37],
+        }
+        self._intersection_radius = 64
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.load_object_cache()
@@ -84,14 +92,58 @@ class FaceDetection(Plugin):
                 landmark_drawing_spec=self.drawing_spec,
                 connection_drawing_spec=self.drawing_spec
             )
-            break
 
         alpha = np.zeros_like(overlay[:, :, 0], dtype=np.uint8)
 
         alpha[np.any(overlay != 0, axis=-1)] = self._mesh_alpha
         overlay_alphad = np.dstack((overlay, alpha))
         overlay_image = utilities.qimage_from_frame(overlay_alphad)
+
         painter.drawImage(0, 0, overlay_image)
+
+        gaze_plugin = self.app.plugins_by_class.get("GazeDataPlugin")
+
+        for k in self.aoi_indices:
+            landmarks = self.get_aoi(scene_idx, k)
+            # create a qpolygon from the landmarks
+            qpolygon = QPolygonF()
+            for landmark in landmarks:
+                qpolygon.append(QPointF(*landmark))
+
+            painter_path = QPainterPath()
+            painter_path.addPolygon(qpolygon)
+            painter_path.closeSubpath()
+
+            gazes = gaze_plugin.get_gazes_for_scene(scene_idx)
+            pen = painter.pen()
+            pen.setWidth(5)
+            for gaze in gazes:
+                # test if the gaze is inside the polygon
+                circle_path = QPainterPath()
+                circle_path.addEllipse(
+                    QPointF(gaze.point[0], gaze.point[1]),
+                    self._intersection_radius,
+                    self._intersection_radius
+                )
+                if circle_path.intersects(painter_path) or circle_path.contains(painter_path):
+                    pen.setColor(QColor(255, 0, 0))
+                    break
+            else:
+                pen.setColor(QColor(255, 255, 255))
+
+            painter.setPen(pen)
+            painter.drawPath(painter_path)
+
+    def get_aoi(self, scene_idx: int, aoi_name: str) -> T.List[T.Tuple[float, float]]:
+        frame_faces = self.faces[scene_idx]
+
+        indices = self.aoi_indices[aoi_name]
+        return [
+            (
+                face.landmark[idx].x * self.recording.scene.width,
+                face.landmark[idx].y * self.recording.scene.height,
+            ) for face in frame_faces for idx in indices
+        ]
 
     def _load_object_cache(self) -> None:
         objects_file = self.get_cache_path() / "faces.npy"
@@ -169,4 +221,14 @@ class FaceDetection(Plugin):
     @mesh_alpha.setter
     def mesh_alpha(self, value: int) -> None:
         self._mesh_alpha = value
+        self.changed.emit()
+
+    @property
+    @property_params(min=1, max=100)
+    def intersection_radius(self) -> float:
+        return self._intersection_radius
+
+    @intersection_radius.setter
+    def intersection_radius(self, value: float) -> None:
+        self._intersection_radius = value
         self.changed.emit()
