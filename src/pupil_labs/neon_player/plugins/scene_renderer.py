@@ -21,9 +21,7 @@ class SceneRendererPlugin(Plugin):
             painter.drawText(100, 100, "No scene data available")
             return
 
-        scene_idx = (
-            np.searchsorted(self.recording.scene.time, time_in_recording, "right") - 1
-        )
+        scene_idx = self.get_scene_idx_for_time(time_in_recording)
         should_gray = scene_idx < 0 or scene_idx > len(self.recording.scene) - 1
         if not should_gray:
             frame = self.recording.scene[scene_idx]

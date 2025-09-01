@@ -2,6 +2,7 @@ import json
 import typing as T
 from pathlib import Path
 
+import numpy as np
 from numpyencoder import NumpyEncoder
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
@@ -101,6 +102,9 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
         with cache_file.open("w") as f:
             json.dump(data, f, cls=NumpyEncoder)
+
+    def get_scene_idx_for_time(self, t: int) -> int:
+        return np.searchsorted(self.recording.scene.time, t, "right") - 1
 
     @property
     @property_params(widget=None, dont_encode=True)

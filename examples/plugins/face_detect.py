@@ -67,9 +67,7 @@ class FaceDetection(Plugin):
         if self.faces is None:
             return
 
-        scene_idx = (
-            np.searchsorted(self.recording.scene.time, time_in_recording, "right") - 1
-        )
+        scene_idx = self.get_scene_idx_for_time(time_in_recording)
         if not (0 <= scene_idx < len(self.faces)):
             return
 

@@ -43,7 +43,7 @@ class GazeDataPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        scene_idx = np.searchsorted(self.recording.scene.time, time_in_recording) - 1
+        scene_idx = self.get_scene_idx_for_time(time_in_recording)
         if scene_idx >= len(self.recording.scene) or scene_idx < 0:
             return
 
