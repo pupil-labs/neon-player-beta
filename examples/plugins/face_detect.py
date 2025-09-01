@@ -1,13 +1,15 @@
 import logging
 import typing as T
+from pathlib import Path
 
 import mediapipe as mp
 import numpy as np
+import pandas as pd
+from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPolygonF
-from PySide6.QtCore import QPointF, QRectF, QSizeF
 from qt_property_widgets.utilities import property_params
 
-from pupil_labs.neon_player import Plugin, ProgressUpdate, utilities
+from pupil_labs.neon_player import Plugin, ProgressUpdate, action, utilities
 from pupil_labs.neon_recording import NeonRecording
 
 
@@ -103,20 +105,14 @@ class FaceDetection(Plugin):
 
         gaze_plugin = self.app.plugins_by_class.get("GazeDataPlugin")
 
+        pen = painter.pen()
+        pen.setWidth(5)
+
         for k in self.aoi_indices:
             landmarks = self.get_aoi(scene_idx, k)
-            # create a qpolygon from the landmarks
-            qpolygon = QPolygonF()
-            for landmark in landmarks:
-                qpolygon.append(QPointF(*landmark))
-
-            painter_path = QPainterPath()
-            painter_path.addPolygon(qpolygon)
-            painter_path.closeSubpath()
+            aoi_path = self.create_path_from_landmarks(landmarks)
 
             gazes = gaze_plugin.get_gazes_for_scene(scene_idx)
-            pen = painter.pen()
-            pen.setWidth(5)
             for gaze in gazes:
                 # test if the gaze is inside the polygon
                 circle_path = QPainterPath()
@@ -125,17 +121,19 @@ class FaceDetection(Plugin):
                     self._intersection_radius,
                     self._intersection_radius
                 )
-                if circle_path.intersects(painter_path) or circle_path.contains(painter_path):
+                if circle_path.intersects(aoi_path):
                     pen.setColor(QColor(255, 0, 0))
                     break
             else:
                 pen.setColor(QColor(255, 255, 255))
 
             painter.setPen(pen)
-            painter.drawPath(painter_path)
+            painter.drawPath(aoi_path)
 
     def get_aoi(self, scene_idx: int, aoi_name: str) -> T.List[T.Tuple[float, float]]:
         frame_faces = self.faces[scene_idx]
+        if frame_faces is None:
+            return None
 
         indices = self.aoi_indices[aoi_name]
         return [
@@ -173,6 +171,60 @@ class FaceDetection(Plugin):
         destination = self.get_cache_path() / "faces.npy"
         destination.parent.mkdir(parents=True, exist_ok=True)
         np.save(destination, np.array(results_by_frame, dtype=object))
+
+    @action
+    def export(self, destination: Path = Path()) -> None:
+        gaze_plugin = self.app.plugins_by_class.get("GazeDataPlugin")
+
+        data = {
+            "scene_idx": [],
+            "time": [],
+        }
+        for aoi_name in self.aoi_indices:
+            data[aoi_name] = []
+
+        for scene_idx, frame in enumerate(self.recording.scene):
+            data["scene_idx"].append(scene_idx)
+            data["time"].append(frame.time)
+            for aoi_name in self.aoi_indices:
+                landmarks = self.get_aoi(scene_idx, aoi_name)
+
+                if landmarks is None:
+                    data[aoi_name].append(False)
+                    continue
+
+                aoi_path = self.create_path_from_landmarks(landmarks)
+                gazes = gaze_plugin.get_gazes_for_scene(scene_idx)
+
+                for gaze in gazes:
+                    # test if the gaze is inside the polygon
+                    circle_path = QPainterPath()
+                    circle_path.addEllipse(
+                        QPointF(gaze.point[0], gaze.point[1]),
+                        self._intersection_radius,
+                        self._intersection_radius
+                    )
+                    if circle_path.intersects(aoi_path):
+                        data[aoi_name].append(True)
+                        break
+                else:
+                    data[aoi_name].append(False)
+
+        destination_path = destination / "face_aois.csv"
+        df = pd.DataFrame(data)
+        df.to_csv(destination_path, index=False)
+        logging.info(f"Exported {destination_path}")
+
+
+    def create_path_from_landmarks(self, landmarks: list[tuple[float, float]]) -> QPainterPath:
+        polygon = QPolygonF()
+        for landmark in landmarks:
+            polygon.append(QPointF(*landmark))
+
+        painter_path = QPainterPath()
+        painter_path.addPolygon(polygon)
+        painter_path.closeSubpath()
+        return painter_path
 
     @property
     def render_meshes(self) -> bool:
