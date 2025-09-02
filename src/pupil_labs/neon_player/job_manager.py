@@ -151,12 +151,19 @@ class JobManager(QObject):
         self.job_counter += 1
 
         job.canceled.connect(lambda: self.on_job_canceled(job))
-        job.finished.connect(lambda: self.remove_job(job))
+        job.finished.connect(lambda: self.on_job_finished(job))
 
         self.current_jobs.append(job)
         self.job_started.emit(job)
 
         return job
+
+    def on_job_finished(self, job: BackgroundJob) -> None:
+        neon_player.instance().show_notification(
+            "Job finished",
+            f"Job '{job.name}' has completed"
+        )
+        self.remove_job(job)
 
     def on_job_canceled(self, job: BackgroundJob) -> None:
         self.job_canceled.emit(job)
