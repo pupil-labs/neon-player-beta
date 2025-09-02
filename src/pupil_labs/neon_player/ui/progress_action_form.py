@@ -14,7 +14,7 @@ class ProgressActionForm(ActionForm):
 
     @staticmethod
     def from_type(cls: type) -> "ProgressActionForm":
-        return ProgressActionForm(cls(lambda: None, None))
+        return ProgressActionForm(cls())
 
     def _setup_form(self) -> None:
         super()._setup_form()
