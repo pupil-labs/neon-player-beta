@@ -13,6 +13,7 @@ from PySide6.QtGui import QAction, QIcon, QPainter
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QSystemTrayIcon,
 )
 from qt_property_widgets.utilities import ComplexEncoder, create_action_object
 
@@ -21,6 +22,7 @@ from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.job_manager import JobManager
 from pupil_labs.neon_player.plugins import (
+    audio,  # noqa: F401
     events,  # noqa: F401
     eyestate,  # noqa: F401
     fixations,  # noqa: F401
@@ -78,6 +80,10 @@ class NeonPlayerApp(QApplication):
         self.setWindowIcon(QIcon(str(neon_player.asset_path("neon-player.svg"))))
         self.setStyle("Fusion")
 
+        self.tray_icon = QSystemTrayIcon()
+        self.tray_icon.setIcon(self.windowIcon())
+        self.tray_icon.setToolTip("Neon Player")
+
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
         self.recording: nr.NeonRecording | None = None
@@ -107,7 +113,6 @@ class NeonPlayerApp(QApplication):
             nargs="+",
             default=None,
         )
-
 
         self.args = parser.parse_args()
 
@@ -288,8 +293,18 @@ class NeonPlayerApp(QApplication):
     def run(self) -> int:
         if not self.headless:
             self.main_window.show()
+            self.tray_icon.show()
 
         return self.exec()
+
+    def show_notification(
+        self,
+        title: str,
+        message: str,
+        icon: QSystemTrayIcon.MessageIcon|QIcon = QSystemTrayIcon.MessageIcon.Information,
+        duration: int = 10000
+    ) -> None:
+        self.tray_icon.showMessage(title, message, icon, duration)
 
     @property
     def headless(self) -> bool:
