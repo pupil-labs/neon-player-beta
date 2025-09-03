@@ -33,6 +33,7 @@ from pupil_labs.neon_player.plugins import (
 )
 from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 from pupil_labs.neon_player.ui.main_window import MainWindow
+from pupil_labs.neon_player.utilities import clone_menu
 
 
 def setup_logging() -> None:
@@ -294,6 +295,9 @@ class NeonPlayerApp(QApplication):
         if not self.headless:
             self.main_window.show()
             self.tray_icon.show()
+            menu = self.main_window.get_menu("File", auto_create=False)
+            context_menu = clone_menu(menu)
+            self.tray_icon.setContextMenu(context_menu)
 
         return self.exec()
 

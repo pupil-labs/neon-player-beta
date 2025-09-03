@@ -3,6 +3,7 @@ import typing as T
 import cv2
 import numpy as np
 from PySide6.QtGui import QImage
+from PySide6.QtWidgets import QMenu
 
 from pupil_labs.neon_recording import NeonRecording
 
@@ -38,6 +39,17 @@ def ndarray_from_qimage(image: QImage) -> np.ndarray:
         return np.array(image.bits()).reshape((image.height(), image.width(), 3))
 
     return np.zeros((0, 0), dtype=int)
+
+
+def clone_menu(menu: QMenu) -> QMenu:
+    menu_copy = QMenu(menu.title())
+    for action in menu.actions():
+        if action.menu():
+            menu_copy.addMenu(clone_menu(action.menu()))
+        else:
+            menu_copy.addAction(action)
+
+    return menu_copy
 
 
 def unproject_points(

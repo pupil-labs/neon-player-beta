@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
+from pupil_labs.neon_player.utilities import clone_menu
 
 
 class ScrubbableViewBox(pg.ViewBox):
@@ -487,18 +488,9 @@ class TimeLineDock(QWidget):
         menu = neon_player.instance().main_window.get_menu(
             "Timeline", auto_create=False
         )
-        context_menu = QMenu() if menu is None else self.clone_menu(menu)
+        context_menu = QMenu() if menu is None else clone_menu(menu)
+        context_menu.setParent(self)
         context_menu.exec(global_position)
-
-    def clone_menu(self, menu: QMenu) -> QMenu:
-        menu_copy = QMenu(menu.title(), self)
-        for action in menu.actions():
-            if action.menu():
-                menu_copy.addMenu(self.clone_menu(action.menu()))
-            else:
-                menu_copy.addAction(action)
-
-        return menu_copy
 
     def on_chart_area_mouse_moved(self, pos: QPointF):
         data_pos = self.timestamps_plot.getViewBox().mapSceneToView(pos)
