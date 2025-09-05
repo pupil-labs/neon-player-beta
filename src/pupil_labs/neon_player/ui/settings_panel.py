@@ -36,6 +36,7 @@ class RecordingInfoWidget(QWidget):
 
         app = neon_player.instance()
         app.recording_loaded.connect(self.on_recording_loaded)
+        app.recording_unloaded.connect(self.on_recording_unloaded)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.recording_id_label.setText(recording.info["recording_id"])
@@ -43,6 +44,11 @@ class RecordingInfoWidget(QWidget):
         start_time_str = start_time.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
         self.recording_date_label.setText(start_time_str)
         self.wearer_label.setText(recording.wearer["name"])
+
+    def on_recording_unloaded(self) -> None:
+        self.recording_id_label.setText("-")
+        self.recording_date_label.setText("-")
+        self.wearer_label.setText("-")
 
 
 class SettingsPanel(ExpanderList):

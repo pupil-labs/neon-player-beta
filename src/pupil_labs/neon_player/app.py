@@ -71,6 +71,7 @@ class NeonPlayerApp(QApplication):
     playback_state_changed = Signal(bool)
     position_changed = Signal(object)
     recording_loaded = Signal(object)
+    recording_unloaded = Signal()
 
     def __init__(self, argv: list[str]) -> None:
         self._initializing = True
@@ -313,8 +314,18 @@ class NeonPlayerApp(QApplication):
     def headless(self) -> bool:
         return self.args.job is not None
 
+    def unload(self) -> None:
+        self.set_playback_state(False)
+        self.recording = None
+        class_names = list(self.plugins_by_class.keys())
+        for plugin_class_name in class_names:
+            self.toggle_plugin(plugin_class_name, False)
+
+        self.recording_unloaded.emit()
+
     def load(self, path: Path) -> None:
         """Load a recording from the given path."""
+        self.unload()
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
         self.playback_start_anchor = 0

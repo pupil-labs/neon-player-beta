@@ -125,6 +125,7 @@ class MainWindow(QMainWindow):
         self.register_action("&Help/&About", on_triggered=self.on_about_action)
 
         self.register_action("&File/&Open", "Ctrl+o", self.on_open_action)
+        self.register_action("&File/&Close", None, self.on_close_action)
         self.register_action("&File/&Global Settings", None, self.show_global_settings)
         self.rec_settings_action = self.register_action(
             "&File/&Recording Settings",
@@ -164,6 +165,9 @@ class MainWindow(QMainWindow):
             neon_player.instance().load(Path(path))
         else:
             app.set_playback_state(was_playing)
+
+    def on_close_action(self) -> None:
+        neon_player.instance().unload()
 
     def show_global_settings(self) -> None:
         dialog = GlobalSettingsDialog(self)
