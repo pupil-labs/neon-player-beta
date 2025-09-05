@@ -10,6 +10,7 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPolygon
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsRectItem,
+    QGraphicsSceneMouseEvent,
     QHBoxLayout,
     QLabel,
     QMenu,
@@ -28,11 +29,30 @@ from pupil_labs.neon_player.utilities import clone_menu
 class ScrubbableViewBox(pg.ViewBox):
     scrub_start = Signal(MouseDragEvent)
     scrub_end = Signal(MouseDragEvent)
-    scrubbed = Signal(MouseDragEvent)
+    scrubbed = Signal(object)
+
+    def mousePressEvent(self, ev):
+        left_clicked = ev.button() == Qt.MouseButton.LeftButton
+        control_pressed = Qt.KeyboardModifier.ControlModifier == ev.modifiers()
+        if left_clicked and control_pressed:
+            self.setMouseMode(pg.ViewBox.RectMode)
+
+        else:
+            self.scrubbed.emit(ev)
+            ev.accept()
+
+        return super().mousePressEvent(ev)
 
     def mouseDragEvent(self, ev, axis=None):
         if ev.button() == Qt.MouseButton.MiddleButton:
             return super().mouseDragEvent(ev, axis)
+
+        if self.state["mouseMode"] == pg.ViewBox.RectMode:
+            super().mouseDragEvent(ev, axis)
+            if ev.finish:
+                self.setMouseMode(pg.ViewBox.PanMode)
+
+            return
 
         if ev.start:
             self.scrub_start.emit(ev)
