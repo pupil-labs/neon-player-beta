@@ -28,6 +28,7 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import ConsoleWindow
+from pupil_labs.neon_player.ui.expander import ExpanderList
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
@@ -171,6 +172,7 @@ class MainWindow(QMainWindow):
 
     def show_global_settings(self) -> None:
         dialog = GlobalSettingsDialog(self)
+        dialog.resize(500, 600)
         dialog.exec()
 
     def show_recording_settings(self) -> None:
@@ -286,19 +288,22 @@ class GlobalSettingsDialog(QDialog):
         layout = QVBoxLayout(self)
         self.setLayout(layout)
 
+        expander_list = ExpanderList(self)
+        layout.addWidget(QLabel("<h2>Global Settings</h2>"))
+        layout.addWidget(expander_list)
+
         global_settings_form = PropertyForm(app.settings)
         global_settings_form.property_changed.connect(self.on_property_changed)
+        expander_list.add_expander("General", global_settings_form)
 
-        layout.addWidget(QLabel("<h2>Global Settings</h2>"))
-        layout.addWidget(global_settings_form)
-
-        layout.addWidget(QLabel("<h2>Plugin Settings</h2>"))
         for cls in Plugin.known_classes:
             if cls.global_properties is not None:
                 plugin_props_form = PropertyForm(cls.global_properties)
                 plugin_props_form.property_changed.connect(self.on_property_changed)
-                layout.addWidget(QLabel(f"<h3>{cls.get_label()}</h3>"))
-                layout.addWidget(plugin_props_form)
+                expander_list.add_expander(
+                    f"Plugin: {cls.get_label()}",
+                    plugin_props_form
+                )
 
     def on_property_changed(self, prop_name: str, value: typing.Any) -> None:
         neon_player.instance().save_settings()

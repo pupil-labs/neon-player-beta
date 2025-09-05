@@ -2,17 +2,15 @@ from pathlib import Path
 
 import pandas as pd
 from PySide6.QtGui import QColor
+from qt_property_widgets.utilities import PersistentPropertiesMixin
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player import action
+from pupil_labs.neon_player import GlobalPluginProperties, action
 from pupil_labs.neon_recording import NeonRecording
 
 
-class EyestatePlugin(neon_player.Plugin):
-    label = "Eyestate"
-
-    def __init__(self) -> None:
-        super().__init__()
+class PlotProps:
+    def __init__(self):
         self._pupil_diameter_plots = dict.fromkeys(("Left", "Right"), True)
         self._eyeball_center_plots = {
             f"{side} {component}": True
@@ -30,6 +28,68 @@ class EyestatePlugin(neon_player.Plugin):
             for side in ("left", "right")
         }
         self._eyelid_aperture_plots = dict.fromkeys(("Left", "Right"), True)
+
+    def on_plot_visibilities_changed(self, name, value):
+        pass
+
+    @property
+    def pupil_diameter(self) -> dict[str, bool]:
+        return self._pupil_diameter_plots
+
+    @pupil_diameter.setter
+    def pupil_diameter(self, value: dict[str, bool]) -> None:
+        self._pupil_diameter_plots = value
+        self.on_plot_visibilities_changed("Pupil diameter", value)
+
+    @property
+    def eyeball_center(self) -> dict[str, bool]:
+        return self._eyeball_center_plots
+
+    @eyeball_center.setter
+    def eyeball_center(self, value: dict[str, bool]) -> None:
+        self._eyeball_center_plots = value
+        self.on_plot_visibilities_changed("Eyeball center", value)
+
+    @property
+    def optical_axis(self) -> dict[str, bool]:
+        return self._optical_axis_plots
+
+    @optical_axis.setter
+    def optical_axis(self, value: dict[str, bool]) -> None:
+        self._optical_axis_plots = value
+        self.on_plot_visibilities_changed("Optical axis", value)
+
+    @property
+    def eyelid_angle(self) -> dict[str, bool]:
+        return self._eyelid_angle_plots
+
+    @eyelid_angle.setter
+    def eyelid_angle(self, value: dict[str, bool]) -> None:
+        self._eyelid_angle_plots = value
+        self.on_plot_visibilities_changed("Eyelid angle", value)
+
+    @property
+    def eyelid_aperture(self) -> dict[str, bool]:
+        return self._eyelid_aperture_plots
+
+    @eyelid_aperture.setter
+    def eyelid_aperture(self, value: dict[str, bool]) -> None:
+        self._eyelid_aperture_plots = value
+        self.on_plot_visibilities_changed("Eyelid aperture", value)
+
+
+class EyestatePluginGlobalProps(PlotProps, GlobalPluginProperties):
+    pass
+
+
+class EyestatePlugin(PlotProps, neon_player.Plugin):
+    label = "Eyestate"
+    global_properties = EyestatePluginGlobalProps()
+
+    def __init__(self) -> None:
+        PlotProps.__init__(self)
+        neon_player.Plugin.__init__(self)
+
         self.eyestate_data = None
         self.units = {
             "Pupil diameter": "mm",
@@ -52,6 +112,15 @@ class EyestatePlugin(neon_player.Plugin):
             "top right": QColor("#d62728"),
             "bottom right": QColor("#9467bd"),
         }
+
+    def __setstate__(self, state):
+        if state != {}:
+            neon_player.Plugin.__setstate__(self, state)
+        else:
+            app = neon_player.instance()
+            super().__setstate__(
+                app.settings.plugin_globals["EyestatePlugin"].to_dict()
+            )
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         try:
@@ -101,6 +170,9 @@ class EyestatePlugin(neon_player.Plugin):
         timeline.remove_timeline_plot("Eyelid angle")
         timeline.remove_timeline_plot("Eyelid aperture")
 
+    def on_plot_visibilities_changed(self, name, value):
+        return self._update_plot_visibilities(name, value)
+
     def _update_plot_visibilities(
         self,
         group_name: str,
@@ -139,48 +211,3 @@ class EyestatePlugin(neon_player.Plugin):
         stop_mask = self.eyestate_data["timestamp [ns]"] <= stop_time
 
         self.eyestate_data[start_mask & stop_mask].to_csv(export_file, index=False)
-
-    @property
-    def pupil_diameter(self) -> dict[str, bool]:
-        return self._pupil_diameter_plots
-
-    @pupil_diameter.setter
-    def pupil_diameter(self, value: dict[str, bool]) -> None:
-        self._pupil_diameter_plots = value
-        self._update_plot_visibilities("Pupil diameter", value)
-
-    @property
-    def eyeball_center(self) -> dict[str, bool]:
-        return self._eyeball_center_plots
-
-    @eyeball_center.setter
-    def eyeball_center(self, value: dict[str, bool]) -> None:
-        self._eyeball_center_plots = value
-        self._update_plot_visibilities("Eyeball center", value)
-
-    @property
-    def optical_axis(self) -> dict[str, bool]:
-        return self._optical_axis_plots
-
-    @optical_axis.setter
-    def optical_axis(self, value: dict[str, bool]) -> None:
-        self._optical_axis_plots = value
-        self._update_plot_visibilities("Optical axis", value)
-
-    @property
-    def eyelid_angle(self) -> dict[str, bool]:
-        return self._eyelid_angle_plots
-
-    @eyelid_angle.setter
-    def eyelid_angle(self, value: dict[str, bool]) -> None:
-        self._eyelid_angle_plots = value
-        self._update_plot_visibilities("Eyelid angle", value)
-
-    @property
-    def eyelid_aperture(self) -> dict[str, bool]:
-        return self._eyelid_aperture_plots
-
-    @eyelid_aperture.setter
-    def eyelid_aperture(self, value: dict[str, bool]) -> None:
-        self._eyelid_aperture_plots = value
-        self._update_plot_visibilities("Eyelid aperture", value)
