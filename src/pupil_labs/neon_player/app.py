@@ -375,6 +375,10 @@ class NeonPlayerApp(QApplication):
 
         self.playback_state_changed.emit(self.refresh_timer.isActive())
 
+    def set_playback_state(self, playing: bool) -> None:
+        if self.is_playing != playing:
+            self.toggle_play()
+
     def poll(self) -> None:
         if self.recording is None:
             return

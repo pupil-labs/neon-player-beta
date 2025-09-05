@@ -155,9 +155,15 @@ class MainWindow(QMainWindow):
         )
 
     def on_open_action(self) -> None:
+        app = neon_player.instance()
+        was_playing = app.is_playing
+        app.set_playback_state(False)
+
         path = QFileDialog.getExistingDirectory(self, "Open Recording")
         if path:
             neon_player.instance().load(Path(path))
+        else:
+            app.set_playback_state(was_playing)
 
     def show_global_settings(self) -> None:
         dialog = GlobalSettingsDialog(self)
