@@ -42,6 +42,7 @@ class ScrubbableViewBox(pg.ViewBox):
 
     def mouseDragEvent(self, ev, axis=None):
         if ev.button() == Qt.MouseButton.MiddleButton:
+            self.setMouseEnabled(x=True, y=True)
             return super().mouseDragEvent(ev, axis)
 
         if self.state["mouseMode"] == pg.ViewBox.RectMode:
