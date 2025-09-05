@@ -97,3 +97,10 @@ class MyPlugin(Plugin):
 $EXECUTABLE path/to/my/recording --job MyPlugin.my_function 123 "Hello, World!"
 ```
 Where `$EXECUTABLE` is either `python -m pupil_labs.neon_player` (if running from source) or the path to the compiled binary.
+
+# Mouse control in plots
+* Left click and/or drag to scrub
+* Drag with the middle mouse to pan
+* Shift + scroll zooms the Y axis
+* Control + scroll wheel zooms the X axis
+* Control + left click+drag zooms to a box you draw

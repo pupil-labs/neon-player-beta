@@ -10,7 +10,6 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPolygon
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsRectItem,
-    QGraphicsSceneMouseEvent,
     QHBoxLayout,
     QLabel,
     QMenu,
@@ -32,14 +31,12 @@ class ScrubbableViewBox(pg.ViewBox):
     scrubbed = Signal(object)
 
     def mousePressEvent(self, ev):
-        left_clicked = ev.button() == Qt.MouseButton.LeftButton
-        control_pressed = Qt.KeyboardModifier.ControlModifier == ev.modifiers()
-        if left_clicked and control_pressed:
-            self.setMouseMode(pg.ViewBox.RectMode)
+        if ev.button() == Qt.MouseButton.LeftButton:
+            if Qt.KeyboardModifier.ControlModifier == ev.modifiers():
+                self.setMouseMode(pg.ViewBox.RectMode)
 
-        else:
-            self.scrubbed.emit(ev)
-            ev.accept()
+            else:
+                self.scrubbed.emit(ev)
 
         return super().mousePressEvent(ev)
 
@@ -253,7 +250,6 @@ class SmartSizePlotItem(pg.PlotItem):
 
         self.setFixedHeight(height)
         self.legend_handle.parentItem().setFixedHeight(height)
-
 
 
 class PlotOverlay(QWidget):
@@ -514,7 +510,6 @@ class TimeLineDock(QWidget):
             "Timeline", auto_create=False
         )
         context_menu = QMenu() if menu is None else clone_menu(menu)
-        context_menu.setParent(self)
         context_menu.exec(global_position)
 
     def on_chart_area_mouse_moved(self, pos: QPointF):
@@ -532,6 +527,8 @@ class TimeLineDock(QWidget):
             if tm.nearby(data_pos, 0.5):
                 self.dragging = tm
                 break
+        else:
+            self.on_trim_area_dragged(event)
 
     def on_trim_area_dragged(self, event: MouseDragEvent):
         if self.dragging is None:
@@ -587,7 +584,6 @@ class TimeLineDock(QWidget):
 
                     spot_item = points_at[0].pos()
                     clicked_data_point = (spot_item.x(), spot_item.y())
-
 
             if clicked_plot_item is None or clicked_data_point is None:
                 self.show_context_menu(event.screenPos().toPoint())
@@ -830,6 +826,9 @@ class TimeLineDock(QWidget):
         app = neon_player.instance()
         if app.recording is None:
             return
+
+        for plot_item in self.timeline_plots.values():
+            plot_item.getViewBox().autoRange()
 
         self.timestamps_plot.getViewBox().setRange(xRange=[
             app.recording.start_time,
