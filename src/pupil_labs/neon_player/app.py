@@ -22,7 +22,6 @@ from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.job_manager import JobManager
 from pupil_labs.neon_player.plugins import (
-    audio,  # noqa: F401
     events,  # noqa: F401
     eyestate,  # noqa: F401
     fixations,  # noqa: F401
