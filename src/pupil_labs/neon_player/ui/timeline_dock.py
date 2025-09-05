@@ -44,7 +44,12 @@ class ScrubbableViewBox(pg.ViewBox):
         ev.accept()
 
     def wheelEvent(self, ev, axis=None):
-        if ev.modifiers() == Qt.KeyboardModifier.ControlModifier:
+        mouse_enabled = {
+            "x": Qt.KeyboardModifier.ControlModifier in ev.modifiers(),
+            "y": Qt.KeyboardModifier.ShiftModifier in ev.modifiers(),
+        }
+        if any(mouse_enabled.values()):
+            self.setMouseEnabled(**mouse_enabled)
             return super().wheelEvent(ev, axis)
 
         ev.ignore()
@@ -628,7 +633,7 @@ class TimeLineDock(QWidget):
 
         self.graphics_layout.addItem(plot_item, row=row, col=1)
 
-        plot_item.setMouseEnabled(x=True, y=False)
+        plot_item.setMouseEnabled(x=False, y=False)
         plot_item.hideButtons()
         plot_item.setMenuEnabled(False)
         plot_item.setClipToView(True)
