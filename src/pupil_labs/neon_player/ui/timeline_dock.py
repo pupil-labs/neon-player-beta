@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from qt_property_widgets.widgets import IntSpinboxWidget
 
 from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
@@ -423,6 +424,30 @@ class TimeLineDock(QWidget):
             lambda: app.get_action("Playback/Play\\Pause").trigger()
         )
         self.toolbar_layout.addWidget(self.play_button)
+
+        self.speed_control = IntSpinboxWidget()
+        self.speed_control.spinbox.setSuffix("%")
+        self.speed_control.slider.setVisible(True)
+        self.speed_control.setRange(-500, 500)
+        self.speed_control.slider.setTickInterval(10)
+        self.speed_control.value = 100
+        self.speed_control.setMaximumWidth(200)
+        self.speed_control.setStyleSheet("""
+            QSlider::groove:horizontal {
+                background: #333;
+            }
+
+            QSlider::handle:horizontal {
+                background: #ffffff;
+                width: 10px;
+            }
+        """)
+        self.speed_control.value_changed.connect(
+            lambda v: app.set_playback_speed(v / 100)
+        )
+
+        self.toolbar_layout.addWidget(self.speed_control)
+
 
         self.timestamp_label = TimestampLabel()
         self.toolbar_layout.addWidget(self.timestamp_label)

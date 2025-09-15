@@ -91,6 +91,7 @@ class NeonPlayerApp(QApplication):
         self.recording: nr.NeonRecording | None = None
         self.playback_start_anchor = 0
         self.current_ts = 0
+        self.playback_speed = 1.0
 
         self.settings = GeneralSettings()
         self.recording_settings = None
@@ -373,7 +374,6 @@ class NeonPlayerApp(QApplication):
         if self.recording is None:
             return
 
-        now = time.time_ns()
         if self.current_ts >= self.recording.stop_time:
             self.current_ts = self.recording.start_time
 
@@ -381,11 +381,22 @@ class NeonPlayerApp(QApplication):
             self.refresh_timer.stop()
 
         else:
-            elapsed_time = self.current_ts - self.recording.start_time
-            self.playback_start_anchor = now - elapsed_time
+            self._reset_start_anchor()
             self.refresh_timer.start()
 
         self.playback_state_changed.emit(self.refresh_timer.isActive())
+
+    def set_playback_speed(self, speed: float) -> None:
+        self.playback_speed = speed
+        self._reset_start_anchor()
+
+    def _reset_start_anchor(self) -> None:
+        if self.playback_speed == 0:
+            return
+
+        now = time.time_ns()
+        elapsed_time = (self.current_ts - self.recording.start_time) / self.playback_speed
+        self.playback_start_anchor = now - elapsed_time
 
     def set_playback_state(self, playing: bool) -> None:
         if self.is_playing != playing:
@@ -395,16 +406,19 @@ class NeonPlayerApp(QApplication):
         if self.recording is None:
             return
 
-        now = time.time_ns()
-        elapsed_time = now - self.playback_start_anchor
-        target_ts = elapsed_time + self.recording.start_time
+        if self.playback_speed == 0:
+            return
 
-        if self.current_ts < self.recording.stop_time:
+        now = time.time_ns()
+        elapsed_time = (now - self.playback_start_anchor) * self.playback_speed
+        target_ts = int(elapsed_time + self.recording.start_time)
+
+        if self.recording.start_time <= target_ts <= self.recording.stop_time:
             self.current_ts = target_ts
             self.main_window.set_time_in_recording(self.current_ts)
 
         else:
-            self.current_ts = self.recording.stop_time
+            self.current_ts = min(max(target_ts, self.recording.start_time), self.recording.stop_time)
             self.main_window.set_time_in_recording(self.current_ts)
 
             self.refresh_timer.stop()
