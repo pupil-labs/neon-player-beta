@@ -23,6 +23,7 @@ from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.job_manager import JobManager
 from pupil_labs.neon_player.plugins import (
     events,  # noqa: F401
+    eye_overlay,  # noqa: F401
     eyestate,  # noqa: F401
     fixations,  # noqa: F401
     gaze,  # noqa: F401

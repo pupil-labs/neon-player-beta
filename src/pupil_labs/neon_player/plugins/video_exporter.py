@@ -57,7 +57,7 @@ class VideoExporter(neon_player.Plugin):
 
                 frame = QImage(frame_size, QImage.Format.Format_BGR888)
                 painter = QPainter(frame)
-                self.app.render_to(painter, ts)
+                self.app.render_to(painter, int(ts))
                 painter.end()
 
                 frame_pixels = ndarray_from_qimage(frame)
