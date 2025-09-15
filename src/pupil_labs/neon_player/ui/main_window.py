@@ -2,6 +2,7 @@ import typing
 import webbrowser
 from pathlib import Path
 
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
     Qt,
 )
@@ -32,13 +33,13 @@ from pupil_labs.neon_player.ui.expander import ExpanderList
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
-from pupil_labs.neon_recording import NeonRecording
 
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Neon Player")
+        self.setAcceptDrops(True)
         self.resize(1600, 1000)
 
         app = neon_player.instance()
@@ -188,6 +189,29 @@ class MainWindow(QMainWindow):
 
     def on_quit_action(self) -> None:
         self.close()
+
+    def dragEnterEvent(self, event):
+        # Accept directories only
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if len(urls) == 1 and urls[0].isLocalFile() and urls[0].toLocalFile():
+                path = Path(urls[0].toLocalFile())
+                if path.is_dir():
+                    event.acceptProposedAction()
+                    return
+
+        event.ignore()
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        if urls and urls[0].isLocalFile():
+            path = Path(urls[0].toLocalFile())
+            if path.is_dir():
+                neon_player.instance().load(path)
+                event.acceptProposedAction()
+                return
+
+        event.ignore()
 
     def on_play_action(self) -> None:
         neon_player.instance().toggle_play()
