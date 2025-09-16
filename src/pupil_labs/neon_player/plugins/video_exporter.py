@@ -3,11 +3,11 @@ from pathlib import Path
 
 import av
 import numpy as np
+import pupil_labs.video as plv
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QColorConstants, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-import pupil_labs.video as plv
 from pupil_labs import neon_player
 from pupil_labs.neon_player import ProgressUpdate, action
 from pupil_labs.neon_player.job_manager import BackgroundJob
@@ -51,8 +51,35 @@ class VideoExporter(neon_player.Plugin):
 
         frame_size = QSize(recording.scene.width or 1600, recording.scene.height or 1200)
 
+        audio_frame_timestamps = recording.audio.time[
+            (recording.audio.time >= start_time) & (recording.audio.time <= stop_time)
+        ]
+        audio_iterator = iter(recording.audio.sample(audio_frame_timestamps))
+        audio_frame = next(audio_iterator)
+        audio_frame_idx = 0
+
         with plv.Writer(destination / "world.mp4") as writer:
+            def write_audio_frame():
+                nonlocal audio_frame, audio_frame_idx
+
+                audio_rel_ts = (audio_frame.time - start_time) / 1e9
+                plv_audio_frame = plv.AudioFrame(
+                    audio_frame.av_frame,
+                    audio_rel_ts,
+                    audio_frame_idx,
+                    ""
+                )
+                writer.write_frame(plv_audio_frame)
+                try:
+                    audio_frame = next(audio_iterator)
+                    audio_frame_idx += 1
+                except StopIteration:
+                    audio_frame = None
+
             for frame_idx, ts in enumerate(combined_timestamps):
+                while audio_frame and audio_frame.time < ts:
+                    write_audio_frame()
+
                 rel_ts = (ts - combined_timestamps[0]) / 1e9
 
                 frame = QImage(frame_size, QImage.Format.Format_BGR888)
@@ -69,6 +96,8 @@ class VideoExporter(neon_player.Plugin):
                 progress = (frame_idx + 1) / len(combined_timestamps)
                 yield ProgressUpdate(progress)
 
+            while audio_frame:
+                write_audio_frame()
 
     @action
     def export_current_frame(self) -> None:
