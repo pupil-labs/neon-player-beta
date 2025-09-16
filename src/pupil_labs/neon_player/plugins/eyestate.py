@@ -1,12 +1,13 @@
+import logging
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtGui import QColor
-from qt_property_widgets.utilities import PersistentPropertiesMixin
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
-from pupil_labs.neon_recording import NeonRecording
 
 
 class PlotProps:
@@ -131,8 +132,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
 
         eyeball = recording.eyeball
         pupil = recording.pupil
-        eyelid = recording.eyelid
-        self.eyestate_data = pd.DataFrame({
+        eyestate_data_dict = {
             "timestamp [ns]": eyeball.time,
             "pupil diameter left [mm]": pupil.diameter_left,
             "pupil diameter right [mm]": pupil.diameter_right,
@@ -148,13 +148,27 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
             "optical axis right x": eyeball.optical_axis_right[:, 0],
             "optical axis right y": eyeball.optical_axis_right[:, 1],
             "optical axis right z": eyeball.optical_axis_right[:, 2],
-            "eyelid angle top left [rad]": eyelid.angle_left[:, 0],
-            "eyelid angle bottom left [rad]": eyelid.angle_left[:, 1],
-            "eyelid aperture left [mm]": eyelid.aperture_left,
-            "eyelid angle top right [rad]": eyelid.angle_right[:, 0],
-            "eyelid angle bottom right [rad]": eyelid.angle_right[:, 1],
-            "eyelid aperture right [mm]": eyelid.aperture_right,
-        })
+        }
+
+        try:
+            eyelid = recording.eyelid
+            eyelid_data = {
+                "eyelid angle top left [rad]": eyelid.angle_left[:, 0],
+                "eyelid angle bottom left [rad]": eyelid.angle_left[:, 1],
+                "eyelid aperture left [mm]": eyelid.aperture_left,
+                "eyelid angle top right [rad]": eyelid.angle_right[:, 0],
+                "eyelid angle bottom right [rad]": eyelid.angle_right[:, 1],
+                "eyelid aperture right [mm]": eyelid.aperture_right,
+            }
+            eyestate_data_dict = {
+                **eyestate_data_dict,
+                **eyelid_data
+            }
+
+        except KeyError:
+            logging.warning("Eyelid data not found in recording")
+
+        self.eyestate_data = pd.DataFrame(eyestate_data_dict)
 
         self._update_plot_visibilities("Pupil diameter", self._pupil_diameter_plots)
         self._update_plot_visibilities("Eyeball center", self._eyeball_center_plots)
@@ -192,7 +206,12 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
 
                 color = self.color_map.get(plot_name.lower(), None)
 
-                data = self.eyestate_data[["timestamp [ns]", key]].to_numpy()
+                try:
+                    data = self.eyestate_data[["timestamp [ns]", key]].to_numpy()
+                except KeyError:
+                    logging.warning(f"{key} data not found for this recording")
+                    data = np.empty((0, 2))
+
                 timeline.add_timeline_line(group_name, data, plot_name, color=color)
 
             elif not enabled and existing_plot is not None:
