@@ -560,15 +560,15 @@ class TimeLineDock(QWidget):
             self.on_trim_area_dragged(event)
 
     def on_trim_area_dragged(self, event: MouseDragEvent):
-        if self.dragging is None:
-            self.on_chart_area_clicked(event)
-            return
-
         app = neon_player.instance()
         if app.recording is None:
             return
 
         data_pos = self.timestamps_plot.getViewBox().mapSceneToView(event.scenePos())
+        if self.dragging is None:
+            self.on_chart_area_clicked(event)
+            return
+
         self.dragging.time = max(
             min(data_pos.x(), app.recording.stop_time),
             app.recording.start_time
@@ -581,10 +581,17 @@ class TimeLineDock(QWidget):
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
 
-    def on_chart_area_clicked(self, event: MouseClickEvent | MouseDragEvent):
+    def on_chart_area_clicked(self, event: QGraphicsSceneMouseEvent | MouseClickEvent | MouseDragEvent):
         app = neon_player.instance()
         if app.recording is None:
             return
+
+        click_types = [QGraphicsSceneMouseEvent, MouseClickEvent]
+        if any(isinstance(event, cls) for cls in click_types):
+            data_pos = self.timestamps_plot.getViewBox().mapSceneToView(event.scenePos())
+            for tm in self.trim_markers:
+                if tm.nearby(data_pos, 0.5):
+                    return
 
         if event.button() == Qt.LeftButton:
             first_plot_item = next(iter(self.timeline_plots.values()))
