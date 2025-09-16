@@ -48,6 +48,15 @@ class VideoExporter(neon_player.Plugin):
         combined_timestamps = combined_timestamps[
             (combined_timestamps >= start_time) & (combined_timestamps <= stop_time)
         ]
+        # Find any gaps in the timestamps that are greater than 1/30 of a second
+        gaps = np.where(np.diff(combined_timestamps) > 1e9 // 30)[0]
+
+        # fill the gaps with 30 hz timestamps
+        for gap in gaps:
+            gap_start = combined_timestamps[gap]
+            gap_end = combined_timestamps[gap + 1]
+            gap_timestamps = np.arange(gap_start, gap_end, 1e9 // 30)
+            combined_timestamps = np.concatenate((combined_timestamps[:gap], gap_timestamps, combined_timestamps[gap + 1:]))
 
         frame_size = QSize(recording.scene.width or 1600, recording.scene.height or 1200)
 
@@ -90,7 +99,7 @@ class VideoExporter(neon_player.Plugin):
                 frame_pixels = ndarray_from_qimage(frame)
                 av_frame = av.VideoFrame.from_ndarray(frame_pixels, format="bgr24")
 
-                plv_frame = plv.VideoFrame(av_frame, rel_ts, frame_idx, "np")
+                plv_frame = plv.VideoFrame(av_frame, rel_ts, frame_idx, "")
                 writer.write_frame(plv_frame)
 
                 progress = (frame_idx + 1) / len(combined_timestamps)

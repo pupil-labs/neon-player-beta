@@ -1,6 +1,3 @@
-import time
-
-import numpy as np
 from PySide6.QtGui import QColorConstants, QPainter
 
 from pupil_labs.neon_player import Plugin
@@ -16,29 +13,20 @@ class SceneRendererPlugin(Plugin):
         self.gray = QColorConstants.Gray
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
-        painter.drawText(50, 50, f"{time.time_ns()}")
         if self.recording is None:
             painter.drawText(100, 100, "No scene data available")
             return
 
-        scene_idx = self.get_scene_idx_for_time(time_in_recording)
-        should_gray = scene_idx < 0 or scene_idx > len(self.recording.scene) - 1
-        if not should_gray:
-            frame = self.recording.scene[scene_idx]
-            should_gray = time_in_recording < frame.time
-            should_gray = should_gray or (time_in_recording - frame.time > 1e9 / 5)
-
-        if should_gray:
-            if self.recording.scene.width and self.recording.scene.height:
-                painter.fillRect(
-                    0,
-                    0,
-                    self.recording.scene.width,
-                    self.recording.scene.height,
-                    self.gray,
-                )
+        scene_frame = self.recording.scene.sample([time_in_recording])[0]
+        if abs(time_in_recording - scene_frame.time) / 1e9 > 1 / 30:
+            painter.fillRect(
+                0,
+                0,
+                self.recording.scene.width,
+                self.recording.scene.height,
+                self.gray,
+            )
             return
 
-        image = qimage_from_frame(self.recording.scene[scene_idx].bgr)
-
+        image = qimage_from_frame(scene_frame.bgr)
         painter.drawImage(0, 0, image)

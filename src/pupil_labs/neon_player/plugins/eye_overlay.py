@@ -22,6 +22,8 @@ class EyeOverlayPlugin(neon_player.Plugin):
             return
 
         eye_frame = self.recording.eye.sample([time_in_recording])[0]
+        if abs(time_in_recording - eye_frame.time) / 1e9 > 1 / 30:
+            return
 
         image = qimage_from_frame(eye_frame.gray).scaled(
             int(eye_frame.width * self._scale),
