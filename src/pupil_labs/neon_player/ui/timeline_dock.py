@@ -4,12 +4,16 @@ import typing as T
 
 import numpy as np
 import pyqtgraph as pg
-from pyqtgraph.GraphicsScene.mouseEvents import MouseClickEvent, MouseDragEvent
+from pyqtgraph.GraphicsScene.mouseEvents import (
+    MouseClickEvent,
+    MouseDragEvent,
+)
 from PySide6.QtCore import QObject, QPoint, QPointF, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPolygon
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsRectItem,
+    QGraphicsSceneMouseEvent,
     QHBoxLayout,
     QLabel,
     QMenu,
@@ -31,7 +35,7 @@ class ScrubbableViewBox(pg.ViewBox):
     scrub_end = Signal(MouseDragEvent)
     scrubbed = Signal(object)
 
-    def mousePressEvent(self, ev):
+    def mousePressEvent(self, ev: QGraphicsSceneMouseEvent) -> None:
         if ev.button() == Qt.MouseButton.LeftButton:
             if Qt.KeyboardModifier.ControlModifier == ev.modifiers():
                 self.setMouseMode(pg.ViewBox.RectMode)
@@ -41,7 +45,7 @@ class ScrubbableViewBox(pg.ViewBox):
 
         return super().mousePressEvent(ev)
 
-    def mouseDragEvent(self, ev, axis=None):
+    def mouseDragEvent(self, ev: MouseDragEvent, axis=None) -> None:
         if ev.button() == Qt.MouseButton.MiddleButton:
             self.setMouseEnabled(x=True, y=True)
             return super().mouseDragEvent(ev, axis)
@@ -62,7 +66,7 @@ class ScrubbableViewBox(pg.ViewBox):
 
         ev.accept()
 
-    def wheelEvent(self, ev, axis=None):
+    def wheelEvent(self, ev, axis=None) -> None:
         mouse_enabled = {
             "x": Qt.KeyboardModifier.ControlModifier in ev.modifiers(),
             "y": Qt.KeyboardModifier.ShiftModifier in ev.modifiers(),
@@ -448,7 +452,6 @@ class TimeLineDock(QWidget):
 
         self.toolbar_layout.addWidget(self.speed_control)
 
-
         self.timestamp_label = TimestampLabel()
         self.toolbar_layout.addWidget(self.timestamp_label)
 
@@ -592,10 +595,18 @@ class TimeLineDock(QWidget):
             time_ns = max(app.recording.start_time, time_ns)
             time_ns = min(app.recording.stop_time, time_ns)
 
+            was_playing = app.is_playing
+            app.set_playback_state(False)
+
             app.seek_to(time_ns)
+            app.set_playback_state(was_playing)
+
             return
 
         if event.button() == Qt.RightButton:
+            self.check_for_data_item_click(event)
+
+    def check_for_data_item_click(self, event: MouseClickEvent):
             nearby_items = self.graphics_layout.scene().itemsNearEvent(event)
             clicked_plot_item = None
             clicked_data_point = None

@@ -71,6 +71,8 @@ def setup_logging() -> None:
 class NeonPlayerApp(QApplication):
     playback_state_changed = Signal(bool)
     position_changed = Signal(object)
+    seeked = Signal(object)
+    speed_changed = Signal(float)
     recording_loaded = Signal(object)
     recording_unloaded = Signal()
 
@@ -389,6 +391,7 @@ class NeonPlayerApp(QApplication):
     def set_playback_speed(self, speed: float) -> None:
         self.playback_speed = speed
         self._reset_start_anchor()
+        self.speed_changed.emit(speed)
 
     def _reset_start_anchor(self) -> None:
         if self.playback_speed == 0:
@@ -430,7 +433,7 @@ class NeonPlayerApp(QApplication):
         if self.recording is None:
             return
 
-        ts = min(max(ts, self.recording.start_time), self.recording.stop_time)
+        ts = min(max(int(ts), self.recording.start_time), self.recording.stop_time)
 
         now = time.time_ns()
         self.current_ts = ts
@@ -438,6 +441,7 @@ class NeonPlayerApp(QApplication):
         self.main_window.set_time_in_recording(ts)
 
         self.position_changed.emit(self.current_ts)
+        self.seeked.emit(self.current_ts)
 
     def render_to(self, painter: QPainter, ts: int | None = None) -> None:
         if ts is None:
