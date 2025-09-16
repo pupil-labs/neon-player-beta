@@ -6,11 +6,12 @@ import cv2
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording.timeseries import FixationTimeseries
 from PySide6.QtCore import QObject, QPointF, Signal
 from PySide6.QtGui import QColor, QPainter
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
-import pupil_labs.neon_recording as nr
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_player.job_manager import ProgressUpdate
@@ -20,8 +21,6 @@ from pupil_labs.neon_player.utilities import (
     get_scene_intrinsics,
     unproject_points,
 )
-from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.timeseries import FixationTimeseries
 
 
 class FixationsPlugin(neon_player.Plugin):
