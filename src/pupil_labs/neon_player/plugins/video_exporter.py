@@ -52,9 +52,9 @@ class VideoExporter(neon_player.Plugin):
         gaps = np.where(np.diff(combined_timestamps) > 1e9 // 30)[0]
 
         # fill the gaps with 30 hz timestamps
-        for gap in gaps:
+        for gap in reversed(gaps):
             gap_start = combined_timestamps[gap]
-            gap_end = combined_timestamps[gap + 1]
+            gap_end = combined_timestamps[gap + 1] - 1e9 // 60
             gap_timestamps = np.arange(gap_start, gap_end, 1e9 // 30)
             combined_timestamps = np.concatenate((combined_timestamps[:gap], gap_timestamps, combined_timestamps[gap + 1:]))
 
