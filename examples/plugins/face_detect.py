@@ -101,7 +101,7 @@ class FaceDetection(Plugin):
 
         painter.drawImage(0, 0, overlay_image)
 
-        gaze_plugin = self.app.plugins_by_class.get("GazeDataPlugin")
+        gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
 
         pen = painter.pen()
         pen.setWidth(5)
@@ -172,7 +172,7 @@ class FaceDetection(Plugin):
 
     @action
     def export(self, destination: Path = Path()) -> None:
-        gaze_plugin = self.app.plugins_by_class.get("GazeDataPlugin")
+        gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
 
         data = {
             "scene_idx": [],

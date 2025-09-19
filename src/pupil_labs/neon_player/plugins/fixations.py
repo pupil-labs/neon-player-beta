@@ -119,9 +119,7 @@ class FixationsPlugin(neon_player.Plugin):
 
     def get_gaze_offset(self) -> tuple[float, float]:
         if not self.gaze_plugin:
-            plugin = self.app.plugins_by_class.get("GazeDataPlugin")
-            if isinstance(plugin, GazeDataPlugin):
-                self.gaze_plugin = plugin
+            self.gaze_plugin = neon_player.Plugin.get_instance_by_name("GazeDataPlugin")
 
         if not self.gaze_plugin:
             return (0.0, 0.0)

@@ -137,6 +137,10 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
         raise ValueError(f"Plugin class {name} not found")
 
+    @staticmethod
+    def get_instance_by_name(name: str) -> "Plugin":
+        return neon_player.instance().plugins_by_class.get(name)
+
     @classmethod
     def get_label(cls: type["Plugin"]) -> str:
         if hasattr(cls, "label"):
