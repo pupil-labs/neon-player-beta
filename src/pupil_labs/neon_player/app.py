@@ -448,8 +448,15 @@ class NeonPlayerApp(QApplication):
         if ts is None:
             ts = self.current_ts
 
+        brush = painter.brush()
+        pen = painter.pen()
+        font = painter.font()
         for plugin in self.plugins:
             plugin.render(painter, ts)
+            painter.setBrush(brush)
+            painter.setPen(pen)
+            painter.setFont(font)
+            painter.setOpacity(1.0)
 
     def export_all(self) -> None:
         if self.recording is None:
