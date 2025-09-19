@@ -2,15 +2,15 @@ import json
 import typing as T
 from pathlib import Path
 
-import numpy as np
 from numpyencoder import NumpyEncoder
+from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording.sample import match_ts
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
-from pupil_labs.neon_recording import NeonRecording
 
 if T.TYPE_CHECKING:
     from pupil_labs.neon_player.app import NeonPlayerApp
@@ -103,8 +103,16 @@ class Plugin(PersistentPropertiesMixin, QObject):
         with cache_file.open("w") as f:
             json.dump(data, f, cls=NumpyEncoder)
 
-    def get_scene_idx_for_time(self, t: int) -> int:
-        return np.searchsorted(self.recording.scene.time, t, "right") - 1
+    def get_scene_idx_for_time(
+        self,
+        t: int = -1,
+        method: T.Literal["nearest", "backward", "forward"] = "nearest",
+        tolerance: int | None = None
+    ) -> int:
+        if t < 0:
+            t = self.app.current_ts
+
+        return int(match_ts([t], self.recording.scene.time, method, tolerance)[0])
 
     @property
     @property_params(widget=None, dont_encode=True)
