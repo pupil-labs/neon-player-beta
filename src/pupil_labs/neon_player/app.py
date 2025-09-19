@@ -135,6 +135,8 @@ class NeonPlayerApp(QApplication):
 
         try:
             self.settings = GeneralSettings.from_dict(self.load_global_settings())
+        except FileNotFoundError:
+            logging.warning("Settings file not found")
         except Exception:
             logging.exception("Failed to load settings")
 
@@ -173,6 +175,8 @@ class NeonPlayerApp(QApplication):
                 self.job_manager.work_job(action_obj())
 
                 break
+        else:
+            logging.error(f"Could not find plugin action method: {job[0]}")
 
         self.quit()
 
@@ -255,7 +259,7 @@ class NeonPlayerApp(QApplication):
             try:
                 kls = Plugin.get_class_by_name(kls)
             except ValueError:
-                logging.exception(f"Couldn't find plugin class: {kls}")
+                logging.warning(f"Couldn't find plugin class: {kls}")
                 return None
 
         currently_enabled = kls.__name__ in self.plugins_by_class
@@ -271,7 +275,7 @@ class NeonPlayerApp(QApplication):
                 self.plugins_by_class[kls.__name__] = plugin
                 self.main_window.settings_panel.add_plugin_settings(plugin)
 
-                plugin.changed.connect(lambda: self.on_plugin_changed(plugin))
+                plugin.changed.connect(self.on_plugin_changed)
 
                 if self.recording:
                     plugin.on_recording_loaded(self.recording)
@@ -292,7 +296,7 @@ class NeonPlayerApp(QApplication):
 
         self.main_window.video_widget.update()
 
-    def on_plugin_changed(self, plugin: Plugin) -> None:
+    def on_plugin_changed(self) -> None:
         self.main_window.video_widget.update()
         self.save_settings()
 
@@ -342,6 +346,14 @@ class NeonPlayerApp(QApplication):
             if settings_path.exists():
                 logging.info(f"Loading recording settings from {settings_path}")
                 self.recording_settings = RecordingSettings.from_dict(json.loads(settings_path.read_text()))
+
+                if len(self.recording_settings.export_window) != 2:
+                    logging.warning("Invalid export window in settings")
+                    self.recording_settings.export_window = [
+                        self.recording.start_time,
+                        self.recording.stop_time,
+                    ]
+
             else:
                 self.recording_settings = RecordingSettings()
                 self.recording_settings.export_window = [

@@ -56,6 +56,8 @@ class BackgroundJob(QObject):
         else:
             cmd = [sys.executable, "-m", "pupil_labs.neon_player"] + args
 
+        logging.info(f"Executing bg job {' '.join(cmd)}")
+
         self.proc = subprocess.Popen(
             cmd,
             pass_fds=(write_fd,),
