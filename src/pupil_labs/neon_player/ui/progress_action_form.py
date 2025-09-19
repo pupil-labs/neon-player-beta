@@ -19,6 +19,7 @@ class ProgressActionForm(ActionForm):
     def _setup_form(self) -> None:
         super()._setup_form()
         self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 0)
         self.form_layout.addRow("", self.progress_bar)
         self.progress_bar.hide()
 
@@ -34,6 +35,7 @@ class ProgressActionForm(ActionForm):
             v.canceled.connect(self.on_job_done)
 
     def on_job_progress(self, progress: float) -> None:
+        self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(progress * 100)
 
     def on_job_done(self) -> None:

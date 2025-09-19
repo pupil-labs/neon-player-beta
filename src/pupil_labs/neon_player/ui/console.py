@@ -91,6 +91,7 @@ class JobProgressBar(QWidget):
         self.setLayout(self.main_layout)
 
         self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 0)
         self.progress_bar.setValue(0)
         self.main_layout.addWidget(self.progress_bar)
 
@@ -101,9 +102,11 @@ class JobProgressBar(QWidget):
         self.main_layout.addWidget(self.cancel_button)
 
         self.worker = job
-        self.worker.progress_changed.connect(
-            lambda v: self.progress_bar.setValue(v * 100)
-        )
+        self.worker.progress_changed.connect(self.on_worker_progress)
+
+    def on_worker_progress(self, v: float):
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(v * 100)
 
 
 class ConsoleWindow(QWidget):
