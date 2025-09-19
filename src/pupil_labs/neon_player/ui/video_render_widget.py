@@ -1,12 +1,8 @@
 
 import time
 
-from PySide6.QtCore import (
-    QPoint,
-    QPropertyAnimation,
-    QSize,
-    Qt,
-)
+from pupil_labs.neon_recording import NeonRecording
+from PySide6.QtCore import QPoint, QPropertyAnimation, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColorConstants,
     QPainter,
@@ -21,10 +17,11 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
-from pupil_labs.neon_recording import NeonRecording
 
 
 class VideoRenderWidget(QOpenGLWidget):
+    scaled_clicked = Signal(float, float)
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setMinimumSize(256, 256)
@@ -51,6 +48,21 @@ class VideoRenderWidget(QOpenGLWidget):
         self.fade_anim.setStartValue(1.0)
         self.fade_anim.setEndValue(0.0)
         self.fade_anim.finished.connect(self.on_fade_finished)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._mouse_down = True
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self._mouse_down:
+                pos = event.pos() - self.offset
+                self.scaled_clicked.emit(
+                    pos.x() / self.scale,
+                    pos.y() / self.scale
+                )
+
+            self._mouse_down = False
 
     def on_fade_finished(self):
         self._last_frame_time = None
