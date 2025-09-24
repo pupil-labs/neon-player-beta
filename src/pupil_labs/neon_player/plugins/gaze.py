@@ -2,6 +2,8 @@ import logging
 import typing as T
 from pathlib import Path
 
+import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries.gaze import GazeArray
@@ -45,11 +47,21 @@ class GazeDataPlugin(neon_player.Plugin):
         if scene_idx >= len(self.recording.scene) or scene_idx < 0:
             return
 
-        gazes = self.get_gazes_for_scene(scene_idx)
+        gazes = self.get_gazes_for_scene(scene_idx).point
+        offset_gazes = gazes + np.array([
+            self._offset_x * self.recording.scene.width,
+            self._offset_y * self.recording.scene.height,
+        ])
         for viz in self._visualizations:
-            viz.render(painter, gazes, self._offset_x, self._offset_y)
+            viz.render(
+                painter,
+                offset_gazes if viz.use_offset else gazes
+            )
 
-    def get_gazes_for_scene(self, scene_idx: int):
+    def get_gazes_for_scene(self, scene_idx: int = -1):
+        if scene_idx < 0:
+            scene_idx = self.get_scene_idx_for_time()
+
         gaze_start_time = self.recording.scene[scene_idx].time
         after_mask = self.recording.gaze.time >= gaze_start_time
 
@@ -162,15 +174,13 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._use_offset = True
+        self._use_offset = False
         self.recording: NeonRecording | None = None
 
     def render(
         self,
         painter: QPainter,
-        gazes: GazeArray,
-        offset_x: float,
-        offset_y: float,
+        gazes: npt.NDArray[np.float64],
     ) -> None:
         raise NotImplementedError("Subclasses must implement this method")
 
@@ -202,28 +212,15 @@ class AnnulusViz(GazeVisualization):
     def render(
         self,
         painter: QPainter,
-        gazes: GazeArray,
-        offset_x: float,
-        offset_y: float,
+        gazes: npt.NDArray[np.float64]
     ) -> None:
-        if self.recording is None:
-            return
-
         pen = painter.pen()
         pen.setWidth(self._stroke_width)
         pen.setColor(self._color)
         painter.setPen(pen)
 
-        offset = [0.0, 0.0]
-
-        if self._use_offset:
-            if self.recording.scene.width:
-                offset[0] = offset_x * self.recording.scene.width
-            if self.recording.scene.height:
-                offset[1] = offset_y * self.recording.scene.height
-
         for gaze in gazes:
-            center = QPointF(gaze.point[0] + offset[0], gaze.point[1] + offset[1])
+            center = QPointF(gaze[0], gaze[1])
             painter.drawEllipse(center, self._radius, self._radius)
 
     @property
@@ -261,26 +258,17 @@ class CrosshairViz(GazeVisualization):
         self._stroke_width = 5
 
     def render(
-        self, painter: QPainter, gazes: GazeArray, offset_x: float, offset_y: float
+        self,
+        painter: QPainter,
+        gazes: npt.NDArray[np.float64],
     ) -> None:
-        if self.recording is None:
-            return
-
         pen = painter.pen()
         pen.setWidth(self._stroke_width)
         pen.setColor(self._color)
         painter.setPen(pen)
 
-        offset = [0.0, 0.0]
-
-        if self._use_offset:
-            if self.recording.scene.width:
-                offset[0] = offset_x * self.recording.scene.width
-            if self.recording.scene.height:
-                offset[1] = offset_y * self.recording.scene.height
-
         for gaze in gazes:
-            center = QPointF(gaze.point[0] + offset[0], gaze.point[1] + offset[1])
+            center = QPointF(gaze[0], gaze[1])
 
             # Draw horizontal line
             painter.drawLine(

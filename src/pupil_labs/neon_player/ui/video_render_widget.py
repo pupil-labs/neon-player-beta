@@ -19,35 +19,13 @@ from PySide6.QtWidgets import (
 from pupil_labs import neon_player
 
 
-class VideoRenderWidget(QOpenGLWidget):
+class ScalingWidget(QOpenGLWidget):
     scaled_clicked = Signal(float, float)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget):
         super().__init__(parent)
-        self.setMinimumSize(256, 256)
-
-        # Ensure the widget has the proper format in high-DPI screens
-        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
-        self.setAutoFillBackground(True)
-
-        self.ts = 0
-        self.scale = 1.0
-        self.offset = QPoint(0, 0)
-
-        self._last_frame_time = None
-        self._fps = 0.0
-        self.fps_label = QLabel(self)
-        self.fps_label.resize(1024, 24)
-
-        self.opacity_effect = QGraphicsOpacityEffect()
-        self.fps_label.setGraphicsEffect(self.opacity_effect)
-        self.opacity_effect.setOpacity(0.0)
-
-        self.fade_anim = QPropertyAnimation(self.opacity_effect, b"opacity")
-        self.fade_anim.setDuration(1000)
-        self.fade_anim.setStartValue(1.0)
-        self.fade_anim.setEndValue(0.0)
-        self.fade_anim.finished.connect(self.on_fade_finished)
+        self.show_fps = False
+        self.source_size = QSize(100, 100)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -67,12 +45,9 @@ class VideoRenderWidget(QOpenGLWidget):
     def on_fade_finished(self):
         self._last_frame_time = None
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self.adjust_size()
-
-    def set_time_in_recording(self, ts: int) -> None:
-        self.ts = ts
-        self.repaint()
+    def transform_painter(self, painter: QPainter) -> None:
+        painter.translate(self.offset)
+        painter.scale(self.scale, self.scale)
 
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
@@ -81,13 +56,7 @@ class VideoRenderWidget(QOpenGLWidget):
         )
         painter.fillRect(0, 0, self.width(), self.height(), QColorConstants.Black)
 
-        painter.translate(self.offset)
-        painter.scale(self.scale, self.scale)
-
-        if self.ts is None:
-            return
-
-        if neon_player.instance().settings.show_fps:
+        if self.show_fps:
             now = time.monotonic()
             if self._last_frame_time is not None:
                 delta = now - self._last_frame_time
@@ -100,8 +69,6 @@ class VideoRenderWidget(QOpenGLWidget):
 
             self._last_frame_time = now
 
-        neon_player.instance().render_to(painter)
-
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self.adjust_size()
@@ -111,24 +78,49 @@ class VideoRenderWidget(QOpenGLWidget):
         if app.recording is None:
             return
 
-        source_size = QSize(
-            app.recording.scene.width or 1, app.recording.scene.height or 1
-        )
-        self.fit_rect(source_size)
+        self.fit_rect()
         self.repaint()
 
-    def fit_rect(self, source_size: QSize) -> None:
-        source_aspect = source_size.width() / source_size.height()
+    def fit_rect(self, source_size: QSize|None = None) -> None:
+        if source_size is not None:
+            self.source_size = source_size
+
+        source_aspect = self.source_size.width() / self.source_size.height()
         target_aspect = self.width() / self.height()
 
         if source_aspect > target_aspect:
-            self.scale = self.width() / source_size.width()
+            self.scale = self.width() / self.source_size.width()
             self.offset = QPoint(
-                0, int((self.height() - source_size.height() * self.scale) / 2.0)
+                0, int((self.height() - self.source_size.height() * self.scale) / 2.0)
             )
 
         else:
-            self.scale = self.height() / source_size.height()
+            self.scale = self.height() / self.source_size.height()
             self.offset = QPoint(
-                int((self.width() - source_size.width() * self.scale) / 2.0), 0
+                int((self.width() - self.source_size.width() * self.scale) / 2.0), 0
             )
+
+
+class VideoRenderWidget(ScalingWidget):
+    def __init__(self, parent: QWidget = None) -> None:
+        super().__init__(parent)
+        self.ts = None
+
+    def on_recording_loaded(self, recording: NeonRecording) -> None:
+        self.source_size = QSize(
+            recording.scene.width,
+            recording.scene.height
+        )
+        self.adjust_size()
+        self.repaint()
+
+    def set_time_in_recording(self, ts: int) -> None:
+        self.ts = ts
+        self.repaint()
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        self.transform_painter(painter)
+
+        neon_player.instance().render_to(painter)
