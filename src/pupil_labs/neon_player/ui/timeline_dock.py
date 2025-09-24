@@ -494,7 +494,7 @@ class TimeLineDock(QWidget):
         self.dragging = None
 
     def sizeHint(self) -> QSize:
-        return QSize(100, 100)
+        return QSize(100, 150)
 
     def resizeEvent(self, event):
         w = self.scroll_area.width() - self.scroll_area.verticalScrollBar().width()
@@ -878,6 +878,12 @@ class TimeLineDock(QWidget):
             app.recording.start_time,
             app.recording.stop_time
         ])
+
+    def init_view(self):
+        h = self.height()
+        self.resize(self.width(), h + 1)
+        self.resize(self.width(), h)
+        self.reset_view()
 
     def get_export_window(self) -> list[int]:
         times = [tm.time for tm in self.trim_markers]

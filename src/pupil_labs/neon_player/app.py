@@ -371,7 +371,7 @@ class NeonPlayerApp(QApplication):
             self.seek_to(self.recording.start_time)
 
         QTimer.singleShot(0, self.toggle_plugins_by_settings)
-        QTimer.singleShot(10, self.main_window.timeline_dock.reset_view)
+        QTimer.singleShot(10, self.main_window.timeline_dock.init_view)
         self.recording_settings.changed.connect(self.toggle_plugins_by_settings)
         self.recording_settings.changed.connect(self.save_settings)
 
