@@ -9,7 +9,8 @@ import numpy.typing as npt
 import pupil_apriltags
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, QPointF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPaintEvent
+from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtWidgets import QWidget
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 from surface_tracker import (
     CornerId,
@@ -17,12 +18,23 @@ from surface_tracker import (
     SurfaceLocation,
     SurfaceTracker,
 )
+from surface_tracker import (
+    surface as surface_module,
+)
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
 from pupil_labs.neon_player.plugins.gaze import CrosshairViz, GazeVisualization
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import qimage_from_frame
+
+# this function seems to return vertices in reverse order
+__src_bounding_quadrangle = surface_module._bounding_quadrangle
+def __patched_bounding_quadrangle(*args, **kwargs):
+    v = __src_bounding_quadrangle(*args, **kwargs)
+    return v[[3, 2, 1, 0]]
+
+surface_module._bounding_quadrangle = __patched_bounding_quadrangle
 
 
 class SurfaceTrackingPlugin(Plugin):
@@ -46,8 +58,13 @@ class SurfaceTrackingPlugin(Plugin):
         self.timer.setInterval(33)
         self.timer.timeout.connect(self._update_surface_locations)
 
+        self._draw_undistorted = False
+
     def _update_surface_locations(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
+        if frame_idx >= len(self.markers_by_frame):
+            return
+
         markers = self.markers_by_frame[frame_idx]
         for surface in self._surfaces:
             if surface.tracker_surface is None:
@@ -89,10 +106,6 @@ class SurfaceTrackingPlugin(Plugin):
             self._load_surface_locations_cache(surface.uid)
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
-        painter.setBrush(self.marker_color)
-        painter.setPen(self.marker_color)
-        painter.setOpacity(0.85)
-
         frame_idx = self.get_scene_idx_for_time(time_in_recording)
         if frame_idx < 0:
             return
@@ -101,6 +114,14 @@ class SurfaceTrackingPlugin(Plugin):
         if abs(time_in_recording - scene_frame.time) / 1e9 > 1 / 30:
             return
 
+        if self._draw_undistorted:
+            scene_image = self.camera.undistort_image(scene_frame.bgr, use_optimal=True)
+            painter.drawImage(0, 0, qimage_from_frame(scene_image))
+
+        # Render markers
+        painter.setBrush(self.marker_color)
+        painter.setPen(self.marker_color)
+        painter.setOpacity(0.5)
         if frame_idx < len(self.markers_by_frame):
             for marker in self.markers_by_frame[frame_idx]:
                 corners = np.array(marker.vertices())
@@ -130,11 +151,12 @@ class SurfaceTrackingPlugin(Plugin):
                 surface.tracker_surface,
                 location
             )
+
             self._paint_distorted_polygon(painter, anchors.perimeter_polyline)
 
     def _paint_distorted_polygon(self, painter: QPainter, points, resolution=10) -> None:
         points = insert_interpolated_points(points, resolution)
-        points = self.camera.distort_points_on_image_plane(points).reshape(-1, 2)
+        points = self.camera.undistorted_optimal_to_source(points).reshape(-1, 2)
 
         points = [QPointF(*point) for point in points]
         painter.drawPolygon(points)
@@ -159,6 +181,14 @@ class SurfaceTrackingPlugin(Plugin):
             self.changed.emit()
 
     @property
+    def draw_undistorted(self) -> bool:
+        return self._draw_undistorted
+
+    @draw_undistorted.setter
+    def draw_undistorted(self, value: bool) -> None:
+        self._draw_undistorted = value
+
+    @property
     def surfaces(self) -> list["TrackedSurface"]:
         return self._surfaces
 
@@ -178,10 +208,13 @@ class SurfaceTrackingPlugin(Plugin):
                 surface.uid = str(uuid.uuid4())
 
             surface.changed.connect(self.changed.emit)
+            surface.locations_invalidated.connect(
+                lambda s=surface:self.on_locations_invalidated(s))
 
             locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
             if locations_path.exists():
                 self._load_surface_locations_cache(surface.uid)
+
             elif not self.app.headless:
                 job = self.job_manager.run_background_action(
                     f"Detect Surface Locations [{surface.name}]",
@@ -205,6 +238,20 @@ class SurfaceTrackingPlugin(Plugin):
 
         self.changed.emit()
 
+    def on_locations_invalidated(self, surface: "TrackedSurface") -> None:
+        surf_path = self.get_cache_path() / f"{surface.uid}_surface.pkl"
+        with surf_path.open("wb") as f:
+            pickle.dump(surface.tracker_surface, f)
+
+        job = self.job_manager.run_background_action(
+            f"Detect Surface Locations [{surface.name}]",
+            "SurfaceTrackingPlugin.bg_detect_surface_locations",
+            surface.uid
+        )
+        job.finished.connect(
+            lambda: self._load_surface_locations_cache(surface.uid)
+        )
+
     def get_surface(self, uid: str):
         for s in self._surfaces:
             if s.uid == uid:
@@ -218,8 +265,8 @@ class SurfaceTrackingPlugin(Plugin):
 
         markers_by_frame = []
         for frame_idx, frame in enumerate(self.recording.scene):
-            scene_image = frame.gray
             #@TODO: apply brightness/contrast adjustments
+            scene_image = self.camera.undistort_image(frame.gray, use_optimal=True)
 
             markers = [
                 self.apriltag_to_surface_marker(m) for m in detector.detect(scene_image)
@@ -236,15 +283,24 @@ class SurfaceTrackingPlugin(Plugin):
     def bg_detect_surface_locations(
         self,
         uid: str,
-        starting_frame_idx: int,
+        starting_frame_idx: int = -1,
     ) -> T.Generator[ProgressUpdate, None, None]:
 
         if starting_frame_idx >= len(self.markers_by_frame):
             logging.error("Marker detection not yet complete")
             return
 
-        markers = self.markers_by_frame[starting_frame_idx]
-        tracker_surf = self.tracker.define_surface(uid, markers)
+        if starting_frame_idx < 0:
+            # load surface from disk
+            surf_path = self.get_cache_path() / f"{uid}_surface.pkl"
+            if surf_path.exists():
+                with surf_path.open("rb") as f:
+                    tracker_surf = pickle.load(f)
+
+        else:
+            markers = self.markers_by_frame[starting_frame_idx]
+            tracker_surf = self.tracker.define_surface(uid, markers)
+
         locations = []
         for frame_idx, markers in enumerate(self.markers_by_frame):
             location = self.tracker.locate_surface(tracker_surf, markers)
@@ -267,24 +323,17 @@ class SurfaceTrackingPlugin(Plugin):
         self,
         apriltag_marker: pupil_apriltags.Detection
     ) -> Marker:
-        # Construct the surface tracker marker UID
-        # Extract vertices in the correct format form apriltag marker
-        vertices = [[point] for point in apriltag_marker.corners]
-        vertices = self.camera.undistort_points_on_image_plane(vertices)
-
-        starting_with = CornerId.TOP_LEFT
-        clockwise = True
-
         return Marker.from_vertices(
             uid=apriltag_marker.tag_id,
-            undistorted_image_space_vertices=vertices,
-            starting_with=starting_with,
-            clockwise=clockwise,
+            undistorted_image_space_vertices=apriltag_marker.corners,
+            starting_with=CornerId.BOTTOM_LEFT,
+            clockwise=False,
         )
 
 
 class TrackedSurface(PersistentPropertiesMixin, QObject):
     changed = Signal()
+    locations_invalidated = Signal()
     surface_location_changed = Signal()
     view_requested = Signal(object)
 
@@ -295,6 +344,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._markers = []
         self._outline_color: QColor = QColor(255, 0, 255, 128)
         self._outline_width: float = 3
+        self._can_edit_handles = False
         self.tracker_surface = None
 
         self._render_size = QSize(400, 400)
@@ -304,6 +354,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             CrosshairViz(),
         ]
         self.preview_widget = None
+        self.handle_widgets = {}
+        self.corner_positions = {}
 
     @property
     @property_params(dont_encode=True, widget=None)
@@ -312,8 +364,87 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     @location.setter
     def location(self, value: SurfaceLocation|None) -> None:
+        if self._location is not None and value is not None:
+            if np.all(value.transform_matrix_from_image_to_surface_undistorted == self._location.transform_matrix_from_image_to_surface_undistorted):
+                return
+
         self._location = value
         self.surface_location_changed.emit()
+
+        if value is None:
+            return
+
+        tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
+        camera = tracker_plugin.camera
+        tracker = tracker_plugin.tracker
+        app = neon_player.instance()
+        vrw = app.main_window.video_widget
+
+        undistorted_corners = np.array(tracker.surface_points_in_image_space(
+            self.tracker_surface,
+            self.location,
+            np.array([(0, 0), (1.0, 0), (1.0, 1.0), (0, 1.0)], dtype=np.float32),
+        )).tolist()
+
+        distorted_corners = camera.undistorted_optimal_to_source(undistorted_corners)
+
+        for w, undistorted_corner, distorted_corner, corner_id in zip(
+            self.handle_widgets.values(),
+            undistorted_corners,
+            distorted_corners,
+            CornerId.all_corners(),
+            strict=False
+        ):
+            self.corner_positions[corner_id] = undistorted_corner
+            vrw.set_child_scaled_center(w, distorted_corner[0], distorted_corner[1])
+            w.show()
+
+    @property
+    def edit_handles(self) -> bool:
+        return self._can_edit_handles
+
+    @edit_handles.setter
+    def edit_handles(self, value: bool) -> None:
+        self._can_edit_handles = value
+        if not value:
+            for hw in self.handle_widgets.values():
+                hw.setParent(None)
+                hw.deleteLater()
+
+            self.handle_widgets = {}
+
+        else:
+            app = neon_player.instance()
+            vrw = app.main_window.video_widget
+            self.handle_widgets = {
+                CornerId.TOP_LEFT: SurfaceHandle("#ff0000"),
+                CornerId.TOP_RIGHT: SurfaceHandle("#00ff00"),
+                CornerId.BOTTOM_RIGHT: SurfaceHandle("#0000ff"),
+                CornerId.BOTTOM_LEFT: SurfaceHandle("#ffff00"),
+            }
+
+            for corner_id, w in self.handle_widgets.items():
+                w.setFixedSize(25, 25)
+                w.setParent(vrw)
+                w.position_changed.connect(
+                    lambda pos, corner=corner_id: self.on_corner_changed(corner, pos)
+                )
+
+    def on_corner_changed(self, corner_id: CornerId, pos: QPointF) -> None:
+        camera = Plugin.get_instance_by_name("SurfaceTrackingPlugin").camera
+
+        pos = np.array([pos.x(), pos.y()])
+        undistorted_corner = camera.source_to_undistorted_optimal(pos)
+        self.corner_positions[corner_id] = undistorted_corner.flatten()
+        tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
+        tracker = tracker_plugin.tracker
+
+        tracker.move_surface_corner_positions_in_image_space(
+            self.tracker_surface,
+            self.location,
+            self.corner_positions
+        )
+        self.locations_invalidated.emit()
 
     @property
     @property_params(widget=None)
@@ -389,6 +520,49 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             viz.changed.connect(self.changed.emit)
 
 
+class SurfaceHandle(QWidget):
+    position_changed = Signal(QPointF)
+
+    def __init__(self, color):
+        super().__init__()
+        self.color = color
+        self.moved = False
+        self.signal_timer = QTimer()
+        self.signal_timer.setInterval(1000)
+        self.signal_timer.setSingleShot(True)
+        self.signal_timer.timeout.connect(self.emit_new_position)
+
+        self.new_pos = None
+
+    def paintEvent(self, event: QPaintEvent):
+        painter = QPainter(self)
+        painter.setPen(QColor(self.color))
+        painter.setBrush(QColor(self.color))
+        painter.setOpacity(0.75)
+        painter.drawEllipse(0, 0, self.width() - 1, self.height() - 1)
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            self.moved = True
+            vrw = self.parent()
+            pos = self.mapToParent(event.pos())
+            self.new_pos = vrw.map_point(pos)
+            vrw.set_child_scaled_center(
+                self,
+                self.new_pos.x(),
+                self.new_pos.y()
+            )
+
+    def mouseReleaseEvent(self, event: QMouseEvent):
+        if not (event.buttons() & Qt.MouseButton.LeftButton) and self.moved:
+            self.signal_timer.start()
+
+        self.moved = False
+
+    def emit_new_position(self):
+        self.position_changed.emit(self.new_pos)
+
+
 class SurfaceViewWidget(VideoRenderWidget):
     def __init__(
         self,
@@ -422,13 +596,16 @@ class SurfaceViewWidget(VideoRenderWidget):
         scene_frame = app.recording.scene.sample([app.current_ts])[0]
 
         # these are in undisorted, cropped image space
-        corners_in_image = np.array(self.tracker.surface_points_in_image_space(
+        corners_in_optimal = np.array(self.tracker.surface_points_in_image_space(
             self.surface.tracker_surface,
             self.surface.location,
-            np.array([(0, 1.0), (1.0, 1.0), (1.0, 0), (0, 0)], dtype=np.float32),
+            #@TODO: figure out corner order...
+            np.array([(0, 0), (1.0, 0), (1.0, 1.0), (0, 1.0)], dtype=np.float32),
+            #np.array([(0, 1.0), (1.0, 1.0), (1.0, 0), (0, 0)], dtype=np.float32),
+
         ))
 
-        corners_in_optimal = self.camera.map_points_to_optimal_matrix(corners_in_image)
+
         undistorted_image = self.camera.undistort_image(scene_frame.bgr, use_optimal=True)
 
         width = self.surface._render_size.width()
@@ -528,31 +705,31 @@ class Radial_Dist_Camera:
             use_optimal=use_optimal
         )
 
-    def map_points_to_optimal_matrix(
+    def source_to_undistorted_optimal(
         self, points: npt.NDArray[np.float64], use_distortion: bool = False
     ):
         points = self.unprojectPoints(
             points,
-            use_distortion=use_distortion,
+            use_distortion=True,
             use_optimal=False
         )
         return self.projectPoints(
             points,
-            use_distortion=use_distortion,
+            use_distortion=False,
             use_optimal=True
         )
 
-    def map_points_from_optimal_matrix(
-        self, points: npt.NDArray[np.float64], use_distortion: bool = False
+    def undistorted_optimal_to_source(
+        self, points: npt.NDArray[np.float64], use_distortion: bool = True
     ):
         points = self.unprojectPoints(
             points,
-            use_distortion=use_distortion,
+            use_distortion=False,
             use_optimal=True
         )
         return self.projectPoints(
             points,
-            use_distortion=use_distortion,
+            use_distortion=True,
             use_optimal=False
         )
 
@@ -581,7 +758,7 @@ class Radial_Dist_Camera:
 
         pts_2d_undist = cv2.undistortPoints(
             pts_2d,
-            self.K,
+            self.optimal_K if use_optimal else self.K,
             _D,
             self.optimal_K if use_optimal else self.K,
         )

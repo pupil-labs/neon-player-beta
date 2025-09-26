@@ -2,7 +2,7 @@
 import time
 
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QPoint, QPropertyAnimation, QSize, Qt, Signal
+from PySide6.QtCore import QPoint, QPointF, QPropertyAnimation, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColorConstants,
     QPainter,
@@ -24,8 +24,24 @@ class ScalingWidget(QOpenGLWidget):
 
     def __init__(self, parent: QWidget):
         super().__init__(parent)
-        self.show_fps = False
         self.source_size = QSize(100, 100)
+        self.scaled_children_positions = {}
+        self._mouse_down = False
+
+        self._last_frame_time = None
+        self._fps = 0.0
+        self.fps_label = QLabel(self)
+        self.fps_label.resize(1024, 24)
+
+        self.opacity_effect = QGraphicsOpacityEffect()
+        self.fps_label.setGraphicsEffect(self.opacity_effect)
+        self.opacity_effect.setOpacity(0.0)
+
+        self.fade_anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self.fade_anim.setDuration(1000)
+        self.fade_anim.setStartValue(1.0)
+        self.fade_anim.setEndValue(0.0)
+        self.fade_anim.finished.connect(self.on_fade_finished)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -45,6 +61,13 @@ class ScalingWidget(QOpenGLWidget):
     def on_fade_finished(self):
         self._last_frame_time = None
 
+    def map_point(self, point: QPointF) -> QPointF:
+        point = point - self.offset
+        return QPointF(
+            point.x() / self.scale,
+            point.y() / self.scale
+        )
+
     def transform_painter(self, painter: QPainter) -> None:
         painter.translate(self.offset)
         painter.scale(self.scale, self.scale)
@@ -56,7 +79,7 @@ class ScalingWidget(QOpenGLWidget):
         )
         painter.fillRect(0, 0, self.width(), self.height(), QColorConstants.Black)
 
-        if self.show_fps:
+        if neon_player.instance().settings.show_fps:
             now = time.monotonic()
             if self._last_frame_time is not None:
                 delta = now - self._last_frame_time
@@ -72,6 +95,8 @@ class ScalingWidget(QOpenGLWidget):
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self.adjust_size()
+        for child in self.children():
+            self.update_child_position(child)
 
     def adjust_size(self) -> None:
         app = neon_player.instance()
@@ -99,6 +124,32 @@ class ScalingWidget(QOpenGLWidget):
             self.offset = QPoint(
                 int((self.width() - self.source_size.width() * self.scale) / 2.0), 0
             )
+
+    def set_child_scaled_pos(self, child: QWidget, x: float, y: float) -> None:
+        self.scaled_children_positions[child] = (x, y, False)
+        self.update_child_position(child)
+
+    def set_child_scaled_center(self, child: QWidget, x: float, y: float) -> None:
+        self.scaled_children_positions[child] = (x, y, True)
+        self.update_child_position(child)
+
+    def update_child_position(self, child: QWidget) -> None:
+        if child not in self.scaled_children_positions:
+            return
+
+        x, y, centered = self.scaled_children_positions[child]
+
+        x *= self.scale
+        y *= self.scale
+
+        if centered:
+            x -= child.width() / 2
+            y -= child.height() / 2
+
+        child.move(QPoint(
+            int(x + self.offset.x()),
+            int(y + self.offset.y())
+        ))
 
 
 class VideoRenderWidget(ScalingWidget):
