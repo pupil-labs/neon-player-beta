@@ -53,12 +53,11 @@ class SurfaceTrackingPlugin(Plugin):
 
         self._surfaces: list["TrackedSurface"] = []
         self._jobs = []
+        self._surface_locator_jobs = {}
 
         self.timer = QTimer()
         self.timer.setInterval(33)
         self.timer.timeout.connect(self._update_surface_locations)
-
-        self._draw_undistorted = False
 
     def _update_surface_locations(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
@@ -114,14 +113,10 @@ class SurfaceTrackingPlugin(Plugin):
         if abs(time_in_recording - scene_frame.time) / 1e9 > 1 / 30:
             return
 
-        if self._draw_undistorted:
-            scene_image = self.camera.undistort_image(scene_frame.bgr, use_optimal=True)
-            painter.drawImage(0, 0, qimage_from_frame(scene_image))
-
         # Render markers
         painter.setBrush(self.marker_color)
         painter.setPen(self.marker_color)
-        painter.setOpacity(0.5)
+        painter.setOpacity(0.75)
         if frame_idx < len(self.markers_by_frame):
             for marker in self.markers_by_frame[frame_idx]:
                 corners = np.array(marker.vertices())
@@ -181,14 +176,6 @@ class SurfaceTrackingPlugin(Plugin):
             self.changed.emit()
 
     @property
-    def draw_undistorted(self) -> bool:
-        return self._draw_undistorted
-
-    @draw_undistorted.setter
-    def draw_undistorted(self, value: bool) -> None:
-        self._draw_undistorted = value
-
-    @property
     def surfaces(self) -> list["TrackedSurface"]:
         return self._surfaces
 
@@ -216,18 +203,10 @@ class SurfaceTrackingPlugin(Plugin):
                 self._load_surface_locations_cache(surface.uid)
 
             elif not self.app.headless:
-                job = self.job_manager.run_background_action(
-                    f"Detect Surface Locations [{surface.name}]",
-                    "SurfaceTrackingPlugin.bg_detect_surface_locations",
-                    surface.uid,
-                    frame_idx,
-                )
-                job.finished.connect(
-                    lambda: self._load_surface_locations_cache(surface.uid)
-                )
-                self._jobs.append(job)
+                self._start_bg_surface_locator(surface, frame_idx)
 
         for surface in removed_surfaces:
+            surface.cleanup_widgets()
             locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
             if locations_path.exists():
                 locations_path.unlink()
@@ -243,14 +222,23 @@ class SurfaceTrackingPlugin(Plugin):
         with surf_path.open("wb") as f:
             pickle.dump(surface.tracker_surface, f)
 
+        self._start_bg_surface_locator(surface)
+
+    def _start_bg_surface_locator(self, surface: "TrackedSurface", *args, **kwargs):
+        if surface.uid in self._surface_locator_jobs:
+            self._surface_locator_jobs[surface.uid].cancel()
+
         job = self.job_manager.run_background_action(
             f"Detect Surface Locations [{surface.name}]",
             "SurfaceTrackingPlugin.bg_detect_surface_locations",
-            surface.uid
+            surface.uid,
+            *args,
+            **kwargs
         )
         job.finished.connect(
             lambda: self._load_surface_locations_cache(surface.uid)
         )
+        self._surface_locator_jobs[surface.uid] = job
 
     def get_surface(self, uid: str):
         for s in self._surfaces:
@@ -275,7 +263,6 @@ class SurfaceTrackingPlugin(Plugin):
 
             yield ProgressUpdate((frame_idx + 1) / len(self.recording.scene))
 
-        # save the makers_by_frame to the cache file
         self.marker_cache_file.parent.mkdir(parents=True, exist_ok=True)
         with self.marker_cache_file.open("wb") as f:
             np.save(f, np.array(markers_by_frame, dtype=object))
@@ -285,7 +272,6 @@ class SurfaceTrackingPlugin(Plugin):
         uid: str,
         starting_frame_idx: int = -1,
     ) -> T.Generator[ProgressUpdate, None, None]:
-
         if starting_frame_idx >= len(self.markers_by_frame):
             logging.error("Marker detection not yet complete")
             return
@@ -309,7 +295,6 @@ class SurfaceTrackingPlugin(Plugin):
 
             yield ProgressUpdate((frame_idx + 1) / len(self.markers_by_frame))
 
-        # save the makers_by_frame to the cache file
         locations_path = self.get_cache_path() / f"{uid}_locations.npy"
         locations_path.parent.mkdir(parents=True, exist_ok=True)
         with locations_path.open("wb") as f:
@@ -357,6 +342,16 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.handle_widgets = {}
         self.corner_positions = {}
 
+    def __del__(self):
+        self.cleanup_widgets()
+
+    def cleanup_widgets(self):
+        for hw in self.handle_widgets.values():
+            hw.setParent(None)
+            hw.deleteLater()
+
+        self.handle_widgets = {}
+
     @property
     @property_params(dont_encode=True, widget=None)
     def location(self) -> SurfaceLocation|None:
@@ -370,8 +365,10 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         self._location = value
         self.surface_location_changed.emit()
+        self.update_handle_positions()
 
-        if value is None:
+    def update_handle_positions(self):
+        if self._location is None:
             return
 
         tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
@@ -382,8 +379,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         undistorted_corners = np.array(tracker.surface_points_in_image_space(
             self.tracker_surface,
-            self.location,
-            np.array([(0, 0), (1.0, 0), (1.0, 1.0), (0, 1.0)], dtype=np.float32),
+            self._location,
+            np.array([c.value for c in CornerId.all_corners()], dtype=np.float32),
         )).tolist()
 
         distorted_corners = camera.undistorted_optimal_to_source(undistorted_corners)
@@ -407,20 +404,16 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def edit_handles(self, value: bool) -> None:
         self._can_edit_handles = value
         if not value:
-            for hw in self.handle_widgets.values():
-                hw.setParent(None)
-                hw.deleteLater()
-
-            self.handle_widgets = {}
+            self.cleanup_widgets()
 
         else:
             app = neon_player.instance()
             vrw = app.main_window.video_widget
             self.handle_widgets = {
-                CornerId.TOP_LEFT: SurfaceHandle("#ff0000"),
-                CornerId.TOP_RIGHT: SurfaceHandle("#00ff00"),
-                CornerId.BOTTOM_RIGHT: SurfaceHandle("#0000ff"),
-                CornerId.BOTTOM_LEFT: SurfaceHandle("#ffff00"),
+                CornerId.TOP_LEFT: SurfaceHandle(),
+                CornerId.TOP_RIGHT: SurfaceHandle(),
+                CornerId.BOTTOM_RIGHT: SurfaceHandle(),
+                CornerId.BOTTOM_LEFT: SurfaceHandle(),
             }
 
             for corner_id, w in self.handle_widgets.items():
@@ -429,6 +422,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
                 w.position_changed.connect(
                     lambda pos, corner=corner_id: self.on_corner_changed(corner, pos)
                 )
+
+            self.update_handle_positions()
 
     def on_corner_changed(self, corner_id: CornerId, pos: QPointF) -> None:
         camera = Plugin.get_instance_by_name("SurfaceTrackingPlugin").camera
@@ -523,22 +518,21 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 class SurfaceHandle(QWidget):
     position_changed = Signal(QPointF)
 
-    def __init__(self, color):
+    def __init__(self):
         super().__init__()
-        self.color = color
         self.moved = False
-        self.signal_timer = QTimer()
-        self.signal_timer.setInterval(1000)
-        self.signal_timer.setSingleShot(True)
-        self.signal_timer.timeout.connect(self.emit_new_position)
+        self.position_changed_debounce_timer = QTimer()
+        self.position_changed_debounce_timer.setInterval(1000)
+        self.position_changed_debounce_timer.setSingleShot(True)
+        self.position_changed_debounce_timer.timeout.connect(self.emit_new_position)
 
         self.new_pos = None
 
     def paintEvent(self, event: QPaintEvent):
         painter = QPainter(self)
-        painter.setPen(QColor(self.color))
-        painter.setBrush(QColor(self.color))
-        painter.setOpacity(0.75)
+        painter.setPen("#ffff00")
+        painter.setBrush("#ffff00")
+        painter.setOpacity(0.5)
         painter.drawEllipse(0, 0, self.width() - 1, self.height() - 1)
 
     def mouseMoveEvent(self, event: QMouseEvent):
@@ -555,7 +549,7 @@ class SurfaceHandle(QWidget):
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         if not (event.buttons() & Qt.MouseButton.LeftButton) and self.moved:
-            self.signal_timer.start()
+            self.position_changed_debounce_timer.start()
 
         self.moved = False
 
@@ -599,12 +593,8 @@ class SurfaceViewWidget(VideoRenderWidget):
         corners_in_optimal = np.array(self.tracker.surface_points_in_image_space(
             self.surface.tracker_surface,
             self.surface.location,
-            #@TODO: figure out corner order...
             np.array([(0, 0), (1.0, 0), (1.0, 1.0), (0, 1.0)], dtype=np.float32),
-            #np.array([(0, 1.0), (1.0, 1.0), (1.0, 0), (0, 0)], dtype=np.float32),
-
         ))
-
 
         undistorted_image = self.camera.undistort_image(scene_frame.bgr, use_optimal=True)
 
