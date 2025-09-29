@@ -43,6 +43,9 @@ class ScalingWidget(QOpenGLWidget):
         self.fade_anim.setEndValue(0.0)
         self.fade_anim.finished.connect(self.on_fade_finished)
 
+        self.offset = QPointF(0, 0)
+        self.scale = 1.0
+
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self._mouse_down = True
@@ -115,13 +118,13 @@ class ScalingWidget(QOpenGLWidget):
 
         if source_aspect > target_aspect:
             self.scale = self.width() / self.source_size.width()
-            self.offset = QPoint(
+            self.offset = QPointF(
                 0, int((self.height() - self.source_size.height() * self.scale) / 2.0)
             )
 
         else:
             self.scale = self.height() / self.source_size.height()
-            self.offset = QPoint(
+            self.offset = QPointF(
                 int((self.width() - self.source_size.width() * self.scale) / 2.0), 0
             )
 
