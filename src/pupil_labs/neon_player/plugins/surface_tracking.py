@@ -10,7 +10,7 @@ import pupil_apriltags
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QIcon, QMouseEvent, QPainter, QPaintEvent, QPixmap
-from PySide6.QtWidgets import QPushButton, QWidget
+from PySide6.QtWidgets import QMessageBox, QPushButton, QWidget
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 from surface_tracker import (
     CornerId,
@@ -64,14 +64,18 @@ class SurfaceTrackingPlugin(Plugin):
 
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
+        if frame_idx >= len(self.markers_by_frame):
+            return
+
         if self.is_time_gray():
             for marker_widget in self.marker_edit_widgets.values():
                 marker_widget.hide()
 
-            edit_surface = next((s for s in self._surfaces if s.edit_markers), None)
-            if edit_surface:
-                for handle_widget in edit_surface.handle_widgets.values():
-                    handle_widget.hide()
+            for surface in self._surfaces:
+                surface.location = None
+                if surface.edit_markers:
+                    for handle_widget in surface.handle_widgets.values():
+                        handle_widget.hide()
 
             return
 
@@ -237,15 +241,26 @@ class SurfaceTrackingPlugin(Plugin):
 
     @surfaces.setter
     def surfaces(self, value: list["TrackedSurface"]):
+        frame_idx = self.get_scene_idx_for_time()
         new_surfaces = [
             surface for surface in value if surface not in self._surfaces
         ]
         removed_surfaces = [
             surface for surface in self._surfaces if surface not in value
         ]
+
+        fresh_surfaces = [s for s in new_surfaces if s.uid == ""]
+        if len(fresh_surfaces) > 0:
+            frame_detect_done = frame_idx < len(self.markers_by_frame)
+            if not frame_detect_done or len(self.markers_by_frame[frame_idx]) < 1:
+                QMessageBox.warning(self.app.main_window, "No markers detected", "Markers must be visible and detected on the current frame to add a new surface.")
+                for surface in new_surfaces:
+                    value.remove(surface)
+
+                new_surfaces = []
+
         self._surfaces = value
 
-        frame_idx = self.get_scene_idx_for_time()
         for surface in new_surfaces:
             if surface.uid == "":
                 surface.uid = str(uuid.uuid4())
@@ -430,7 +445,7 @@ class MarkerEditWidget(QPushButton):
         self._update_tooltip(self.isChecked())
 
     def _update_tooltip(self, checked: bool) -> None:
-        surface_name = self.surface.name or "[Unnamed surface]"
+        surface_name = self.surface.name or "Unnamed surface"
         if checked:
             self.setToolTip(f"Remove Marker ID {self.marker_uid} from {surface_name}")
         else:
@@ -453,7 +468,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def __init__(self) -> None:
         super().__init__()
         self._uid = ""
-        self._name = ""
+        self._name = "[Unnamed surface]"
         self._markers = []
         self._outline_color: QColor = QColor(255, 0, 255, 255)
         self._outline_width: float = 3
@@ -524,7 +539,12 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     def update_handle_positions(self):
         if self._location is None:
+            for w in self.handle_widgets.values():
+                w.hide()
             return
+
+        for w in self.handle_widgets.values():
+            w.show()
 
         tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
         camera = tracker_plugin.camera
@@ -744,9 +764,9 @@ class SurfaceViewWidget(VideoRenderWidget):
         self.surface.changed.connect(self.refit_rect)
         self.surface.surface_location_changed.connect(self.update)
 
-        tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
-        self.tracker = tracker_plugin.tracker
-        self.camera = tracker_plugin.camera
+        self.tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
+        self.tracker = self.tracker_plugin.tracker
+        self.camera = self.tracker_plugin.camera
         self.gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
 
         self.refit_rect()
@@ -755,7 +775,7 @@ class SurfaceViewWidget(VideoRenderWidget):
         self.fit_rect(QSize(self.surface.render_width, self.surface.render_height))
 
     def paintEvent(self, event: QPaintEvent) -> None:
-        if self.surface.location is None:
+        if self.tracker_plugin.is_time_gray() or self.surface.location is None:
             painter = QPainter(self)
             painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.gray)
             return

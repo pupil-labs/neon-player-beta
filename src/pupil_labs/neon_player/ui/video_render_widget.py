@@ -64,8 +64,8 @@ class ScalingWidget(QOpenGLWidget):
     def on_fade_finished(self):
         self._last_frame_time = None
 
-    def map_point(self, point: QPointF) -> QPointF:
-        point = point - self.offset
+    def map_point(self, point: QPoint|QPointF) -> QPointF:
+        point = QPointF(point) - self.offset
         return QPointF(
             point.x() / self.scale,
             point.y() / self.scale

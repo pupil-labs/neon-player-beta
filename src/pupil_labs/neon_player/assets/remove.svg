@@ -36,15 +36,7 @@
      id="defs1" /><g
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
-     id="layer1"><circle
-       style="opacity:0.9987;fill:#999999;stroke:#333333;stroke-width:2.11666;stroke-linecap:square;stroke-dasharray:none;paint-order:markers fill stroke"
-       id="path3-3"
-       cx="-26.048927"
-       cy="40.620949"
-       r="14.944756" /><path
-       id="rect1-9"
-       style="opacity:0.9987;fill:#ff0000;fill-opacity:1;stroke-width:1.05833;stroke-linecap:square;paint-order:fill markers stroke"
-       d="m -28.157245,1.1662338 -4.610351,4.610351 -4.610351,-4.610351 -4.610352,4.610352 4.610351,4.6103512 -4.610351,4.610351 4.610351,4.610351 4.610351,-4.610351 4.610352,4.610352 4.610352,-4.610352 -4.610352,-4.610352 4.610351,-4.6103512 z" /><path
+     id="layer1"><path
        id="rect1"
        style="opacity:0.9987;fill:#ff0000;stroke:#1a1a1a;stroke-width:2.11666;stroke-linecap:square;stroke-dasharray:none;paint-order:markers fill stroke;fill-opacity:1"
        d="M 23.249106,4.3017869 16.933333,10.61756 10.61756,4.3017868 4.3017861,10.617561 l 6.3157729,6.315773 -6.3157722,6.315772 6.3157722,6.315773 6.315773,-6.315773 6.315773,6.315774 6.315774,-6.315774 -6.315774,-6.315774 6.315773,-6.315773 z" /></g></svg>

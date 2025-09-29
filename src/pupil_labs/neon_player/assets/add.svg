@@ -36,12 +36,7 @@
      id="defs1" /><g
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
-     id="layer1"><circle
-       style="opacity:0.9987;fill:#999999;stroke:#333333;stroke-width:2.11666;stroke-linecap:square;stroke-dasharray:none;paint-order:markers fill stroke"
-       id="path3"
-       cx="-35.179428"
-       cy="37.003204"
-       r="14.944756" /><path
+     id="layer1"><path
        id="rect1"
        style="opacity:0.9987;fill:#00ff00;stroke:#1a1a1a;stroke-width:2.11666;stroke-linecap:square;stroke-dasharray:none;paint-order:markers fill stroke"
        d="M 12.467407,3.5355553 V 12.467407 H 3.5355552 v 8.931853 h 8.9318518 v 8.931851 h 8.931851 V 21.39926 h 8.931853 V 12.467407 H 21.399258 V 3.5355553 Z" /></g></svg>
