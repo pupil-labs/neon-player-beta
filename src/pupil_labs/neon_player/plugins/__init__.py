@@ -2,6 +2,7 @@ import json
 import typing as T
 from pathlib import Path
 
+import numpy as np
 from numpyencoder import NumpyEncoder
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.sample import match_ts
@@ -106,13 +107,25 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def get_scene_idx_for_time(
         self,
         t: int = -1,
-        method: T.Literal["nearest", "backward", "forward"] = "nearest",
+        method: T.Literal["nearest", "backward", "forward"] = "backward",
         tolerance: int | None = None
     ) -> int:
         if t < 0:
             t = self.app.current_ts
 
-        return int(match_ts([t], self.recording.scene.time, method, tolerance)[0])
+        scene_idx = match_ts([t], self.recording.scene.time, method, tolerance)[0]
+        return -1 if np.isnan(scene_idx) else scene_idx
+
+    def is_time_gray(self, t: int = -1) -> bool:
+        if t == -1:
+            t = self.app.current_ts
+
+        gray_frame = t < self.recording.scene.time[0]
+        if not gray_frame:
+            scene_frame = self.recording.scene.sample([t], method="backward")[0]
+            gray_frame = abs(t - scene_frame.time) / 1e9 > 1 / 30
+
+        return gray_frame
 
     @property
     @property_params(widget=None, dont_encode=True)

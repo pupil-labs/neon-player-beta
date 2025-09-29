@@ -19,8 +19,7 @@ class SceneRendererPlugin(Plugin):
             painter.drawText(100, 100, "No scene data available")
             return
 
-        scene_frame = self.recording.scene.sample([time_in_recording])[0]
-        if abs(time_in_recording - scene_frame.time) / 1e9 > 1 / 30:
+        if self.is_time_gray(time_in_recording):
             painter.fillRect(
                 0,
                 0,
@@ -30,6 +29,10 @@ class SceneRendererPlugin(Plugin):
             )
             return
 
+        scene_frame = self.recording.scene.sample(
+            [time_in_recording],
+            method="backward"
+        )[0]
         image = qimage_from_frame(scene_frame.bgr)
         painter.drawImage(0, 0, image)
 

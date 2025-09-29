@@ -9,8 +9,8 @@ import numpy.typing as npt
 import pupil_apriltags
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, QPointF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent
-from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QColor, QIcon, QMouseEvent, QPainter, QPaintEvent, QPixmap
+from PySide6.QtWidgets import QPushButton, QWidget
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 from surface_tracker import (
     CornerId,
@@ -45,7 +45,8 @@ class SurfaceTrackingPlugin(Plugin):
         self.marker_cache_file = self.get_cache_path() / "markers.npy"
         self.surface_cache_file = self.get_cache_path() / "surfaces.npy"
 
-        self.marker_color = QColor("#22ff22")
+        self._marker_color = QColor("#22ff22")
+        self._marker_color.setAlpha(200)
 
         self.markers_by_frame: list[list[Marker]] = []
         self.surface_locations: dict[str, list[SurfaceLocation]] = {}
@@ -57,11 +58,21 @@ class SurfaceTrackingPlugin(Plugin):
 
         self.timer = QTimer()
         self.timer.setInterval(33)
-        self.timer.timeout.connect(self._update_surface_locations)
+        self.timer.timeout.connect(self._update_displays)
 
-    def _update_surface_locations(self) -> None:
+        self.marker_edit_widgets = {}
+
+    def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
-        if frame_idx >= len(self.markers_by_frame):
+        if self.is_time_gray():
+            for marker_widget in self.marker_edit_widgets.values():
+                marker_widget.hide()
+
+            edit_surface = next((s for s in self._surfaces if s.edit_markers), None)
+            if edit_surface:
+                for handle_widget in edit_surface.handle_widgets.values():
+                    handle_widget.hide()
+
             return
 
         markers = self.markers_by_frame[frame_idx]
@@ -73,6 +84,38 @@ class SurfaceTrackingPlugin(Plugin):
                 surface.tracker_surface,
                 markers
             )
+
+        # if we're editing a surface's markers
+        if any(s.edit_markers for s in self._surfaces):
+            self._update_editing_markers()
+
+    def _update_editing_markers(self):
+        frame_idx = self.get_scene_idx_for_time()
+        markers = self.markers_by_frame[frame_idx]
+        present_markers = {m.uid: m for m in markers}
+        vrw = self.app.main_window.video_widget
+        edit_surface = next((s for s in self._surfaces if s.edit_markers), None)
+        if edit_surface is not None and edit_surface.location is None:
+            for marker_widget in self.marker_edit_widgets.values():
+                marker_widget.hide()
+            return
+
+        for marker_uid, marker_widget in self.marker_edit_widgets.items():
+            if marker_uid not in present_markers:
+                marker_widget.hide()
+            else:
+                marker_widget.show()
+                marker = present_markers[marker_uid]
+                undistorted_center = np.mean(marker.vertices(), axis=0)
+                distorted_center = self.camera.undistorted_optimal_to_source(
+                    [undistorted_center]
+                )[0]
+
+                vrw.set_child_scaled_center(
+                    marker_widget,
+                    distorted_center[0],
+                    distorted_center[1]
+                )
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         self.camera = Radial_Dist_Camera(
@@ -114,9 +157,8 @@ class SurfaceTrackingPlugin(Plugin):
             return
 
         # Render markers
-        painter.setBrush(self.marker_color)
-        painter.setPen(self.marker_color)
-        painter.setOpacity(0.75)
+        painter.setBrush(self._marker_color)
+        painter.setPen(self._marker_color)
         if frame_idx < len(self.markers_by_frame):
             for marker in self.markers_by_frame[frame_idx]:
                 corners = np.array(marker.vertices())
@@ -160,6 +202,12 @@ class SurfaceTrackingPlugin(Plugin):
         self.markers_by_frame = np.load(self.marker_cache_file, allow_pickle=True)
         self.attempt_surface_locations_load()
         self.changed.emit()
+        for frame_markers in self.markers_by_frame:
+            for marker in frame_markers:
+                if marker.uid not in self.marker_edit_widgets:
+                    widget = MarkerEditWidget(marker.uid)
+                    widget.setParent(self.app.main_window.video_widget)
+                    self.marker_edit_widgets[marker.uid] = widget
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:
         surface = self.get_surface(surface_uid)
@@ -174,6 +222,14 @@ class SurfaceTrackingPlugin(Plugin):
             self.surface_locations[surface_uid] = data
 
             self.changed.emit()
+
+    @property
+    def marker_color(self) -> QColor:
+        return self._marker_color
+
+    @marker_color.setter
+    def marker_color(self, value: QColor) -> None:
+        self._marker_color = value
 
     @property
     def surfaces(self) -> list["TrackedSurface"]:
@@ -195,8 +251,12 @@ class SurfaceTrackingPlugin(Plugin):
                 surface.uid = str(uuid.uuid4())
 
             surface.changed.connect(self.changed.emit)
+            surface.marker_edit_changed.connect(
+                lambda s=surface: self.on_marker_edit_changed(s)
+            )
             surface.locations_invalidated.connect(
-                lambda s=surface:self.on_locations_invalidated(s))
+                lambda s=surface:self.on_locations_invalidated(s)
+            )
 
             locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
             if locations_path.exists():
@@ -216,6 +276,21 @@ class SurfaceTrackingPlugin(Plugin):
                 surf_path.unlink()
 
         self.changed.emit()
+
+    def on_marker_edit_changed(self, surface: "TrackedSurface") -> None:
+        if surface.edit_markers:
+            for other_surface in self.surfaces:
+                if other_surface != surface:
+                    other_surface.edit_markers = False
+
+            self.marker_editing_surface = surface
+            for w in self.marker_edit_widgets.values():
+                w.set_surface(surface)
+
+        else:
+            self.marker_editing_surface = None
+            for w in self.marker_edit_widgets.values():
+                w.hide()
 
     def on_locations_invalidated(self, surface: "TrackedSurface") -> None:
         surf_path = self.get_cache_path() / f"{surface.uid}_surface.pkl"
@@ -316,20 +391,74 @@ class SurfaceTrackingPlugin(Plugin):
         )
 
 
+class MarkerEditWidget(QPushButton):
+    def __init__(self, marker_uid: str) -> None:
+        super().__init__()
+        self.setCheckable(True)
+        self.marker_uid = marker_uid
+        self.surface = None
+
+        icon = QIcon()
+        icon.addPixmap(
+            QPixmap(neon_player.asset_path("add.svg")),
+            QIcon.Normal,
+            QIcon.Off
+        )
+        icon.addPixmap(
+            QPixmap(neon_player.asset_path("remove.svg")),
+            QIcon.Normal,
+            QIcon.On
+        )
+        self.setIcon(icon)
+        self.setIconSize(QSize(24, 24))
+
+        self.setStyleSheet("""
+            QPushButton {
+                border: none;
+                background: transparent;
+                padding: 0px;
+            }
+        """)
+
+        self.setCursor(Qt.PointingHandCursor)
+
+        self.clicked.connect(self.on_clicked)
+
+    def set_surface(self, surface: "TrackedSurface") -> None:
+        self.surface = surface
+        self.setChecked(self.marker_uid in surface.tracker_surface.registered_marker_uids)
+        self._update_tooltip(self.isChecked())
+
+    def _update_tooltip(self, checked: bool) -> None:
+        surface_name = self.surface.name or "[Unnamed surface]"
+        if checked:
+            self.setToolTip(f"Remove Marker ID {self.marker_uid} from {surface_name}")
+        else:
+            self.setToolTip(f"Add Marker ID {self.marker_uid} to {surface_name}")
+
+    def on_clicked(self) -> None:
+        if self.isChecked():
+            self.surface.add_marker(self.marker_uid)
+        else:
+            self.surface.remove_marker(self.marker_uid)
+
+
 class TrackedSurface(PersistentPropertiesMixin, QObject):
     changed = Signal()
     locations_invalidated = Signal()
     surface_location_changed = Signal()
     view_requested = Signal(object)
+    marker_edit_changed = Signal()
 
     def __init__(self) -> None:
         super().__init__()
         self._uid = ""
         self._name = ""
         self._markers = []
-        self._outline_color: QColor = QColor(255, 0, 255, 128)
+        self._outline_color: QColor = QColor(255, 0, 255, 255)
         self._outline_width: float = 3
-        self._can_edit_handles = False
+        self._can_edit_corners = False
+        self._can_edit_markers = False
         self.tracker_surface = None
 
         self._render_size = QSize(400, 400)
@@ -345,12 +474,38 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def __del__(self):
         self.cleanup_widgets()
 
+    def to_dict(self) -> dict[str, T.Any]:
+        state = super().to_dict()
+        state["edit_markers"] = False
+        state["edit_corners"] = False
+        return state
+
     def cleanup_widgets(self):
         for hw in self.handle_widgets.values():
             hw.setParent(None)
             hw.deleteLater()
 
         self.handle_widgets = {}
+
+    def add_marker(self, marker_uid: str) -> None:
+        frame_idx = self.tracker_plugin.get_scene_idx_for_time()
+        markers = self.tracker_plugin.markers_by_frame[frame_idx]
+        marker = next((m for m in markers if m.uid == marker_uid), None)
+
+        self.tracker.add_markers_to_surface(
+            self.tracker_surface,
+            self.location,
+            [marker],
+        )
+        self.locations_invalidated.emit()
+
+    def remove_marker(self, marker_uid: str) -> None:
+        self.tracker.remove_markers_from_surface(
+            self.tracker_surface,
+            self.location,
+            [marker_uid],
+        )
+        self.locations_invalidated.emit()
 
     @property
     @property_params(dont_encode=True, widget=None)
@@ -397,12 +552,12 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             w.show()
 
     @property
-    def edit_handles(self) -> bool:
-        return self._can_edit_handles
+    def edit_corners(self) -> bool:
+        return self._can_edit_corners
 
-    @edit_handles.setter
-    def edit_handles(self, value: bool) -> None:
-        self._can_edit_handles = value
+    @edit_corners.setter
+    def edit_corners(self, value: bool) -> None:
+        self._can_edit_corners = value
         if not value:
             self.cleanup_widgets()
 
@@ -440,6 +595,15 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.corner_positions
         )
         self.locations_invalidated.emit()
+
+    @property
+    def edit_markers(self) -> bool:
+        return self._can_edit_markers
+
+    @edit_markers.setter
+    def edit_markers(self, value: bool) -> None:
+        self._can_edit_markers = value
+        self.marker_edit_changed.emit()
 
     @property
     @property_params(widget=None)
@@ -493,15 +657,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def render_height(self, value: int) -> None:
         self._render_size.setHeight(value)
 
-    @action
-    def view(self) -> None:
-        self.preview_widget = SurfaceViewWidget(self)
-        self.preview_widget.show()
-
-        width = min(1024, max(self._render_size.width(), 400))
-        aspect = self._render_size.width() / self._render_size.height()
-        self.preview_widget.resize(width, width / aspect)
-
     @property
     @property_params(use_subclass_selector=True, add_button_text="Add visualization")
     def visualizations(self) -> list["GazeVisualization"]:
@@ -513,6 +668,25 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         for viz in self._visualizations:
             viz.changed.connect(self.changed.emit)
+
+    @action
+    def view_surface(self) -> None:
+        self.preview_widget = SurfaceViewWidget(self)
+        self.preview_widget.show()
+
+        width = min(1024, max(self._render_size.width(), 400))
+        aspect = self._render_size.width() / self._render_size.height()
+        self.preview_widget.resize(width, width / aspect)
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def tracker_plugin(self) -> SurfaceTrackingPlugin:
+        return Plugin.get_instance_by_name("SurfaceTrackingPlugin")
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def tracker(self) -> SurfaceTracker:
+        return self.tracker_plugin.tracker
 
 
 class SurfaceHandle(QWidget):
