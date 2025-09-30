@@ -53,7 +53,7 @@ class ScalingWidget(QOpenGLWidget):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             if self._mouse_down:
-                pos = event.pos() - self.offset
+                pos = QPointF(event.pos()) - self.offset
                 self.scaled_clicked.emit(
                     pos.x() / self.scale,
                     pos.y() / self.scale
