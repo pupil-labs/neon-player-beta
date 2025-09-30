@@ -170,6 +170,12 @@ class SurfaceTrackingPlugin(Plugin):
 
         painter.setOpacity(1.0)
 
+        font = painter.font()
+        font.setPointSize(24)
+        font.setBold(True)
+        painter.setFont(font)
+
+        default_transform = painter.transform()
         for surface in self.surfaces:
             if surface.uid not in self.surface_locations:
                 continue
@@ -188,12 +194,27 @@ class SurfaceTrackingPlugin(Plugin):
             painter.setPen(p)
             painter.setBrush(QColor("#00000000"))
 
-            anchors = self.tracker.locate_surface_visual_anchors(
+            anchors = self.tracker.surface_corner_positions_in_image_space(
                 surface.tracker_surface,
-                location
+                location,
+                CornerId.all_corners()
             )
+            anchors = np.array(list(anchors.values()))
 
-            self._paint_distorted_polygon(painter, anchors.perimeter_polyline)
+            self._paint_distorted_polygon(painter, anchors)
+
+            top_edge = anchors[1] - anchors[0]
+
+            # Compute angle with respect to the x‑axis
+            angle_rad = np.arctan2(top_edge[1], top_edge[0])
+            top_middle = top_edge / 2.0 + anchors[0]
+            top_middle_undistort = self.camera.undistorted_optimal_to_source(top_middle).flatten()
+            painter.translate(QPointF(*top_middle_undistort))
+            painter.rotate(np.degrees(angle_rad))
+            painter.translate(QPointF(-15, -5))
+
+            painter.drawText(0, 0, "Top")
+            painter.setTransform(default_transform)
 
     def _paint_distorted_polygon(self, painter: QPainter, points, resolution=10) -> None:
         points = insert_interpolated_points(points, resolution)
