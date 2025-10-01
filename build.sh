@@ -1,9 +1,12 @@
 #!/bin/bash
 
 nuitka \
+  --user-package-configuration-file=package-configs.yml \
   --standalone \
   --output-dir=dist \
   --output-filename=neon-player-6 \
+  --remove-output \
+  --python-flag=isolated \
   --plugin-enable=pyside6 \
   --include-module=bdb \
   --include-module=numpy._core._exceptions \
@@ -12,7 +15,6 @@ nuitka \
   --include-module=unittest.mock \
   --include-module=cmath \
   --include-module=http.cookies \
-  --python-flag=isolated \
   --include-data-dir=./src/pupil_labs/neon_player/assets=pupil_labs/neon_player/assets \
   --macos-create-app-bundle \
   --macos-signed-app-name=com.pupil-labs.neon_player \
@@ -25,3 +27,5 @@ nuitka \
   --macos-app-version=6.0 \
   --windows-icon-from-ico=./src/pupil_labs/neon_player/assets/neon-player.ico \
   src/pupil_labs/neon_player/__main__.py
+
+mv dist/__main__.dist dist/neon-player-6

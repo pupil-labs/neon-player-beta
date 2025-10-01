@@ -1,0 +1,10 @@
+- module-name: pupil_apriltags
+  dlls:
+    - from_filenames:
+        relative_path: 'lib64'
+        prefixes:
+          - 'libapriltag'
+    - from_filenames:
+        relative_path: 'lib'
+        prefixes:
+          - 'libapriltag'
