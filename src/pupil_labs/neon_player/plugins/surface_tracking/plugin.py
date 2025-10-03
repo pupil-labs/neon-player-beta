@@ -415,6 +415,17 @@ class SurfaceTrackingPlugin(Plugin):
             clockwise=False,
         )
 
+    @action
+    def export(self, destination: Path = Path()) -> None:
+        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_mask = self.recording.gaze.time >= start_time
+        stop_mask = self.recording.gaze.time <= stop_time
+
+        gazes_in_window = self.recording.gaze[start_mask & stop_mask]
+
+        for surface in self._surfaces:
+            surface.export_gazes(gazes_in_window, destination)
+
 
 class OptimalCamera(Camera):
     def __init__(

@@ -279,10 +279,25 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     def export_gazes(self, gazes, destination: Path):
         gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
-        offset = [ gaze_plugin.offset_x, gaze_plugin.offset_y ]
-        surface_points = None
+
+        offset_gazes = gazes.point + np.array([
+            gaze_plugin.offset_x * gaze_plugin.recording.scene.width,
+            gaze_plugin.offset_y * gaze_plugin.recording.scene.height
+        ])
+        mapped_gazes = self.image_points_to_surface(offset_gazes)
+
+        lower_pass = np.all(mapped_gazes >= 0, axis=1)
+        upper_pass = np.all(mapped_gazes <= 1.0, axis=1)
+        gazes_on_surface = lower_pass & upper_pass
+
         gazes = pd.DataFrame({
             "timestamp [ns]": gazes.time,
-            "gaze position on surface x [normalized]": surface_points[:, 0],
-            "gaze position on surface y [normalized]": surface_points[:, 1],
+            "gaze detected on surface": gazes_on_surface,
+            "gaze position on surface x [normalized]": mapped_gazes[:, 0],
+            "gaze position on surface y [normalized]": mapped_gazes[:, 1],
         })
+
+        gazes.to_csv(
+            destination / f"gaze_positions_on_surface_{self.name}.csv",
+            index=False
+        )
