@@ -13,6 +13,7 @@ from PySide6.QtGui import QColor, QIcon, QMouseEvent, QPainter, QPaintEvent, QPi
 from PySide6.QtWidgets import QMessageBox, QPushButton, QWidget
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 from surface_tracker import (
+    Camera,
     CornerId,
     Marker,
     SurfaceLocation,
@@ -111,7 +112,7 @@ class SurfaceTrackingPlugin(Plugin):
                 marker_widget.show()
                 marker = present_markers[marker_uid]
                 undistorted_center = np.mean(marker.vertices(), axis=0)
-                distorted_center = self.camera.undistorted_optimal_to_source(
+                distorted_center = self.camera.distort_points(
                     [undistorted_center]
                 )[0]
 
@@ -122,11 +123,10 @@ class SurfaceTrackingPlugin(Plugin):
                 )
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self.camera = Radial_Dist_Camera(
-            name='Scene',
-            resolution=(recording.scene.width, recording.scene.height),
-            K=self.recording.calibration.scene_camera_matrix,
-            D=self.recording.calibration.scene_distortion_coefficients,
+        self.camera = OptimalCamera(
+            self.recording.calibration.scene_camera_matrix,
+            self.recording.calibration.scene_distortion_coefficients,
+            (recording.scene.width, recording.scene.height),
         )
         self.attempt_marker_cache_load()
         self.timer.start()
@@ -166,7 +166,7 @@ class SurfaceTrackingPlugin(Plugin):
         if frame_idx < len(self.markers_by_frame):
             for marker in self.markers_by_frame[frame_idx]:
                 corners = np.array(marker.vertices())
-                self._paint_distorted_polygon(painter, corners)
+                self._distort_and_paint_polygon(painter, corners)
 
         painter.setOpacity(1.0)
 
@@ -201,24 +201,24 @@ class SurfaceTrackingPlugin(Plugin):
             )
             anchors = np.array(list(anchors.values()))
 
-            self._paint_distorted_polygon(painter, anchors)
+            self._distort_and_paint_polygon(painter, anchors)
 
             top_edge = anchors[1] - anchors[0]
 
             # Compute angle with respect to the x‑axis
             angle_rad = np.arctan2(top_edge[1], top_edge[0])
             top_middle = top_edge / 2.0 + anchors[0]
-            top_middle_undistort = self.camera.undistorted_optimal_to_source(top_middle).flatten()
-            painter.translate(QPointF(*top_middle_undistort))
+            top_middle_distorted = self.camera.distort_points([top_middle]).flatten()
+            painter.translate(QPointF(*top_middle_distorted))
             painter.rotate(np.degrees(angle_rad))
             painter.translate(QPointF(-15, -5))
 
             painter.drawText(0, 0, "Top")
             painter.setTransform(default_transform)
 
-    def _paint_distorted_polygon(self, painter: QPainter, points, resolution=10) -> None:
+    def _distort_and_paint_polygon(self, painter: QPainter, points, resolution=10) -> None:
         points = insert_interpolated_points(points, resolution)
-        points = self.camera.undistorted_optimal_to_source(points).reshape(-1, 2)
+        points = self.camera.distort_points(points)
 
         points = [QPointF(*point) for point in points]
         painter.drawPolygon(points)
@@ -365,7 +365,7 @@ class SurfaceTrackingPlugin(Plugin):
         markers_by_frame = []
         for frame_idx, frame in enumerate(self.recording.scene):
             #@TODO: apply brightness/contrast adjustments
-            scene_image = self.camera.undistort_image(frame.gray, use_optimal=True)
+            scene_image = self.camera.undistort_image(frame.gray)
 
             markers = [
                 self.apriltag_to_surface_marker(m) for m in detector.detect(scene_image)
@@ -577,9 +577,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.tracker_surface,
             self._location,
             np.array([c.value for c in CornerId.all_corners()], dtype=np.float32),
-        )).tolist()
+        ))
 
-        distorted_corners = camera.undistorted_optimal_to_source(undistorted_corners)
+        distorted_corners = camera.distort_points(undistorted_corners)
 
         for w, undistorted_corner, distorted_corner, corner_id in zip(
             self.handle_widgets.values(),
@@ -625,7 +625,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         camera = Plugin.get_instance_by_name("SurfaceTrackingPlugin").camera
 
         pos = np.array([pos.x(), pos.y()])
-        undistorted_corner = camera.source_to_undistorted_optimal(pos)
+        undistorted_corner = camera.undistort_points(pos)
         self.corner_positions[corner_id] = undistorted_corner.flatten()
         tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
         tracker = tracker_plugin.tracker
@@ -729,6 +729,13 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def tracker(self) -> SurfaceTracker:
         return self.tracker_plugin.tracker
 
+    def image_points_to_surface(self, points):
+        undistorted_points = self.tracker_plugin.camera.undistort_points(points)
+        return cv2.perspectiveTransform(
+            undistorted_points.reshape(-1, 1, 2),
+            self.location.transform_matrix_from_image_to_surface_undistorted
+        ).reshape(-1, 2)
+
 
 class SurfaceHandle(QWidget):
     position_changed = Signal(QPointF)
@@ -803,32 +810,17 @@ class SurfaceViewWidget(VideoRenderWidget):
 
         app = neon_player.instance()
         scene_frame = app.recording.scene.sample([app.current_ts])[0]
+        undistorted_image = self.camera.undistort_image(scene_frame.bgr)
 
-        # these are in undisorted, cropped image space
-        corners_in_optimal = np.array(self.tracker.surface_points_in_image_space(
-            self.surface.tracker_surface,
-            self.surface.location,
-            np.array([(0, 0), (1.0, 0), (1.0, 1.0), (0, 1.0)], dtype=np.float32),
-        ))
+        dst_size = (self.surface._render_size.width(), self.surface._render_size.height())
+        S = np.float64([
+            [dst_size[0], 0.0,   0.0],
+            [0.0,   dst_size[1], 0.0],
+            [0.0,   0.0,   1.0]
+        ])
+        h_scaled = S @ self.surface.location.transform_matrix_from_image_to_surface_undistorted
 
-        undistorted_image = self.camera.undistort_image(scene_frame.bgr, use_optimal=True)
-
-        width = self.surface._render_size.width()
-        height = self.surface._render_size.height()
-        dst_pts = np.array([
-            [0, 0],
-            [width - 1, 0],
-            [width - 1, height - 1],
-            [0, height - 1]
-        ], dtype=np.float32)
-
-        homography, _ = cv2.findHomography(corners_in_optimal, dst_pts)
-
-        surface_image = cv2.warpPerspective(
-            undistorted_image,
-            homography,
-            np.int32([width, height])
-        )
+        surface_image = cv2.warpPerspective(undistorted_image, h_scaled, dst_size)
 
         painter = QPainter(self)
         painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.black)
@@ -841,8 +833,10 @@ class SurfaceViewWidget(VideoRenderWidget):
             self.gaze_plugin.offset_y * scene_frame.height
         ])
 
-        gazes = self.distorted_scene_to_undistorted_surface(gazes, homography)
-        offset_gazes = self.distorted_scene_to_undistorted_surface(offset_gazes, homography)
+        gazes = self.surface.image_points_to_surface(gazes)
+        gazes[:, 0] *= self.surface.render_width
+        gazes[:, 1] *= self.surface.render_height
+        offset_gazes = gazes
 
         for viz in self.surface.visualizations:
             viz.render(
@@ -850,190 +844,79 @@ class SurfaceViewWidget(VideoRenderWidget):
                 offset_gazes if viz.use_offset else gazes,
             )
 
-    def distorted_scene_to_undistorted_surface(
-        self,
-        points: npt.NDArray[np.float64],
-        homography: npt.NDArray,
-    ) -> None:
-        points = self.camera.undistort_points_on_image_plane(points, use_optimal=True)
-        points = points[:, np.newaxis, :]
-        return cv2.perspectiveTransform(points, homography).reshape(-1, 2)
 
-
-class Radial_Dist_Camera:
+class OptimalCamera(Camera):
     def __init__(
         self,
-        name: str,
+        camera_matrix: npt.ArrayLike,
+        distortion_coefficients: npt.ArrayLike,
         resolution: tuple[int, int],
-        K: npt.ArrayLike,
-        D: npt.ArrayLike,
     ) -> None:
-        self.name = name
+        super().__init__(camera_matrix, distortion_coefficients)
         self.resolution = resolution
-        self.K: npt.NDArray[np.float64] = np.array(K)
-        self.D: npt.NDArray[np.float64] = np.array(D)
 
-        self.optimal_K, _ = cv2.getOptimalNewCameraMatrix(
-            self.K,
-            self.D,
+        self.optimal_matrix, _ = cv2.getOptimalNewCameraMatrix(
+            self.camera_matrix,
+            self.distortion_coefficients,
             self.resolution,
-            alpha=0.0,
+            alpha=1.0,
             newImgSize=self.resolution
         )
 
-    @property
-    def focal_length(self) -> float:
-        fx = self.K[0, 0]
-        fy = self.K[1, 1]
-
-        return (fx + fy) / 2
-
-    def undistort_points_on_image_plane(
-        self, points: npt.NDArray[np.float64], use_optimal: bool = False
-    ) -> npt.NDArray[np.float64]:
-        points = self.unprojectPoints(points, use_distortion=True, use_optimal=False)
-        points = self.projectPoints(points, use_distortion=False, use_optimal=use_optimal)
-
-        return points
-
-    def distort_points_on_image_plane(
-        self, points: npt.NDArray[np.float64], use_optimal: bool = False
-    ) -> npt.NDArray[np.float64]:
-        points = self.unprojectPoints(
-            points,
-            use_distortion=False,
-            use_optimal=use_optimal
-        )
-        return self.projectPoints(
-            points,
-            use_distortion=True,
-            use_optimal=use_optimal
+        self.undistortion_maps = cv2.initUndistortRectifyMap(
+            self.camera_matrix,
+            self.distortion_coefficients,
+            None,
+            self.optimal_matrix,
+            self.resolution,
+            cv2.CV_32FC1
         )
 
-    def source_to_undistorted_optimal(
-        self, points: npt.NDArray[np.float64], use_distortion: bool = False
-    ):
-        points = self.unprojectPoints(
-            points,
-            use_distortion=True,
-            use_optimal=False
-        )
-        return self.projectPoints(
-            points,
-            use_distortion=False,
-            use_optimal=True
-        )
+        self.distortion_maps = self._build_distort_maps()
 
-    def undistorted_optimal_to_source(
-        self, points: npt.NDArray[np.float64], use_distortion: bool = True
-    ):
-        points = self.unprojectPoints(
-            points,
-            use_distortion=False,
-            use_optimal=True
-        )
-        return self.projectPoints(
-            points,
-            use_distortion=True,
-            use_optimal=False
-        )
+    def _build_distort_maps(self):
+        w_dst, h_dst = self.resolution
 
-    def unprojectPoints(
-        self,
-        pts_2d: npt.NDArray,
-        use_distortion: bool = True,
-        normalize: bool = False,
-        use_optimal: bool = False
-    ) -> npt.NDArray:
-        """Undistorts points according to the camera model.
-        :param pts_2d, shape: Nx2
-        :return: Array of unprojected 3d points, shape: Nx3
-        """
-        pts_2d = np.array(pts_2d, dtype=np.float32)
+        # create grid of pixel coordinates in the distorted image
+        xs = np.arange(w_dst)
+        ys = np.arange(h_dst)
+        xv, yv = np.meshgrid(xs, ys)
+        pix = np.stack((xv, yv), axis=-1).astype(np.float32)  # (h_dst, w_dst, 2)
 
-        # Delete any posibly wrong 3rd dimension
-        if pts_2d.ndim == 1 or pts_2d.ndim == 3:
-            pts_2d = pts_2d.reshape((-1, 2))
+        # Convert pixel coords (u_d, v_d) in distorted image to normalized camera coords x_d = K^{-1} * [u;v;1]
+        K = np.asarray(self.camera_matrix, dtype=np.float64)
+        pts = pix.reshape(-1, 1, 2).astype(np.float64)
 
-        # Add third dimension the way cv2 wants it
-        if pts_2d.ndim == 2:
-            pts_2d = pts_2d.reshape((-1, 1, 2))
+        undistorted_pts = cv2.undistortPoints(pts, K, self.distortion_coefficients, R=None, P=self.optimal_matrix)  # returns (N,1,2) in pixel coords of undistorted image when P provided
 
-        _D = self.D if use_distortion else np.asarray([[0.0, 0.0, 0.0, 0.0, 0.0]])
+        # undistorted_pts are pixel coordinates in the undistorted image corresponding to each distorted pixel.
+        map_xy = undistorted_pts.reshape(h_dst, w_dst, 2).astype(np.float32)
 
-        pts_2d_undist = cv2.undistortPoints(
-            pts_2d,
-            self.optimal_K if use_optimal else self.K,
-            _D,
-            self.optimal_K if use_optimal else self.K,
-        )
+        return map_xy[..., 0], map_xy[..., 1]
 
-        pts_3d = cv2.convertPointsToHomogeneous(pts_2d_undist)
-        pts_3d.shape = -1, 3
+    def undistort_points(self, points: npt.ArrayLike):
+        return self._map_points(points, self.distortion_maps)
 
-        if normalize:
-            pts_3d /= np.linalg.norm(pts_3d, axis=1)[:, np.newaxis]
+    def distort_points(self, points: npt.ArrayLike):
+        return self._map_points(points, self.undistortion_maps)
 
-        return pts_3d
+    def _map_points(self, points, maps):
+        points = np.asarray(points).reshape(-1, 2)
+        ix = np.clip(np.round(points[:, 0]).astype(int), 0, self.resolution[0] - 1)
+        iy = np.clip(np.round(points[:, 1]).astype(int), 0, self.resolution[1] - 1)
 
-    def projectPoints(
-        self,
-        object_points: npt.NDArray,
-        rvec: npt.NDArray|None =None,
-        tvec: npt.NDArray|None =None,
-        use_distortion: bool = True,
-        use_optimal: bool = False
-    ) -> npt.NDArray:
-        """Projects a set of points onto the camera plane as defined by the camera model.
-        :param object_points: Set of 3D world points
-        :param rvec: Set of vectors describing the rotation of the camera when recording
-            the corresponding object point
-        :param tvec: Set of vectors describing the translation of the camera when
-            recording the corresponding object point
-        :return: Projected 2D points
-        """
-        input_dim = object_points.ndim
-
-        object_points = object_points.reshape((1, -1, 3))
-
-        if rvec is None:
-            rvec = np.zeros(3).reshape(1, 1, 3)
-        else:
-            rvec = np.array(rvec).reshape(1, 1, 3)
-
-        if tvec is None:
-            tvec = np.zeros(3).reshape(1, 1, 3)
-        else:
-            tvec = np.array(tvec).reshape(1, 1, 3)
-
-        _D = self.D if use_distortion else np.asarray([[0.0, 0.0, 0.0, 0.0, 0.0]])
-
-        image_points, _ = cv2.projectPoints(
-            object_points,
-            rvec,
-            tvec,
-            self.optimal_K if use_optimal else self.K,
-            _D
-        )
-
-        if input_dim == 2:
-            image_points.shape = (-1, 2)
-        elif input_dim == 3:
-            image_points.shape = (-1, 1, 2)
-        return image_points
+        return np.stack((maps[0][iy, ix], maps[1][iy, ix]), axis=-1)
 
     def undistort_image(
         self,
         img: npt.NDArray,
-        use_optimal: bool = False
     ) -> npt.NDArray:
-        return cv2.undistort(
-            img,
-            self.K,
-            self.D,
-            None,
-            self.optimal_K if use_optimal else self.K
-        )
+        return cv2.remap(img, *self.undistortion_maps, interpolation=cv2.INTER_LINEAR)
+
+    def distort_image(self, img):
+        distorted_img = cv2.remap(img, *self.distortion_maps, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+
+        return distorted_img
 
 
 def insert_interpolated_points(points: npt.NDArray, n_between: int = 10) -> npt.NDArray:
