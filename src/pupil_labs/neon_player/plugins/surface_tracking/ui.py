@@ -155,18 +155,23 @@ class SurfaceViewWidget(VideoRenderWidget):
         painter.drawImage(0, 0, qimage_from_frame(surface_image))
 
         gazes = self.gaze_plugin.get_gazes_for_scene().point
-        offset_gazes = gazes + np.array([
-            self.gaze_plugin.offset_x * scene_frame.width,
-            self.gaze_plugin.offset_y * scene_frame.height
-        ])
 
-        gazes = self.surface.image_points_to_surface(gazes)
-        gazes[:, 0] *= self.surface.render_width
-        gazes[:, 1] *= self.surface.render_height
-        offset_gazes = gazes
+        mapped_gazes = self.surface.image_points_to_surface(gazes)
+        mapped_gazes[:, 0] *= self.surface.render_width
+        mapped_gazes[:, 1] *= self.surface.render_height
+        offset_gazes = None
 
         for viz in self.surface.visualizations:
+            if viz.use_offset and offset_gazes is None:
+                offset_gazes = gazes + np.array([
+                    self.gaze_plugin.offset_x * scene_frame.width,
+                    self.gaze_plugin.offset_y * scene_frame.height
+                ])
+                mapped_offset_gazes = self.surface.image_points_to_surface(offset_gazes)
+                mapped_offset_gazes[:, 0] *= self.surface.render_width
+                mapped_offset_gazes[:, 1] *= self.surface.render_height
+
             viz.render(
                 painter,
-                offset_gazes if viz.use_offset else gazes,
+                mapped_offset_gazes if viz.use_offset else mapped_gazes,
             )
