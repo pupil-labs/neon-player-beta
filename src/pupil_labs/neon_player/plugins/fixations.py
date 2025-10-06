@@ -129,8 +129,7 @@ class FixationsPlugin(neon_player.Plugin):
     def on_disabled(self) -> None:
         self.get_timeline_dock().remove_timeline_plot("Fixations")
 
-    @action
-    def export(self, destination: Path = Path()) -> None:
+    def get_export_data(self) -> pd.DataFrame:
         start_time, stop_time = neon_player.instance().recording_settings.export_window
         start_mask = self.recording.fixations.start_time >= start_time
         stop_mask = self.recording.fixations.stop_time <= stop_time
@@ -140,10 +139,15 @@ class FixationsPlugin(neon_player.Plugin):
         fixations = self.recording.fixations[start_mask & stop_mask]
         fixation_ids = fixations_ids[start_mask & stop_mask]
 
+        offset = self.get_gaze_offset()
+        offset *= np.array([self.recording.scene.width, self.recording.scene.height])
+
+        offset_means = fixations.mean_gaze + offset
+
         scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(self.recording)
         spherical_coords = cart_to_spherical(
             unproject_points(
-                fixations.mean_gaze,
+                offset_means,
                 scene_camera_matrix,
                 scene_distortion_coefficients,
             )
@@ -155,11 +159,17 @@ class FixationsPlugin(neon_player.Plugin):
             "start timestamp [ns]": fixations.start_time,
             "end timestamp [ns]": fixations.stop_time,
             "duration [ms]": (fixations.stop_time - fixations.start_time) / 1e6,
-            "fixation x [px]": fixations.mean_gaze[:, 0],
-            "fixation y [px]": fixations.mean_gaze[:, 1],
+            "fixation x [px]": offset_means[:, 0],
+            "fixation y [px]": offset_means[:, 1],
             "azimuth [deg]": spherical_coords[2],
             "elevation [deg]": spherical_coords[1],
         })
+
+        return export_data
+
+    @action
+    def export(self, destination: Path = Path()) -> None:
+        export_data = self.get_export_data()
 
         export_file = destination / "fixations.csv"
         export_data.to_csv(export_file, index=False)
