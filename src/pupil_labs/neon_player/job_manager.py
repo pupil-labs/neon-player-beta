@@ -143,6 +143,8 @@ class JobManager(QObject):
             logging.warning("Not starting background job in headless mode")
             return
 
+        neon_player.instance().save_settings(immediate=True)
+
         job = BackgroundJob(
             name,
             self.job_counter,

@@ -103,6 +103,12 @@ class NeonPlayerApp(QApplication):
         self.refresh_timer = QTimer(self)
         self.refresh_timer.setInterval(0)
         self.refresh_timer.timeout.connect(self.poll)
+
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.timeout.connect(self._save_settings)
+        self._save_timer.setInterval(2000)
+
         self.job_manager = JobManager()
 
         parser = argparse.ArgumentParser()
@@ -128,7 +134,6 @@ class NeonPlayerApp(QApplication):
         self.main_window = MainWindow()
 
         setup_logging()
-
         # Iterate through all modules within plugins and register them
         plugin_search_path = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"
         if plugin_search_path.exists():
@@ -186,17 +191,15 @@ class NeonPlayerApp(QApplication):
         logging.info(f"Loading settings from {settings_path}")
         return json.loads(settings_path.read_text())
 
-    def save_settings(self) -> None:
+    def save_settings(self, immediate=False) -> None:
         if self._initializing:
             return
 
-        if not hasattr(self, "_save_timer"):
-            self._save_timer = QTimer(self)
-            self._save_timer.setSingleShot(True)
-            self._save_timer.timeout.connect(self._save_settings)
-            self._save_timer.setInterval(2000)
-
-        self._save_timer.start()
+        if immediate:
+            self._save_timer.stop()
+            self._save_settings()
+        else:
+            self._save_timer.start()
 
     def _save_settings(self) -> None:
         logging.info("Saving settings")
