@@ -425,6 +425,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         for surface in self._surfaces:
             surface.export_gazes(gazes_in_window, destination)
+            surface.export_fixations(gazes_in_window, destination)
 
 
 class OptimalCamera(Camera):

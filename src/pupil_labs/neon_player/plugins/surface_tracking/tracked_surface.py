@@ -301,3 +301,51 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             destination / f"gaze_positions_on_surface_{self.name}.csv",
             index=False
         )
+
+    def export_fixations(self, gazes, destination: Path):
+        gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
+        fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
+
+        fixation_data = fixations_plugin.get_export_data()
+        fixation_data["fixation detected on surface"] = 0
+
+        fixation_points = fixation_data[["fixation x [px]", "fixation y [px]"]]
+        mapped_fixation_points = self.image_points_to_surface(fixation_points)
+
+        fixation_data["fixation x [normalized]"] = mapped_fixation_points[:, 0]
+        fixation_data["fixation y [normalized]"] = mapped_fixation_points[:, 1]
+
+        gaze_offset = np.array([
+            gaze_plugin.offset_x * gaze_plugin.recording.scene.width,
+            gaze_plugin.offset_y * gaze_plugin.recording.scene.height
+        ])
+
+        fixations_on_surfs = []
+        for fixation in fixation_data.iterrows():
+            start_mask = gazes.time >= fixation[1]["start timestamp [ns]"]
+            end_mask = gazes.time <= fixation[1]["end timestamp [ns]"]
+            fixation_gazes = gazes[start_mask & end_mask]
+            offset_gazes = fixation_gazes.point + gaze_offset
+            mapped_gazes = self.image_points_to_surface(offset_gazes)
+
+            lower_pass = np.all(mapped_gazes >= 0, axis=1)
+            upper_pass = np.all(mapped_gazes <= 1.0, axis=1)
+            gazes_on_surface = lower_pass & upper_pass
+
+            fixations_on_surfs.append(np.mean(gazes_on_surface))
+
+        fixation_data["fixation detected on surface"] = fixations_on_surfs
+
+        # drop unused columns
+        fixation_data = fixation_data.drop(columns=[
+            "recording id",
+            "fixation x [px]",
+            "fixation y [px]",
+            "azimuth [deg]",
+            "elevation [deg]",
+        ])
+
+        fixation_data.to_csv(
+            destination / f"fixations_on_surface_{self.name}.csv",
+            index=False
+        )
