@@ -30,7 +30,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def __init__(self) -> None:
         super().__init__()
         self._uid = ""
-        self._name = "[Unnamed surface]"
+        self._name = ""
         self._markers = []
         self._outline_color: QColor = QColor(255, 0, 255, 255)
         self._outline_width: float = 3

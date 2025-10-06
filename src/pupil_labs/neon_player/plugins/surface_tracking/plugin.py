@@ -275,6 +275,13 @@ class SurfaceTrackingPlugin(Plugin):
             if surface.uid == "":
                 surface.uid = str(uuid.uuid4())
 
+            surface_counter = 1
+            while surface.name == "":
+                candidate_name = f"Surface {surface_counter}"
+                if candidate_name not in [s.name for s in self._surfaces]:
+                    surface.name = candidate_name
+                surface_counter += 1
+
             surface.changed.connect(self.changed.emit)
             surface.marker_edit_changed.connect(
                 lambda s=surface: self.on_marker_edit_changed(s)
