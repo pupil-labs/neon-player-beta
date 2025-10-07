@@ -52,6 +52,9 @@ class SurfaceTrackingPlugin(Plugin):
 
         self.marker_edit_widgets = {}
 
+    def on_disabled(self) -> None:
+        self.get_timeline_dock().remove_timeline_plot("Visible markers")
+
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
         if frame_idx >= len(self.markers_by_frame):
@@ -222,6 +225,28 @@ class SurfaceTrackingPlugin(Plugin):
                     widget = MarkerEditWidget(marker.uid)
                     widget.setParent(self.app.main_window.video_widget)
                     self.marker_edit_widgets[marker.uid] = widget
+
+        # marker visibility plot
+        marker_count_by_frame = [len(v) for v in self.markers_by_frame]
+        marker_count_changes = []
+        for frame_idx, value in enumerate(marker_count_by_frame):
+            t = self.recording.scene[frame_idx].time
+            if len(marker_count_changes) == 0:
+                marker_count_changes.append((t, value))
+            elif marker_count_changes[-1][1] != value:
+                marker_count_changes.append((
+                    t - 1,
+                    marker_count_changes[-1][1]
+                ))
+                marker_count_changes.append((
+                    t,
+                    value
+                ))
+
+        self.get_timeline_dock().add_timeline_plot(
+            "Visible markers",
+            marker_count_changes
+        )
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:
         surface = self.get_surface(surface_uid)
