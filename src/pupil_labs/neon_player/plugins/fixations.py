@@ -131,8 +131,8 @@ class FixationsPlugin(neon_player.Plugin):
 
     def get_export_data(self) -> pd.DataFrame:
         start_time, stop_time = neon_player.instance().recording_settings.export_window
-        start_mask = self.recording.fixations.start_time >= start_time
-        stop_mask = self.recording.fixations.stop_time <= stop_time
+        start_mask = self.recording.fixations.stop_time > start_time
+        stop_mask = self.recording.fixations.start_time < stop_time
 
         fixations_ids = np.arange(len(self.recording.fixations)) + 1
 
