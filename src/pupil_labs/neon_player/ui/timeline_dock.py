@@ -328,9 +328,33 @@ class TimeLineDock(QWidget):
 
         legend.layout.setSpacing(0)
         self.timeline_legends[timeline_row_name] = legend
-        self.graphics_layout.addItem(legend_container, row=row, col=0)
 
+        # determine the alphabetical order of this row
+        if timeline_row_name == "Export window":
+            row = 0
+        else:
+            sorted_names = sorted(self.timeline_legends.keys())
+            sorted_names.remove("Export window")
+            row = sorted_names.index(timeline_row_name) + 1
+
+        items_to_move = []
+        if row < len(self.timeline_legends) - 1:
+            for move_row in range(row, len(sorted_names)):
+                items_to_move.append((
+                    self.graphics_layout.getItem(move_row, 0),
+                    self.graphics_layout.getItem(move_row, 1)
+                ))
+            for (l, p) in items_to_move:
+                self.graphics_layout.removeItem(l)
+                self.graphics_layout.removeItem(p)
+
+        self.graphics_layout.addItem(legend_container, row=row, col=0)
         self.graphics_layout.addItem(plot_item, row=row, col=1)
+
+        for (l, p) in items_to_move:
+            row += 1
+            self.graphics_layout.addItem(l, row=row, col=0)
+            self.graphics_layout.addItem(p, row=row, col=1)
 
         plot_item.setMouseEnabled(x=False, y=False)
         plot_item.hideButtons()
@@ -344,6 +368,7 @@ class TimeLineDock(QWidget):
         self.timeline_plots[timeline_row_name] = plot_item
 
         if not is_timestamps_row and self.timestamps_plot:
+            plot_item.setXRange(*self.timestamps_plot.viewRange()[0])
             plot_item.setXLink(self.timestamps_plot)
 
         return plot_item
@@ -412,6 +437,30 @@ class TimeLineDock(QWidget):
             legend = self.timeline_legends[plot_name]
             self.graphics_layout.removeItem(legend.parentItem())
             del self.timeline_legends[plot_name]
+
+        items_to_move = []
+        rows_dict = self.graphics_layout.rows
+        dead_row_idx = -1
+        for row_idx, row_contents in rows_dict.items():
+            if row_contents == {}:
+                dead_row_idx = row_idx
+
+            elif dead_row_idx >= 0:
+                items_to_move.append((
+                    self.graphics_layout.getItem(row_idx, 0),
+                    self.graphics_layout.getItem(row_idx, 1)
+                ))
+
+        for (l, p) in items_to_move:
+            self.graphics_layout.removeItem(l)
+            self.graphics_layout.removeItem(p)
+
+        for (l, p) in items_to_move:
+            self.graphics_layout.addItem(l, row=dead_row_idx, col=0)
+            self.graphics_layout.addItem(p, row=dead_row_idx, col=1)
+            dead_row_idx += 1
+
+        del self.graphics_layout.rows[dead_row_idx]
 
         self.fix_scroll_size()
 

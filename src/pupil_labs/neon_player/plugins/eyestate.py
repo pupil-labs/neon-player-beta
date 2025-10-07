@@ -178,11 +178,11 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
 
     def on_disabled(self) -> None:
         timeline = self.get_timeline_dock()
-        timeline.remove_timeline_plot("Pupil diameter")
-        timeline.remove_timeline_plot("Eyeball center")
-        timeline.remove_timeline_plot("Optical axis")
-        timeline.remove_timeline_plot("Eyelid angle")
-        timeline.remove_timeline_plot("Eyelid aperture")
+        timeline.remove_timeline_plot("Eyestate/Pupil diameter")
+        timeline.remove_timeline_plot("Eyestate/Eyeball center")
+        timeline.remove_timeline_plot("Eyestate/Optical axis")
+        timeline.remove_timeline_plot("Eyestate/Eyelid angle")
+        timeline.remove_timeline_plot("Eyestate/Eyelid aperture")
 
     def on_plot_visibilities_changed(self, name, value):
         return self._update_plot_visibilities(name, value)
@@ -196,8 +196,10 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
             return
 
         timeline = self.get_timeline_dock()
+        group_display_title = f"Eyestate/{group_name}"
+
         for plot_name, enabled in plot_flags.items():
-            existing_plot = timeline.get_timeline_series(group_name, plot_name)
+            existing_plot = timeline.get_timeline_series(group_display_title, plot_name)
             if enabled and existing_plot is None:
                 # add plot
                 key = f"{group_name.lower()} {plot_name.lower()}"
@@ -212,11 +214,11 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
                     logging.warning(f"{key} data not found for this recording")
                     data = np.empty((0, 2))
 
-                timeline.add_timeline_line(group_name, data, plot_name, color=color)
+                timeline.add_timeline_line(group_display_title, data, plot_name, color=color)
 
             elif not enabled and existing_plot is not None:
                 # remove plot
-                timeline.remove_timeline_series(group_name, plot_name)
+                timeline.remove_timeline_series(group_display_title, plot_name)
 
     @action
     def export(self, destination: Path = Path()) -> None:
