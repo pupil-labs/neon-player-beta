@@ -1,4 +1,6 @@
+import cv2
 from PySide6.QtGui import QColorConstants, QPainter
+from qt_property_widgets.utilities import property_params
 
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.utilities import qimage_from_frame
@@ -13,6 +15,8 @@ class SceneRendererPlugin(Plugin):
         self.gray = QColorConstants.Gray
 
         self._show_frame_index = False
+        self._brightness = 0.0
+        self._contrast = 1.0
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         if self.recording is None:
@@ -33,8 +37,13 @@ class SceneRendererPlugin(Plugin):
             [time_in_recording],
             method="backward"
         )[0]
-        image = qimage_from_frame(scene_frame.bgr)
-        painter.drawImage(0, 0, image)
+        frame_img = cv2.convertScaleAbs(
+            scene_frame.bgr,
+            alpha=self._contrast,
+            beta=self._brightness
+        )
+
+        painter.drawImage(0, 0, qimage_from_frame(frame_img))
 
         if self.show_frame_index:
             font = painter.font()
@@ -51,3 +60,21 @@ class SceneRendererPlugin(Plugin):
     def show_frame_index(self, value: bool) -> None:
         self._show_frame_index = value
         self.changed.emit()
+
+    @property
+    @property_params(min=0, max=100)
+    def brightness(self) -> int:
+        return self._brightness
+
+    @brightness.setter
+    def brightness(self, value: int) -> None:
+        self._brightness = value
+
+    @property
+    @property_params(min=0.0, max=3.0)
+    def contrast(self) -> float:
+        return self._contrast
+
+    @contrast.setter
+    def contrast(self, value: float) -> None:
+        self._contrast = value
