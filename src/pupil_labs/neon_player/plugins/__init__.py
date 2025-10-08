@@ -123,7 +123,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
         gray_frame = t < self.recording.scene.time[0]
         if not gray_frame:
             scene_frame = self.recording.scene.sample([t], method="backward")[0]
-            gray_frame = abs(t - scene_frame.time) / 1e9 > 1 / 30
+            gray_frame = abs(t - scene_frame.time) / 1e9 > 1 / 15
 
         return gray_frame
 
