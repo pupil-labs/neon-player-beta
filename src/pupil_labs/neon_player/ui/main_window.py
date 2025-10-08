@@ -23,13 +23,13 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from qt_property_widgets.expander import ExpanderList
 from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import ConsoleWindow
-from pupil_labs.neon_player.ui.expander import ExpanderList
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
@@ -56,8 +56,16 @@ class MainWindow(QMainWindow):
                 border-bottom: 2px solid #494d4d;
             }
 
+            Expander Expander {
+                border-bottom: none;
+            }
+
             Expander>QLabel {
                 font-weight: bold;
+            }
+
+            Expander Expander>QLabel {
+                font-weight: normal;
             }
 
             Expander>QToolButton {
@@ -88,18 +96,6 @@ class MainWindow(QMainWindow):
                 border-radius: 5px;
                 border: 1px solid #555;
                 background-color: #111;
-            }
-
-            ValueListItemWidget>QPushButton {
-                width: 24px;
-                height: 20px;
-                border-radius: 5px;
-                border: 1px solid #555;
-                background-color: #440808;
-            }
-
-            ValueListItemWidget>QPushButton::hover {
-                background-color: #c11;
             }
         """)
 

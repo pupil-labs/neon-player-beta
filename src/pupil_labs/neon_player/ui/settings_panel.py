@@ -1,16 +1,16 @@
 from datetime import datetime
 
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtWidgets import (
     QLabel,
     QVBoxLayout,
     QWidget,
 )
+from qt_property_widgets.expander import Expander, ExpanderList
 from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
-from pupil_labs.neon_player.ui.expander import Expander, ExpanderList
-from pupil_labs.neon_recording import NeonRecording
 
 
 class RecordingInfoWidget(QWidget):

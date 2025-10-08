@@ -134,6 +134,14 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             w.show()
 
     @property
+    def name(self) -> str:
+        return self._name
+
+    @name.setter
+    def name(self, name: str) -> None:
+        self._name = name
+
+    @property
     def edit_corners(self) -> bool:
         return self._can_edit_corners
 
@@ -195,14 +203,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     @uid.setter
     def uid(self, value: str):
         self._uid = value
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @name.setter
-    def name(self, name: str) -> None:
-        self._name = name
 
     @property
     def outline_color(self) -> QColor:
