@@ -1,3 +1,4 @@
+import enum
 import logging
 import typing as T
 from pathlib import Path
@@ -6,7 +7,6 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.timeseries.gaze import GazeArray
 from PySide6.QtCore import QObject, QPointF, Signal
 from PySide6.QtGui import QColor, QPainter
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
@@ -19,6 +19,32 @@ from pupil_labs.neon_player.utilities import (
     get_scene_intrinsics,
     unproject_points,
 )
+
+
+class Aggregation(enum.Enum):
+    Raw = "Raw"
+    Mean = "Mean"
+    Median = "Median"
+    First = "First"
+    Last = "Last"
+
+    def apply(self, gazes):
+        if self is Aggregation.Raw:
+            v = gazes
+
+        elif self is Aggregation.Mean:
+            v = gazes.mean(axis=0)
+
+        elif self is Aggregation.Median:
+            v = np.median(gazes, axis=0)
+
+        elif self is Aggregation.First:
+            v = gazes[0]
+
+        elif self is Aggregation.Last:
+            v = gazes[-1]
+
+        return v.reshape(-1, 2)
 
 
 class GazeDataPlugin(neon_player.Plugin):
@@ -52,10 +78,18 @@ class GazeDataPlugin(neon_player.Plugin):
             self._offset_x * self.recording.scene.width,
             self._offset_y * self.recording.scene.height,
         ])
+
+        aggregations = {}
+        offset_aggregations = {}
         for viz in self._visualizations:
+            if viz._aggregation not in aggregations:
+                aggregations[viz._aggregation] = viz._aggregation.apply(gazes)
+                offset_aggregations[viz._aggregation] = viz._aggregation.apply(offset_gazes)
+
+            aggregation_dict = offset_aggregations if viz.use_offset else aggregations
             viz.render(
                 painter,
-                offset_gazes if viz.use_offset else gazes
+                aggregation_dict[viz._aggregation]
             )
 
     def get_gazes_for_scene(self, scene_idx: int = -1):
@@ -175,6 +209,8 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
     def __init__(self) -> None:
         super().__init__()
         self._use_offset = False
+        self._aggregation = Aggregation.Raw
+
         self.recording: NeonRecording | None = None
 
     def render(
@@ -200,6 +236,14 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
     @use_offset.setter
     def use_offset(self, value: bool) -> None:
         self._use_offset = value
+
+    @property
+    def aggregation(self) -> Aggregation:
+        return self._aggregation
+
+    @aggregation.setter
+    def aggregation(self, value: Aggregation) -> None:
+        self._aggregation = value
 
 
 class AnnulusViz(GazeVisualization):

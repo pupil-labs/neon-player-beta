@@ -1,10 +1,8 @@
 import cv2
 import numpy as np
-import numpy.typing as npt
 from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QMouseEvent, QPainter, QPaintEvent, QPixmap
 from PySide6.QtWidgets import QPushButton, QWidget
-from surface_tracker import Camera
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
@@ -128,6 +126,7 @@ class SurfaceViewWidget(VideoRenderWidget):
 
     def refit_rect(self) -> None:
         self.fit_rect(QSize(self.surface.render_width, self.surface.render_height))
+        self.update()
 
     def paintEvent(self, event: QPaintEvent) -> None:
         if self.tracker_plugin.is_time_gray() or self.surface.location is None:
@@ -161,17 +160,27 @@ class SurfaceViewWidget(VideoRenderWidget):
         mapped_gazes[:, 1] *= self.surface.render_height
         offset_gazes = None
 
+        aggregations = {}
+        offset_aggregations = {}
         for viz in self.surface.visualizations:
-            if viz.use_offset and offset_gazes is None:
-                offset_gazes = gazes + np.array([
-                    self.gaze_plugin.offset_x * scene_frame.width,
-                    self.gaze_plugin.offset_y * scene_frame.height
-                ])
-                mapped_offset_gazes = self.surface.image_points_to_surface(offset_gazes)
-                mapped_offset_gazes[:, 0] *= self.surface.render_width
-                mapped_offset_gazes[:, 1] *= self.surface.render_height
+            if viz.use_offset:
+                if offset_gazes is None:
+                    offset_gazes = gazes + np.array([
+                        self.gaze_plugin.offset_x * scene_frame.width,
+                        self.gaze_plugin.offset_y * scene_frame.height
+                    ])
+                    mapped_offset_gazes = self.surface.image_points_to_surface(offset_gazes)
+                    mapped_offset_gazes[:, 0] *= self.surface.render_width
+                    mapped_offset_gazes[:, 1] *= self.surface.render_height
+                    if viz._aggregation not in offset_aggregations:
+                        offset_aggregations[viz._aggregation] = viz._aggregation.apply(
+                            mapped_offset_gazes
+                        )
+            elif viz._aggregation not in aggregations:
+                aggregations[viz._aggregation] = viz._aggregation.apply(mapped_gazes)
 
+            aggregation_dict = offset_aggregations if viz.use_offset else aggregations
             viz.render(
                 painter,
-                mapped_offset_gazes if viz.use_offset else mapped_gazes,
+                aggregation_dict[viz._aggregation]
             )
