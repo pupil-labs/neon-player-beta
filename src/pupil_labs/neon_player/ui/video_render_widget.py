@@ -113,6 +113,9 @@ class ScalingWidget(QOpenGLWidget):
         if source_size is not None:
             self.source_size = source_size
 
+        if self.source_size.height() == 0 or self.height() == 0:
+            return
+
         source_aspect = self.source_size.width() / self.source_size.height()
         target_aspect = self.width() / self.height()
 

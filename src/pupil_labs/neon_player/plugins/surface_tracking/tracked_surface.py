@@ -17,7 +17,48 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action
 from pupil_labs.neon_player.plugins.gaze import CrosshairViz, GazeVisualization
 
-from .ui import SurfaceHandle, SurfaceViewWidget
+from .ui import SurfaceHandle, SurfaceViewWindow
+
+
+class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
+    changed = Signal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._render_size = QSize(400, 400)
+        self._visualizations: list[GazeVisualization] = [
+            CrosshairViz(),
+        ]
+
+    @property
+    @property_params(min=1, max=2560)
+    def width(self) -> int:
+        return self._render_size.width()
+
+    @width.setter
+    def width(self, value: int) -> None:
+        self._render_size.setWidth(value)
+
+    @property
+    @property_params(min=1, max=2560)
+    def height(self) -> int:
+        return self._render_size.height()
+
+    @height.setter
+    def height(self, value: int) -> None:
+        self._render_size.setHeight(value)
+
+    @property
+    @property_params(use_subclass_selector=True, add_button_text="Add visualization")
+    def visualizations(self) -> list["GazeVisualization"]:
+        return self._visualizations
+
+    @visualizations.setter
+    def visualizations(self, value: list["GazeVisualization"]) -> None:
+        self._visualizations = value
+
+        for viz in self._visualizations:
+            viz.changed.connect(self.changed.emit)
 
 
 class TrackedSurface(PersistentPropertiesMixin, QObject):
@@ -36,15 +77,13 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._outline_width: float = 3
         self._can_edit_corners = False
         self._can_edit_markers = False
+        self._preview_options = SurfaceViewDisplayOptions()
+
         self.tracker_surface = None
 
-        self._render_size = QSize(400, 400)
         self._location = None
 
-        self._visualizations: list[GazeVisualization] = [
-            CrosshairViz(),
-        ]
-        self.preview_widget = None
+        self.preview_window = None
         self.handle_widgets = {}
         self.corner_positions = {}
 
@@ -221,44 +260,14 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def outline_width(self, value: float) -> None:
         self._outline_width = value
 
-    @property
-    @property_params(min=1, max=2560)
-    def render_width(self) -> int:
-        return self._render_size.width()
-
-    @render_width.setter
-    def render_width(self, value: int) -> None:
-        self._render_size.setWidth(value)
-
-    @property
-    @property_params(min=1, max=2560)
-    def render_height(self) -> int:
-        return self._render_size.height()
-
-    @render_height.setter
-    def render_height(self, value: int) -> None:
-        self._render_size.setHeight(value)
-
-    @property
-    @property_params(use_subclass_selector=True, add_button_text="Add visualization")
-    def visualizations(self) -> list["GazeVisualization"]:
-        return self._visualizations
-
-    @visualizations.setter
-    def visualizations(self, value: list["GazeVisualization"]) -> None:
-        self._visualizations = value
-
-        for viz in self._visualizations:
-            viz.changed.connect(self.changed.emit)
-
     @action
     def view_surface(self) -> None:
-        self.preview_widget = SurfaceViewWidget(self)
-        self.preview_widget.show()
+        self.preview_window = SurfaceViewWindow(self)
+        self.preview_window.show()
 
-        width = min(1024, max(self._render_size.width(), 400))
-        aspect = self._render_size.width() / self._render_size.height()
-        self.preview_widget.resize(width, width / aspect)
+        width = min(1024, max(self.preview_options.width, 400))
+        aspect = self.preview_options.width / self.preview_options.height
+        self.preview_window.resize(width + 300, width / aspect)
 
     @property
     @property_params(widget=None, dont_encode=True)
@@ -269,6 +278,15 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     @property_params(widget=None, dont_encode=True)
     def tracker(self) -> SurfaceTracker:
         return self.tracker_plugin.tracker
+
+    @property
+    @property_params(widget=None)
+    def preview_options(self) -> SurfaceViewDisplayOptions:
+        return self._preview_options
+
+    @preview_options.setter
+    def preview_options(self, value: SurfaceViewDisplayOptions) -> None:
+        self._preview_options = value
 
     def image_points_to_surface(self, points):
         undistorted_points = self.tracker_plugin.camera.undistort_points(points)

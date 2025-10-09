@@ -1,8 +1,10 @@
+
 import cv2
 import numpy as np
 from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QMouseEvent, QPainter, QPaintEvent, QPixmap
-from PySide6.QtWidgets import QPushButton, QWidget
+from PySide6.QtWidgets import QPushButton, QSplitter, QWidget
+from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
@@ -108,10 +110,8 @@ class SurfaceViewWidget(VideoRenderWidget):
     def __init__(
         self,
         surface: "TrackedSurface",
-        *args,
-        **kwargs
     ) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__()
 
         self.surface = surface
         self.surface.changed.connect(self.refit_rect)
@@ -125,7 +125,10 @@ class SurfaceViewWidget(VideoRenderWidget):
         self.refit_rect()
 
     def refit_rect(self) -> None:
-        self.fit_rect(QSize(self.surface.render_width, self.surface.render_height))
+        self.fit_rect(QSize(
+            self.surface.preview_options.width,
+            self.surface.preview_options.height
+        ))
         self.update()
 
     def paintEvent(self, event: QPaintEvent) -> None:
@@ -138,7 +141,10 @@ class SurfaceViewWidget(VideoRenderWidget):
         scene_frame = app.recording.scene.sample([app.current_ts])[0]
         undistorted_image = self.camera.undistort_image(scene_frame.bgr)
 
-        dst_size = (self.surface._render_size.width(), self.surface._render_size.height())
+        dst_size = (
+            self.surface.preview_options.width,
+            self.surface.preview_options.height
+        )
         S = np.float64([
             [dst_size[0], 0.0,   0.0],
             [0.0,   dst_size[1], 0.0],
@@ -156,13 +162,13 @@ class SurfaceViewWidget(VideoRenderWidget):
         gazes = self.gaze_plugin.get_gazes_for_scene().point
 
         mapped_gazes = self.surface.image_points_to_surface(gazes)
-        mapped_gazes[:, 0] *= self.surface.render_width
-        mapped_gazes[:, 1] *= self.surface.render_height
+        mapped_gazes[:, 0] *= self.surface.preview_options.width
+        mapped_gazes[:, 1] *= self.surface.preview_options.height
         offset_gazes = None
 
         aggregations = {}
         offset_aggregations = {}
-        for viz in self.surface.visualizations:
+        for viz in self.surface.preview_options.visualizations:
             if viz.use_offset:
                 if offset_gazes is None:
                     offset_gazes = gazes + np.array([
@@ -170,8 +176,8 @@ class SurfaceViewWidget(VideoRenderWidget):
                         self.gaze_plugin.offset_y * scene_frame.height
                     ])
                     mapped_offset_gazes = self.surface.image_points_to_surface(offset_gazes)
-                    mapped_offset_gazes[:, 0] *= self.surface.render_width
-                    mapped_offset_gazes[:, 1] *= self.surface.render_height
+                    mapped_offset_gazes[:, 0] *= self.surface.preview_options.width
+                    mapped_offset_gazes[:, 1] *= self.surface.preview_options.height
                     if viz._aggregation not in offset_aggregations:
                         offset_aggregations[viz._aggregation] = viz._aggregation.apply(
                             mapped_offset_gazes
@@ -184,3 +190,20 @@ class SurfaceViewWidget(VideoRenderWidget):
                 painter,
                 aggregation_dict[viz._aggregation]
             )
+
+class SurfaceViewWindow(QSplitter):
+    def __init__(self, surface: "TrackedSurface") -> None:
+        super().__init__()
+
+        self.view_widget = SurfaceViewWidget(surface)
+        self.view_widget.setMinimumWidth(400)
+        self.addWidget(self.view_widget)
+
+        self.options_widget = PropertyForm(surface.preview_options)
+        self.options_widget.layout().setContentsMargins(5, 5, 5, 5)
+        self.addWidget(self.options_widget)
+
+        surface.preview_options.changed.connect(surface.changed.emit)
+        surface.changed.connect(self.view_widget.refit_rect)
+
+        Plugin.get_instance_by_name("GazeDataPlugin").changed.connect(self.view_widget.refit_rect)
