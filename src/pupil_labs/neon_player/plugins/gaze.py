@@ -208,7 +208,7 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._use_offset = False
+        self._use_offset = True
         self._aggregation = Aggregation.Raw
 
         self.recording: NeonRecording | None = None
