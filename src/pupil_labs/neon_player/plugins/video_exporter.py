@@ -21,6 +21,7 @@ class VideoExporter(neon_player.Plugin):
         super().__init__()
         self.render_layer = 0
         self.gray = QColorConstants.Gray
+        self.is_exporting = False
 
     @action
     def export(self, destination: Path = Path()) -> BackgroundJob | T.Generator:
@@ -33,6 +34,7 @@ class VideoExporter(neon_player.Plugin):
         return self.bg_export(destination)
 
     def bg_export(self, destination: Path) -> T.Generator:
+        self.is_exporting = True
         recording = self.app.recording
 
         gray_preamble = np.arange(recording.start_time, recording.scene.time[0], 1e9 // 30)
@@ -107,6 +109,8 @@ class VideoExporter(neon_player.Plugin):
 
             while audio_frame:
                 write_audio_frame()
+
+        self.is_exporting = False
 
     @action
     def export_current_frame(self) -> None:

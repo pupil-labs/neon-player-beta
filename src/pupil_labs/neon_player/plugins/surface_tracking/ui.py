@@ -5,6 +5,7 @@ from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QMouseEvent, QPainter, QPaintEvent, QPixmap
 from PySide6.QtWidgets import QPushButton, QSplitter, QWidget
 from qt_property_widgets.widgets import PropertyForm
+from surface_tracker import CornerId
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
@@ -67,8 +68,10 @@ class MarkerEditWidget(QPushButton):
 class SurfaceHandle(QWidget):
     position_changed = Signal(QPointF)
 
-    def __init__(self):
+    def __init__(self, surface, corner_id: CornerId):
         super().__init__()
+        self.surface = surface
+        self.corner_id = corner_id
         self.moved = False
         self.position_changed_debounce_timer = QTimer()
         self.position_changed_debounce_timer.setInterval(1000)
@@ -76,31 +79,54 @@ class SurfaceHandle(QWidget):
         self.position_changed_debounce_timer.timeout.connect(self.emit_new_position)
 
         self.new_pos = None
+        self.scene_pos = np.array([0.0, 0.0])
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self.starting_angles = {
+            CornerId.TOP_LEFT: 0,
+            CornerId.TOP_RIGHT: 270,
+            CornerId.BOTTOM_RIGHT: 180,
+            CornerId.BOTTOM_LEFT: 90,
+        }
 
     def paintEvent(self, event: QPaintEvent):
         painter = QPainter(self)
-        painter.setPen("#ffff00")
-        painter.setBrush("#ffff00")
+        painter.setPen(self.surface.outline_color)
+        painter.setBrush(self.surface.outline_color)
         painter.setOpacity(0.5)
-        painter.drawEllipse(0, 0, self.width() - 1, self.height() - 1)
+
+        painter.drawPie(
+            0, 0,
+            self.width() - 1, self.height() - 1,
+            self.starting_angles[self.corner_id] * 16,
+            270 * 16
+        )
 
     def mouseMoveEvent(self, event: QMouseEvent):
         if event.buttons() & Qt.MouseButton.LeftButton:
             self.moved = True
-            vrw = self.parent()
             pos = self.mapToParent(event.pos())
-            self.new_pos = vrw.map_point(pos)
-            vrw.set_child_scaled_center(
+            self.new_pos = self.parent().map_point(pos)
+            self.parent().set_child_scaled_center(
                 self,
                 self.new_pos.x(),
                 self.new_pos.y()
             )
+            self.setCursor(Qt.CursorShape.BlankCursor)
+
+        neon_player.instance().main_window.video_widget.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
         if not (event.buttons() & Qt.MouseButton.LeftButton) and self.moved:
             self.position_changed_debounce_timer.start()
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.moved = False
+
+    def set_scene_pos(self, scene_pos: np.ndarray):
+        self.scene_pos = scene_pos
+        self.parent().set_child_scaled_center(self, *scene_pos)
+        self.show()
 
     def emit_new_position(self):
         self.position_changed.emit(self.new_pos)
@@ -190,6 +216,7 @@ class SurfaceViewWidget(VideoRenderWidget):
                 painter,
                 aggregation_dict[viz._aggregation]
             )
+
 
 class SurfaceViewWindow(QSplitter):
     def __init__(self, surface: "TrackedSurface") -> None:

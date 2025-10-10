@@ -1,3 +1,4 @@
+import logging
 import typing as T
 from pathlib import Path
 
@@ -150,8 +151,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
         camera = tracker_plugin.camera
         tracker = tracker_plugin.tracker
-        app = neon_player.instance()
-        vrw = app.main_window.video_widget
 
         undistorted_corners = np.array(tracker.surface_points_in_image_space(
             self.tracker_surface,
@@ -169,8 +168,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             strict=False
         ):
             self.corner_positions[corner_id] = undistorted_corner
-            vrw.set_child_scaled_center(w, distorted_corner[0], distorted_corner[1])
-            w.show()
+            w.set_scene_pos(distorted_corner)
 
     @property
     def name(self) -> str:
@@ -193,11 +191,10 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         else:
             app = neon_player.instance()
             vrw = app.main_window.video_widget
+
             self.handle_widgets = {
-                CornerId.TOP_LEFT: SurfaceHandle(),
-                CornerId.TOP_RIGHT: SurfaceHandle(),
-                CornerId.BOTTOM_RIGHT: SurfaceHandle(),
-                CornerId.BOTTOM_LEFT: SurfaceHandle(),
+                corner: SurfaceHandle(self, corner)
+                for corner in CornerId.all_corners()
             }
 
             for corner_id, w in self.handle_widgets.items():
@@ -296,7 +293,11 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         ).reshape(-1, 2)
 
     def export_gazes(self, gazes, destination: Path):
-        gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
+        try:
+            gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
+        except KeyError:
+            logging.warning("Surface fixations export requires gaze and fixations plugins to be enabled.")
+            return
 
         offset_gazes = gazes.point + np.array([
             gaze_plugin.offset_x * gaze_plugin.recording.scene.width,
@@ -321,8 +322,12 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         )
 
     def export_fixations(self, gazes, destination: Path):
-        gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
-        fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
+        try:
+            gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
+            fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
+        except KeyError:
+            logging.warning("Surface fixations export requires gaze and fixations plugins to be enabled.")
+            return
 
         fixation_data = fixations_plugin.get_export_data()
         fixation_data["fixation detected on surface"] = 0

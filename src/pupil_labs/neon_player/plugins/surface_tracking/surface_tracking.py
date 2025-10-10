@@ -9,7 +9,7 @@ import numpy as np
 import numpy.typing as npt
 import pupil_apriltags
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QPointF, QTimer
+from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QMessageBox
 from surface_tracker import (
@@ -37,6 +37,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         self._marker_color = QColor("#22ff22")
         self._marker_color.setAlpha(200)
+        self._render_overlays_in_export = False
 
         self.markers_by_frame: list[list[Marker]] = []
         self.surface_locations: dict[str, list[SurfaceLocation]] = {}
@@ -144,6 +145,13 @@ class SurfaceTrackingPlugin(Plugin):
             self._load_surface_locations_cache(surface.uid)
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
+        if not self._render_overlays_in_export:
+            try:
+                if Plugin.get_instance_by_name("VideoExporter").is_exporting:
+                    return
+            except KeyError:
+                pass
+
         frame_idx = self.get_scene_idx_for_time(time_in_recording)
         if frame_idx < 0:
             return
@@ -186,14 +194,33 @@ class SurfaceTrackingPlugin(Plugin):
             painter.setPen(p)
             painter.setBrush(QColor("#00000000"))
 
-            anchors = self.tracker.surface_corner_positions_in_image_space(
-                surface.tracker_surface,
-                location,
-                CornerId.all_corners()
-            )
-            anchors = np.array(list(anchors.values()))
+            if surface.edit_corners:
+                vrw = self.app.main_window.video_widget
+                points = [
+                    vrw.map_point(w.geometry().center())
+                    for w in surface.handle_widgets.values()
+                ]
+                anchors = np.array([ (p.x(), p.y()) for p in points ])
+                anchors = self.camera.undistort_points(anchors)
 
-            self._distort_and_paint_polygon(painter, anchors)
+                p.setStyle(Qt.PenStyle.DashLine)
+                p.setDashPattern([1, 4])
+                painter.setPen(p)
+
+                self._distort_and_paint_polygon(painter, anchors)
+
+                p.setStyle(Qt.PenStyle.SolidLine)
+                painter.setPen(p)
+
+            else:
+                anchors = self.tracker.surface_corner_positions_in_image_space(
+                    surface.tracker_surface,
+                    location,
+                    CornerId.all_corners()
+                )
+                anchors = np.array(list(anchors.values()))
+
+                self._distort_and_paint_polygon(painter, anchors)
 
             top_edge = anchors[1] - anchors[0]
 
@@ -269,6 +296,14 @@ class SurfaceTrackingPlugin(Plugin):
     @marker_color.setter
     def marker_color(self, value: QColor) -> None:
         self._marker_color = value
+
+    @property
+    def render_overlays_in_export(self) -> bool:
+        return self._render_overlays_in_export
+
+    @render_overlays_in_export.setter
+    def render_overlays_in_export(self, value: bool) -> None:
+        self._render_overlays_in_export = value
 
     @property
     def surfaces(self) -> list["TrackedSurface"]:
