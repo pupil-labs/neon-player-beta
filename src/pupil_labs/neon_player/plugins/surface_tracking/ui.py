@@ -144,9 +144,6 @@ class SurfaceViewWidget(VideoRenderWidget):
         self.surface.surface_location_changed.connect(self.update)
 
         self.tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
-        self.tracker = self.tracker_plugin.tracker
-        self.camera = self.tracker_plugin.camera
-        self.gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
 
         self.refit_rect()
 
@@ -158,64 +155,14 @@ class SurfaceViewWidget(VideoRenderWidget):
         self.update()
 
     def paintEvent(self, event: QPaintEvent) -> None:
+        painter = QPainter(self)
         if self.tracker_plugin.is_time_gray() or self.surface.location is None:
-            painter = QPainter(self)
             painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.gray)
             return
 
-        app = neon_player.instance()
-        scene_frame = app.recording.scene.sample([app.current_ts])[0]
-        undistorted_image = self.camera.undistort_image(scene_frame.bgr)
-
-        dst_size = (
-            self.surface.preview_options.width,
-            self.surface.preview_options.height
-        )
-        S = np.float64([
-            [dst_size[0], 0.0,   0.0],
-            [0.0,   dst_size[1], 0.0],
-            [0.0,   0.0,   1.0]
-        ])
-        h_scaled = S @ self.surface.location.transform_matrix_from_image_to_surface_undistorted
-
-        surface_image = cv2.warpPerspective(undistorted_image, h_scaled, dst_size)
-
-        painter = QPainter(self)
         painter.fillRect(0, 0, self.width(), self.height(), Qt.GlobalColor.black)
         self.transform_painter(painter)
-        painter.drawImage(0, 0, qimage_from_frame(surface_image))
-
-        gazes = self.gaze_plugin.get_gazes_for_scene().point
-
-        mapped_gazes = self.surface.image_points_to_surface(gazes)
-        mapped_gazes[:, 0] *= self.surface.preview_options.width
-        mapped_gazes[:, 1] *= self.surface.preview_options.height
-        offset_gazes = None
-
-        aggregations = {}
-        offset_aggregations = {}
-        for viz in self.surface.preview_options.visualizations:
-            if viz.use_offset:
-                if offset_gazes is None:
-                    offset_gazes = gazes + np.array([
-                        self.gaze_plugin.offset_x * scene_frame.width,
-                        self.gaze_plugin.offset_y * scene_frame.height
-                    ])
-                    mapped_offset_gazes = self.surface.image_points_to_surface(offset_gazes)
-                    mapped_offset_gazes[:, 0] *= self.surface.preview_options.width
-                    mapped_offset_gazes[:, 1] *= self.surface.preview_options.height
-                    if viz._aggregation not in offset_aggregations:
-                        offset_aggregations[viz._aggregation] = viz._aggregation.apply(
-                            mapped_offset_gazes
-                        )
-            elif viz._aggregation not in aggregations:
-                aggregations[viz._aggregation] = viz._aggregation.apply(mapped_gazes)
-
-            aggregation_dict = offset_aggregations if viz.use_offset else aggregations
-            viz.render(
-                painter,
-                aggregation_dict[viz._aggregation]
-            )
+        self.surface.render(painter, neon_player.instance().current_ts)
 
 
 class SurfaceViewWindow(QSplitter):

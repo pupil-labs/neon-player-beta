@@ -4,13 +4,15 @@ import typing as T
 import uuid
 from pathlib import Path
 
+import av
 import cv2
 import numpy as np
 import numpy.typing as npt
 import pupil_apriltags
+import pupil_labs.video as plv
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPointF, Qt, QTimer
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QMessageBox
 from surface_tracker import (
     Camera,
@@ -22,6 +24,7 @@ from surface_tracker import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
+from pupil_labs.neon_player.utilities import ndarray_from_qimage
 
 from .tracked_surface import TrackedSurface
 from .ui import MarkerEditWidget
@@ -470,6 +473,39 @@ class SurfaceTrackingPlugin(Plugin):
         surf_path = self.get_cache_path() / f"{uid}_surface.pkl"
         with surf_path.open("wb") as f:
             pickle.dump(tracker_surf, f)
+
+    def bg_export_surface_video(
+        self,
+        destination: Path,
+        uid: str
+    ) -> T.Generator[ProgressUpdate, None, None]:
+        surface = self.get_surface(uid)
+
+        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_mask = self.recording.scene.time >= start_time
+        stop_mask = self.recording.scene.time <= stop_time
+        scene_frames = self.recording.scene[start_mask & stop_mask]
+
+        with plv.Writer(destination / f"{surface.name}_surface_view.mp4") as writer:
+            for output_idx, scene_frame in enumerate(scene_frames):
+                if scene_frame.index < len(self.surface_locations[uid]):
+                    rel_ts = (scene_frame.time - self.recording.scene.time[0]) / 1e9
+                    frame = QImage(
+                        surface.preview_options._render_size,
+                        QImage.Format.Format_BGR888
+                    )
+                    painter = QPainter(frame)
+                    surface.location = self.surface_locations[uid][scene_frame.index]
+                    surface.render(painter, scene_frame.time)
+                    painter.end()
+
+                    frame_pixels = ndarray_from_qimage(frame)
+                    av_frame = av.VideoFrame.from_ndarray(frame_pixels, format="bgr24")
+
+                    plv_frame = plv.VideoFrame(av_frame, rel_ts, output_idx, "")
+                    writer.write_frame(plv_frame)
+
+                yield ProgressUpdate((output_idx + 1) / len(scene_frames))
 
     def apriltag_to_surface_marker(
         self,
