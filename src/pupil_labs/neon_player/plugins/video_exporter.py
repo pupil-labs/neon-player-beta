@@ -115,27 +115,13 @@ class VideoExporter(neon_player.Plugin):
     @action
     def export_current_frame(self) -> None:
         file_path_str, type_selection = QFileDialog.getSaveFileName(
-            None, "Save Frame", "", "PNG Images (*.png);;JPG Images (*.jpg)"
+            None, "Export frame", "", "PNG Images (*.png)"
         )
         if not file_path_str:
             return
 
-        file_path = Path(file_path_str)
-        if not file_path.exists():
-            ok_exts = [".png", ".jpg"]
-            ext_ok = file_path.suffix and file_path.suffix.lower() in ok_exts
-            if not ext_ok:
-                ext = type_selection.split("(*.")[-1][:-1]
-                file_path = file_path.with_name(f"{file_path.name}.{ext}")
-                if file_path.exists():
-                    reply = QMessageBox.question(
-                        self.app.main_window,
-                        "Overwrite File?",
-                        f"'{file_path.name}' already exists. Replace file?",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    )
-                    if reply != QMessageBox.StandardButton.Yes:
-                        return
+        if not file_path_str.endswith(".png"):
+            file_path_str += ".png"
 
         frame_size = QSize(
             self.recording.scene.width or 1, self.recording.scene.height or 1
@@ -145,7 +131,7 @@ class VideoExporter(neon_player.Plugin):
 
         self.app.render_to(painter)
         painter.end()
-        frame.save(str(file_path))
+        frame.save(str(file_path_str))
 
     @action
     def copy_frame_to_clipboard(self) -> None:

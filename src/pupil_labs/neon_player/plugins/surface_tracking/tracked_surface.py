@@ -6,7 +6,8 @@ import cv2
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import QObject, QPointF, QSize, Signal
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
+from PySide6.QtWidgets import QFileDialog
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 from surface_tracker import (
     CornerId,
@@ -74,6 +75,33 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         )
 
         return self.export_job
+
+    @action
+    def export_current_frame(self):
+        file_path_str, _ = QFileDialog.getSaveFileName(
+            None, "Export surface frame", "", "PNG Images (*.png)"
+        )
+        if not file_path_str:
+            return
+
+        if not file_path_str.endswith(".png"):
+            file_path_str += ".png"
+
+        image = self._frame_image()
+        image.save(file_path_str)
+
+    @action
+    def copy_frame_to_clipboard(self) -> None:
+        clipboard = neon_player.instance().clipboard()
+        clipboard.setPixmap(QPixmap.fromImage(self._frame_image()))
+
+    def _frame_image(self) -> QImage:
+        frame = QImage(self._render_size, QImage.Format.Format_RGB32)
+        painter = QPainter(frame)
+        self._tracked_surface.render(painter)
+        painter.end()
+
+        return frame
 
 
 class TrackedSurface(PersistentPropertiesMixin, QObject):
@@ -395,9 +423,12 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             index=False
         )
 
-    def render(self, painter: QPainter, time_in_recording: int) -> None:
+    def render(self, painter: QPainter, time_in_recording: int = -1) -> None:
         if self.location is None:
             return
+
+        if time_in_recording == -1:
+            time_in_recording = neon_player.instance().current_ts
 
         camera = self.tracker_plugin.camera
         gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
@@ -438,10 +469,12 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
                     mapped_offset_gazes = self.image_points_to_surface(offset_gazes)
                     mapped_offset_gazes[:, 0] *= self.preview_options.width
                     mapped_offset_gazes[:, 1] *= self.preview_options.height
-                    if viz._aggregation not in offset_aggregations:
-                        offset_aggregations[viz._aggregation] = viz._aggregation.apply(
-                            mapped_offset_gazes
-                        )
+
+                if viz._aggregation not in offset_aggregations:
+                    offset_aggregations[viz._aggregation] = viz._aggregation.apply(
+                        mapped_offset_gazes
+                    )
+
             elif viz._aggregation not in aggregations:
                 aggregations[viz._aggregation] = viz._aggregation.apply(mapped_gazes)
 
