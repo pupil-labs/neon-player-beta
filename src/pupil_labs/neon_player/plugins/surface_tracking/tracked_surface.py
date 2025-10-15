@@ -1,5 +1,6 @@
 import logging
 import typing as T
+from enum import Enum
 from pathlib import Path
 
 import cv2
@@ -21,6 +22,31 @@ from pupil_labs.neon_player.plugins.gaze import CrosshairViz, GazeVisualization
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 from .ui import SurfaceHandle, SurfaceViewWindow
+
+
+class ColorMap(Enum):
+    Autumn = cv2.COLORMAP_AUTUMN
+    Bone = cv2.COLORMAP_BONE
+    Jet = cv2.COLORMAP_JET
+    Winter = cv2.COLORMAP_WINTER
+    Rainbow = cv2.COLORMAP_RAINBOW
+    Ocean = cv2.COLORMAP_OCEAN
+    Summer = cv2.COLORMAP_SUMMER
+    Spring = cv2.COLORMAP_SPRING
+    Cool = cv2.COLORMAP_COOL
+    Hsv = cv2.COLORMAP_HSV
+    Pink = cv2.COLORMAP_PINK
+    Hot = cv2.COLORMAP_HOT
+    Parula = cv2.COLORMAP_PARULA
+    Magma = cv2.COLORMAP_MAGMA
+    Inferno = cv2.COLORMAP_INFERNO
+    Plasma = cv2.COLORMAP_PLASMA
+    Viridis = cv2.COLORMAP_VIRIDIS
+    Cividis = cv2.COLORMAP_CIVIDIS
+    Twilight = cv2.COLORMAP_TWILIGHT
+    Twilight_Shifted = cv2.COLORMAP_TWILIGHT_SHIFTED
+    Turbo = cv2.COLORMAP_TURBO
+    Deepgreen = cv2.COLORMAP_DEEPGREEN
 
 
 class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
@@ -110,6 +136,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     surface_location_changed = Signal()
     view_requested = Signal(object)
     marker_edit_changed = Signal()
+    heatmap_invalidated = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -121,6 +148,11 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._can_edit_corners = False
         self._can_edit_markers = False
         self._preview_options = SurfaceViewDisplayOptions()
+        self._preview_options._tracked_surface = self
+        self._heatmap_smoothness = 0.35
+        self._heatmap_alpha = .75
+        self._heatmap = None
+        self._heatmap_color = ColorMap.Jet
 
         self.tracker_surface = None
 
@@ -129,6 +161,13 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.preview_window = None
         self.handle_widgets = {}
         self.corner_positions = {}
+
+        neon_player.instance().recording_settings.export_window_changed.connect(
+            self.heatmap_invalidated.emit
+        )
+        Plugin.get_instance_by_name("GazeDataPlugin").offset_changed.connect(
+            self.heatmap_invalidated.emit
+        )
 
     def __del__(self):
         self.cleanup_widgets()
@@ -220,6 +259,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.corner_positions[corner_id] = undistorted_corner
             w.set_scene_pos(distorted_corner)
 
+    def recalculate_heatmap(self):
+        Plugin.get_instance_by_name("SurfaceTrackingPlugin").recalculate_heatmap(self.uid)
+
     @property
     def name(self) -> str:
         return self._name
@@ -282,6 +324,33 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.marker_edit_changed.emit()
 
     @property
+    @property_params(min=0, max=1)
+    def heatmap_smoothness(self) -> float:
+        return self._heatmap_smoothness
+
+    @heatmap_smoothness.setter
+    def heatmap_smoothness(self, value: float) -> None:
+        self._heatmap_smoothness = value
+        self.heatmap_invalidated.emit()
+
+    @property
+    @property_params(min=0, max=1)
+    def heatmap_alpha(self) -> float:
+        return self._heatmap_alpha
+
+    @heatmap_alpha.setter
+    def heatmap_alpha(self, value: float) -> None:
+        self._heatmap_alpha = value
+
+    @property
+    def heatmap_color(self) -> ColorMap:
+        return self._heatmap_color
+
+    @heatmap_color.setter
+    def heatmap_color(self, value: ColorMap) -> None:
+        self._heatmap_color = value
+
+    @property
     @property_params(widget=None)
     def uid(self) -> str:
         return self._uid
@@ -342,7 +411,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             self.location.transform_matrix_from_image_to_surface_undistorted
         ).reshape(-1, 2)
 
-    def export_gazes(self, gazes, destination: Path):
+    def apply_offset_and_map_gazes(self, gazes):
         try:
             gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
         except KeyError:
@@ -353,7 +422,10 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             gaze_plugin.offset_x * gaze_plugin.recording.scene.width,
             gaze_plugin.offset_y * gaze_plugin.recording.scene.height
         ])
-        mapped_gazes = self.image_points_to_surface(offset_gazes)
+        return self.image_points_to_surface(offset_gazes)
+
+    def export_gazes(self, gazes, destination: Path):
+        mapped_gazes = self.apply_offset_and_map_gazes(gazes)
 
         lower_pass = np.all(mapped_gazes >= 0, axis=1)
         upper_pass = np.all(mapped_gazes <= 1.0, axis=1)
@@ -369,6 +441,11 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         gazes.to_csv(
             destination / f"gaze_positions_on_surface_{self.name}.csv",
             index=False
+        )
+
+        cv2.imwrite(
+            destination / f"{self.name}_heatmap.png",
+            cv2.applyColorMap(self._heatmap, self.heatmap_color.value)
         )
 
     def export_fixations(self, gazes, destination: Path):

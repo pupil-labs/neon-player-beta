@@ -24,7 +24,11 @@ from surface_tracker import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
-from pupil_labs.neon_player.utilities import ndarray_from_qimage
+from pupil_labs.neon_player.utilities import (
+    SlotDebouncer,
+    ndarray_from_qimage,
+    qimage_from_frame,
+)
 
 from .tracked_surface import TrackedSurface
 from .ui import MarkerEditWidget
@@ -76,15 +80,11 @@ class SurfaceTrackingPlugin(Plugin):
 
             return
 
-        markers = self.markers_by_frame[frame_idx]
         for surface in self._surfaces:
             if surface.tracker_surface is None:
                 continue
 
-            surface.location = self.tracker.locate_surface(
-                surface.tracker_surface,
-                markers
-            )
+            surface.location = self.surface_locations[surface.uid][frame_idx]
 
         # if we're editing a surface's markers
         if any(s.edit_markers for s in self._surfaces):
@@ -143,10 +143,6 @@ class SurfaceTrackingPlugin(Plugin):
                 )
                 self.marker_detection_job.finished.connect(self._load_marker_cache)
 
-    def attempt_surface_locations_load(self) -> None:
-        for surface in self.surfaces:
-            self._load_surface_locations_cache(surface.uid)
-
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         if not self._render_overlays_in_export:
             try:
@@ -190,6 +186,43 @@ class SurfaceTrackingPlugin(Plugin):
 
             if surface.tracker_surface is None:
                 continue
+
+            if surface.heatmap_alpha > 0.0 and surface._heatmap is not None:
+                export_window = self.app.recording_settings.export_window
+                if export_window[0] <= time_in_recording <= export_window[1]:
+                    scalar = np.float64([
+                        [1 / surface._heatmap.shape[1], 0.0,   0.0],
+                        [0.0,   1 / surface._heatmap.shape[0], 0.0],
+                        [0.0,   0.0,   1.0]
+                    ])
+
+                    h_scaled = location.transform_matrix_from_surface_to_image_undistorted @ scalar
+                    scene_size = self.recording.scene.width, self.recording.scene.height
+
+                    rgb_heatmap = cv2.applyColorMap(surface._heatmap, surface.heatmap_color.value)
+                    rgb_heatmap = cv2.cvtColor(rgb_heatmap, cv2.COLOR_BGR2RGB)
+                    undistorted_heatmap = cv2.warpPerspective(
+                        rgb_heatmap,
+                        h_scaled,
+                        scene_size,
+                    )
+                    undistorted_mask = cv2.warpPerspective(
+                        255 * np.ones((surface._heatmap.shape[0], surface._heatmap.shape[1]), dtype='uint8'),
+                        h_scaled,
+                        scene_size,
+                    )
+
+                    distorted_heatmap = self.camera.distort_image(undistorted_heatmap)
+
+                    distorted_mask = self.camera.distort_image(undistorted_mask)
+                    distorted_heatmap_rgba = np.dstack((distorted_heatmap, distorted_mask))
+
+                    painter.setOpacity(surface.heatmap_alpha)
+                    painter.drawImage(
+                        0, 0,
+                        qimage_from_frame(distorted_heatmap_rgba)
+                    )
+                    painter.setOpacity(1.0)
 
             p = painter.pen()
             p.setColor(surface.outline_color)
@@ -247,8 +280,7 @@ class SurfaceTrackingPlugin(Plugin):
 
     def _load_marker_cache(self) -> None:
         self.markers_by_frame = np.load(self.marker_cache_file, allow_pickle=True)
-        self.attempt_surface_locations_load()
-        self.changed.emit()
+        self.trigger_scene_update()
         for frame_markers in self.markers_by_frame:
             for marker in frame_markers:
                 if marker.uid not in self.marker_edit_widgets:
@@ -290,7 +322,115 @@ class SurfaceTrackingPlugin(Plugin):
             data = np.load(locations_path, allow_pickle=True)
             self.surface_locations[surface_uid] = data
 
-            self.changed.emit()
+            self.trigger_scene_update()
+
+        self.attempt_load_surface_heatmap(surface_uid)
+
+    def attempt_load_surface_heatmap(self, surface_uid):
+        cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
+        if cache_file.exists():
+            self._load_surface_heatmap(surface_uid)
+            return
+
+        else:
+            if self.app.headless:
+                if cache_file.exists():
+                    self._load_surface_heatmap(surface_uid)
+
+            else:
+                surface = self.get_surface(surface_uid)
+                heatmap_job = self.job_manager.run_background_action(
+                    f"Build Surface Heatmap [{surface.name}]",
+                    "SurfaceTrackingPlugin.bg_build_heatmap",
+                    surface_uid
+                )
+                heatmap_job.finished.connect(
+                    lambda: self._load_surface_heatmap(surface_uid)
+                )
+
+    def bg_build_heatmap(self, surface_uid: str) -> T.Generator[ProgressUpdate, None, None]:
+        surface = self.get_surface(surface_uid)
+
+        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_mask = self.recording.scene.time >= start_time
+        stop_mask = self.recording.scene.time <= stop_time
+        scene_frames = self.recording.scene[start_mask & stop_mask]
+
+        mapped_gazes = np.empty((0, 2), dtype=np.float32)
+        for idx, frame in enumerate(scene_frames):
+            location = self.surface_locations[surface_uid][frame.index]
+            if not location:
+                continue
+
+            surface.location = location
+
+            start_time = frame.time
+            if frame.index < len(self.recording.scene) - 1:
+                stop_time = self.recording.scene[frame.index + 1].time
+            else:
+                stop_time = start_time + 1e9 / 30
+
+            start_mask = self.recording.gaze.time >= start_time
+            stop_mask = self.recording.gaze.time <= stop_time
+
+            gazes = self.recording.gaze[start_mask & stop_mask]
+            mapped_gazes = np.append(
+                mapped_gazes,
+                surface.apply_offset_and_map_gazes(gazes),
+                axis=0
+            )
+
+            yield ProgressUpdate(idx / len(scene_frames))
+
+        lower_pass = np.all(mapped_gazes >= 0.0, axis=1)
+        upper_pass = np.all(mapped_gazes <= 1.0, axis=1)
+        surface_gazes = mapped_gazes[lower_pass & upper_pass]
+
+        val = 3 * (1 - surface._heatmap_smoothness)
+        blur_factor = max((1 - val), 0)
+        res_exponent = max(val, 0.35)
+        resolution = int(10**res_exponent)
+
+        aspect_ratio = surface.preview_options.width / surface.preview_options.height
+
+        grid = (
+            int(resolution),
+            max(1, int(resolution * aspect_ratio)),
+        )
+
+        xvals, yvals = surface_gazes[:, 0], surface_gazes[:, 1]
+
+        hist, *_ = np.histogram2d(
+            yvals, xvals, bins=grid, range=[[0, 1.0], [0, 1.0]], density=False
+        )
+        filter_h = 19 + blur_factor * 15
+        filter_w = filter_h * aspect_ratio
+        filter_h = int(filter_h) // 2 * 2 + 1
+        filter_w = int(filter_w) // 2 * 2 + 1
+
+        hist = cv2.GaussianBlur(hist, (filter_h, filter_w), 0)
+        hist_max = hist.max()
+        hist *= (255.0 / hist_max) if hist_max else 0.0
+        hist = hist.astype(np.uint8)
+
+        cache_file = self.get_cache_path() / f"{surface.uid}_heatmap.png"
+        cv2.imwrite(str(cache_file), hist)
+
+    def _load_surface_heatmap(self, surface_uid: str) -> None:
+        surface = self.get_surface(surface_uid)
+        cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
+        surface._heatmap = cv2.imread(str(cache_file))
+        self.trigger_scene_update()
+
+    def recalculate_heatmap(self, surface_uid: str) -> None:
+        cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
+        if cache_file.exists():
+            cache_file.unlink()
+
+        self.get_surface(surface_uid)._heatmap = None
+        self.trigger_scene_update()
+
+        self.attempt_load_surface_heatmap(surface_uid)
 
     @property
     def marker_color(self) -> QColor:
@@ -346,6 +486,10 @@ class SurfaceTrackingPlugin(Plugin):
                 surface_counter += 1
 
             surface.changed.connect(self.changed.emit)
+            SlotDebouncer.debounce(
+                surface.heatmap_invalidated,
+                surface.recalculate_heatmap,
+            )
             surface.marker_edit_changed.connect(
                 lambda s=surface: self.on_marker_edit_changed(s)
             )
@@ -361,6 +505,10 @@ class SurfaceTrackingPlugin(Plugin):
                 self._start_bg_surface_locator(surface, frame_idx)
 
         for surface in removed_surfaces:
+            if surface.edit_markers:
+                for marker_widget in self.marker_edit_widgets.values():
+                    marker_widget.hide()
+
             surface.cleanup_widgets()
             locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
             if locations_path.exists():
@@ -369,6 +517,10 @@ class SurfaceTrackingPlugin(Plugin):
             surf_path = self.get_cache_path() / f"{surface.uid}_surface.pkl"
             if surf_path.exists():
                 surf_path.unlink()
+
+            heatmap_path = self.get_cache_path() / f"{surface.uid}_heatmap.png"
+            if heatmap_path.exists():
+                heatmap_path.unlink()
 
         self.changed.emit()
 
@@ -392,6 +544,9 @@ class SurfaceTrackingPlugin(Plugin):
         with surf_path.open("wb") as f:
             pickle.dump(surface.tracker_surface, f)
 
+        surface._heatmap = None
+        self.trigger_scene_update()
+
         self._start_bg_surface_locator(surface)
 
     def _start_bg_surface_locator(self, surface: "TrackedSurface", *args, **kwargs):
@@ -408,6 +563,7 @@ class SurfaceTrackingPlugin(Plugin):
         job.finished.connect(
             lambda: self._load_surface_locations_cache(surface.uid)
         )
+
         self._surface_locator_jobs[surface.uid] = job
 
     def get_surface(self, uid: str):
@@ -460,7 +616,6 @@ class SurfaceTrackingPlugin(Plugin):
         locations = []
         for frame_idx, markers in enumerate(self.markers_by_frame):
             location = self.tracker.locate_surface(tracker_surf, markers)
-
             locations.append(location)
 
             yield ProgressUpdate((frame_idx + 1) / len(self.markers_by_frame))
@@ -528,7 +683,10 @@ class SurfaceTrackingPlugin(Plugin):
 
         for surface in self._surfaces:
             surface.export_gazes(gazes_in_window, destination)
-            surface.export_fixations(gazes_in_window, destination)
+            try:
+                surface.export_fixations(gazes_in_window, destination)
+            except:
+                logging.warning("Failed to export surface fixations. Is the fixation plugin enabled?")
 
 
 class OptimalCamera(Camera):

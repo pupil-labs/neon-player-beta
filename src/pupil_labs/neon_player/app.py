@@ -36,7 +36,7 @@ from pupil_labs.neon_player.plugins import (
 )
 from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 from pupil_labs.neon_player.ui.main_window import MainWindow
-from pupil_labs.neon_player.utilities import clone_menu
+from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
 
 
 def setup_logging() -> None:
@@ -102,13 +102,8 @@ class NeonPlayerApp(QApplication):
         self.recording_settings = None
 
         self.refresh_timer = QTimer(self)
-        self.refresh_timer.setInterval(0)
+        self.refresh_timer.setInterval(1000 / 30)
         self.refresh_timer.timeout.connect(self.poll)
-
-        self._save_timer = QTimer(self)
-        self._save_timer.setSingleShot(True)
-        self._save_timer.timeout.connect(self._save_settings)
-        self._save_timer.setInterval(2000)
 
         self.job_manager = JobManager()
 
@@ -192,17 +187,10 @@ class NeonPlayerApp(QApplication):
         logging.info(f"Loading settings from {settings_path}")
         return json.loads(settings_path.read_text())
 
-    def save_settings(self, immediate=False) -> None:
+    def save_settings(self) -> None:
         if self._initializing:
             return
 
-        if immediate:
-            self._save_timer.stop()
-            self._save_settings()
-        else:
-            self._save_timer.start()
-
-    def _save_settings(self) -> None:
         logging.info("Saving settings")
         try:
             settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
@@ -264,7 +252,8 @@ class NeonPlayerApp(QApplication):
             try:
                 kls = Plugin.get_class_by_name(kls)
             except ValueError:
-                logging.warning(f"Couldn't find plugin class: {kls}")
+                if enabled:
+                    logging.warning(f"Couldn't enable plugin class: {kls}")
                 return None
 
         currently_enabled = kls.__name__ in self.plugins_by_class
@@ -280,7 +269,8 @@ class NeonPlayerApp(QApplication):
                 self.plugins_by_class[kls.__name__] = plugin
                 self.main_window.settings_panel.add_plugin_settings(plugin)
 
-                plugin.changed.connect(self.on_plugin_changed)
+                plugin.changed.connect(self.main_window.video_widget.update)
+                SlotDebouncer.debounce(plugin.changed, self.save_settings)
 
                 if self.recording:
                     plugin.on_recording_loaded(self.recording)
@@ -300,10 +290,6 @@ class NeonPlayerApp(QApplication):
         self.plugins.sort(key=lambda p: p.render_layer)
 
         self.main_window.video_widget.update()
-
-    def on_plugin_changed(self) -> None:
-        self.main_window.video_widget.update()
-        self.save_settings()
 
     def run(self) -> int:
         if not self.headless:
@@ -378,7 +364,7 @@ class NeonPlayerApp(QApplication):
         QTimer.singleShot(0, self.toggle_plugins_by_settings)
         QTimer.singleShot(10, self.main_window.timeline_dock.init_view)
         self.recording_settings.changed.connect(self.toggle_plugins_by_settings)
-        self.recording_settings.changed.connect(self.save_settings)
+        SlotDebouncer.debounce(self.recording_settings.changed, self.save_settings)
 
         self.recording_loaded.emit(self.recording)
 

@@ -127,11 +127,15 @@ class JobManager(QObject):
         # runs in child process
         if progress_stream_fd:
             with open(progress_stream_fd, "wb") as progress_stream:
-                for update in job:
-                    data = pickle.dumps(update)
-                    length = len(data).to_bytes(4, byteorder='little')
-                    progress_stream.write(length + data)
-                    progress_stream.flush()
+                if not hasattr(job, "__iter__"):
+                    logging.warning(f"A background job did not generate progress updates")
+                else:
+                    for update in job:
+                        data = pickle.dumps(update)
+                        length = len(data).to_bytes(4, byteorder='little')
+                        progress_stream.write(length + data)
+                        progress_stream.flush()
+
         else:
             with tqdm(total=1.0) as pbar:
                 for update in job:
@@ -143,7 +147,7 @@ class JobManager(QObject):
             logging.warning("Not starting background job in headless mode")
             return
 
-        neon_player.instance().save_settings(immediate=True)
+        neon_player.instance().save_settings()
 
         job = BackgroundJob(
             name,

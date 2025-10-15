@@ -72,6 +72,9 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def on_disabled(self) -> None:
         pass
 
+    def trigger_scene_update(self) -> None:
+        self.app.main_window.video_widget.update()
+
     def get_timeline_dock(self) -> TimeLineDock:
         return self.app.main_window.timeline_dock
 

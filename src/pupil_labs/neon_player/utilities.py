@@ -2,10 +2,10 @@ import typing as T
 
 import cv2
 import numpy as np
+from pupil_labs.neon_recording import NeonRecording
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QMenu
-
-from pupil_labs.neon_recording import NeonRecording
 
 
 def qimage_from_frame(frame: np.ndarray | None) -> QImage:
@@ -144,3 +144,59 @@ def get_scene_intrinsics(recording: NeonRecording) -> tuple[np.ndarray, np.ndarr
         scene_distortion_coefficients = calibration.scene_distortion_coefficients
 
     return scene_camera_matrix, scene_distortion_coefficients
+
+
+class SignalDebouncer:
+    _signal_debouncer_map = {}
+
+    @staticmethod
+    def debounce(signal: Signal, delay: float = 1.5, *args):
+        if signal not in SignalDebouncer._signal_debouncer_map:
+            SignalDebouncer._signal_debouncer_map[signal] = SignalDebouncer(signal)
+
+        debouncer = SignalDebouncer._signal_debouncer_map[signal]
+        debouncer.args = args
+        debouncer.timer.start(delay * 1000)
+
+    def __init__(self, signal: Signal):
+        self.signal = signal
+        self.timer = QTimer()
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self._emit)
+        self.args = []
+
+    def _emit(self):
+        self.signal.emit(*self.args)
+        del SignalDebouncer._signal_debouncer_map[self.signal]
+
+
+class SlotDebouncer:
+    _connections = {}
+
+    @staticmethod
+    def debounce(signal: Signal, slot: T.Callable, delay: float = 3.5):
+        if slot not in SlotDebouncer._connections:
+            SlotDebouncer._connections[slot] = SlotDebouncer(slot)
+
+        debouncer = SlotDebouncer._connections[slot]
+        debouncer.add_signal(signal)
+        debouncer.timer.setInterval(delay * 1000)
+
+    def __init__(self, slot: T.Callable):
+        self.signals = []
+
+        self.slot = slot
+        self.timer = QTimer()
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self._do_call)
+
+    def add_signal(self, signal: Signal):
+        self.signals.append(signal)
+        signal.connect(self.on_signal)
+
+    def on_signal(self, *args):
+        self.args = args
+        self.timer.start()
+
+    def _do_call(self):
+        self.slot(*self.args)

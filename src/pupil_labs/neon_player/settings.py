@@ -70,6 +70,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
 
 class RecordingSettings(PersistentPropertiesMixin, QObject):
     changed = Signal()
+    export_window_changed = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -85,6 +86,7 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
     @export_window.setter
     def export_window(self, value: list[int]) -> None:
         self._export_window = value.copy()
+        self.export_window_changed.emit()
         self.changed.emit()
 
     @property

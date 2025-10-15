@@ -33,6 +33,7 @@ from pupil_labs.neon_player.ui.console import ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
+from pupil_labs.neon_player.utilities import SlotDebouncer
 
 
 class MainWindow(QMainWindow):
@@ -313,20 +314,24 @@ class GlobalSettingsDialog(QDialog):
         layout.addWidget(expander_list)
 
         global_settings_form = PropertyForm(app.settings)
-        global_settings_form.property_changed.connect(self.on_property_changed)
+        SlotDebouncer.debounce(
+            app.settings.changed,
+            neon_player.instance().save_settings
+        )
+
         expander_list.add_expander("General", global_settings_form)
 
         for cls in Plugin.known_classes:
             if cls.global_properties is not None:
                 plugin_props_form = PropertyForm(cls.global_properties)
-                plugin_props_form.property_changed.connect(self.on_property_changed)
+                SlotDebouncer.debounce(
+                    plugin_props_form.changed,
+                    neon_player.instance().save_settings
+                )
                 expander_list.add_expander(
                     f"Plugin: {cls.get_label()}",
                     plugin_props_form
                 )
-
-    def on_property_changed(self, prop_name: str, value: typing.Any) -> None:
-        neon_player.instance().save_settings()
 
 
 class RecordingSettingsDialog(QDialog):

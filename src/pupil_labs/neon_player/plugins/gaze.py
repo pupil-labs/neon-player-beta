@@ -49,6 +49,7 @@ class Aggregation(enum.Enum):
 
 class GazeDataPlugin(neon_player.Plugin):
     label = "Gaze Data"
+    offset_changed = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -176,6 +177,7 @@ class GazeDataPlugin(neon_player.Plugin):
     @offset_x.setter
     def offset_x(self, value: float) -> None:
         self._offset_x = value
+        self.offset_changed.emit()
 
     @property
     @property_params(min=-1, max=1, step=0.01, decimals=3)
@@ -185,6 +187,7 @@ class GazeDataPlugin(neon_player.Plugin):
     @offset_y.setter
     def offset_y(self, value: float) -> None:
         self._offset_y = value
+        self.offset_changed.emit()
 
     @property
     @property_params(use_subclass_selector=True, add_button_text="Add visualization")
