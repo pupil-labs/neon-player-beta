@@ -29,7 +29,7 @@ class Aggregation(enum.Enum):
     Last = "Last"
 
     def apply(self, gazes):
-        if self is Aggregation.Raw:
+        if self is Aggregation.Raw or len(gazes) == 0:
             v = gazes
 
         elif self is Aggregation.Mean:
