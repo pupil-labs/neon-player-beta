@@ -24,6 +24,10 @@ class AudioPlugin(neon_player.Plugin):
 
         self.cache_file = self.get_cache_path() / "audio.wav"
 
+    def on_disabled(self) -> None:
+        self.player.stop()
+        self.player.setSource(QUrl())
+
     def on_media_status_changed(self, status: QMediaPlayer.MediaStatus):
         if status == QMediaPlayer.MediaStatus.LoadedMedia:
             self.sync_position()
