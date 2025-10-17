@@ -135,6 +135,7 @@ class MainWindow(QMainWindow):
         self.register_action(
             "&File/&Export All", on_triggered=app.export_all
         )
+        self.register_action("&File/&Close", "Ctrl+w", app.unload)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
         self.register_action("&View/&Console", "Ctrl+Alt+c", self.console_window.show)
         self.play_action = self.register_action(
