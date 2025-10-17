@@ -144,7 +144,9 @@ class FixationsPlugin(neon_player.Plugin):
 
         offset_means = fixations.mean_gaze + offset
 
-        scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(self.recording)
+        scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(
+            self.recording
+        )
         spherical_coords = cart_to_spherical(
             unproject_points(
                 offset_means,
@@ -202,7 +204,10 @@ class FixationsPlugin(neon_player.Plugin):
         for frame_idx, frame in enumerate(recording.scene):
             if previous_frame is not None:
                 # get optic flow vectors on a grid
-                delta_vec, _, _ = calc_grid_optic_flow_LK(previous_frame.gray, frame.gray)
+                delta_vec, _, _ = calc_grid_optic_flow_LK(
+                    previous_frame.gray,
+                    frame.gray
+                )
 
                 # average optic flow vectors over the whole image
                 delta_vec = np.nanmean(delta_vec, axis=(0, 1))
@@ -333,17 +338,17 @@ class FixationAnnulusViz(FixationVisualization):
                 offset[1] = gaze_offset[1] * self.recording.scene.height
 
         for fixation_id, fixation, optic_flow_offset in zip(
-            fixation_ids, fixations, optic_flow_offsets
+            fixation_ids, fixations, optic_flow_offsets, strict=True
         ):
             if self._adjust_for_optic_flow:
                 center = QPointF(
-                    fixation.start_gaze[0] + offset[0] + optic_flow_offset[0],
-                    fixation.start_gaze[1] + offset[1] + optic_flow_offset[1],
+                    fixation.start_gaze_point[0] + offset[0] + optic_flow_offset[0],
+                    fixation.start_gaze_point[1] + offset[1] + optic_flow_offset[1],
                 )
             else:
                 center = QPointF(
-                    fixation.mean_gaze[0] + offset[0],
-                    fixation.mean_gaze[1] + offset[1],
+                    fixation.mean_gaze_point[0] + offset[0],
+                    fixation.mean_gaze_point[1] + offset[1],
                 )
 
             painter.drawEllipse(center, self._base_radius, self._base_radius)
