@@ -145,11 +145,9 @@ class SurfaceTrackingPlugin(Plugin):
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         if not self._render_overlays_in_export:
-            try:
-                if Plugin.get_instance_by_name("VideoExporter").is_exporting:
-                    return
-            except KeyError:
-                pass
+            exporter = Plugin.get_instance_by_name("VideoExporter")
+            if exporter is not None and exporter.is_exporting:
+                return
 
         frame_idx = self.get_scene_idx_for_time(time_in_recording)
         if frame_idx < 0:
