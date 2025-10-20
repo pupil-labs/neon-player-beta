@@ -26,11 +26,4 @@ nuitka \
     --macos-app-icon=./src/pupil_labs/neon_player/assets/icon.icns \
     --macos-app-version=6.0 \
     --windows-icon-from-ico=./src/pupil_labs/neon_player/assets/neon-player.ico \
-    src/pupil_labs/neon_player/__main__.py
-
-if [ "$(uname)" = "Darwin" ]; then
-    mv dist/__main__.app dist/neon-player-6.app
-    rm -rf dist/__main__.dist
-else
-    mv dist/__main__.dist dist/neon-player-6
-fi
+    src/pupil_labs/neon_player/
