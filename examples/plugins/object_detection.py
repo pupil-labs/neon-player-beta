@@ -1,3 +1,9 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "ultralytics",
+# ]
+# ///
 import typing as T
 from enum import Enum
 
