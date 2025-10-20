@@ -287,10 +287,15 @@ class EventsPlugin(neon_player.Plugin):
     @action
     def export(self, destination: Path = Path(".")):
         start_time, stop_time = neon_player.instance().recording_settings.export_window
+        event_names = []
+        for uid in self.events:
+            name = uid if uid in IMMUTABLE_EVENTS else self.get_event_type(uid).name
+            event_names.append(name)
+
         events_df = pd.DataFrame({
             "recording id": self.recording.info["recording_id"],
             "timestamp [ns]": list(self.events.values()),
-            "event": list(self.events.keys()),
+            "event": event_names,
         })
 
         events_df = events_df.explode("timestamp [ns]").reset_index(drop=True).dropna()
