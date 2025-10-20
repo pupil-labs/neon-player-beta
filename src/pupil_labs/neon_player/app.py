@@ -24,6 +24,9 @@ from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ipc_logger import IPCLogger
 from pupil_labs.neon_player.job_manager import JobManager
+from pupil_labs.neon_player.plugin_management import (
+    check_and_install_dependencies_for_plugins,
+)
 from pupil_labs.neon_player.plugins import (
     audio,  # noqa: F401
     blinks,  # noqa: F401
@@ -111,7 +114,9 @@ class NeonPlayerApp(QApplication):
         self.main_window = MainWindow()
 
         self.ipc_logger = IPCLogger()
-        logging.info(f"{self.applicationName()} v{self.applicationVersion()} starting up")
+        logging.info(
+            f"{self.applicationName()} v{self.applicationVersion()} starting up"
+        )
 
         # Iterate through all modules within plugins and register them
         plugin_search_path = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"
@@ -141,8 +146,7 @@ class NeonPlayerApp(QApplication):
                 # use an action object to provide type conversion for arguments
                 if action_name not in plugin._action_objects:
                     action_obj = create_action_object(
-                        getattr(plugin, action_name),
-                        plugin
+                        getattr(plugin, action_name), plugin
                     )
                 else:
                     action_obj = plugin._action_objects[action_name]
@@ -178,7 +182,9 @@ class NeonPlayerApp(QApplication):
                 json.dump(data, f, cls=ComplexEncoder)
 
             if self.recording:
-                settings_path = self.recording._rec_dir / ".neon_player" / "settings.json"
+                settings_path = (
+                    self.recording._rec_dir / ".neon_player" / "settings.json"
+                )
                 settings_path.parent.mkdir(parents=True, exist_ok=True)
                 data = self.recording_settings.to_dict()
                 with settings_path.open("w") as f:
@@ -211,6 +217,8 @@ class NeonPlayerApp(QApplication):
                 if spec is None:
                     continue
 
+                check_and_install_dependencies_for_plugins(d)
+
                 logging.info(f"Importing plugin module {d}")
 
                 module = importlib.util.module_from_spec(spec)
@@ -223,7 +231,7 @@ class NeonPlayerApp(QApplication):
 
     def toggle_plugin(
         self,
-        kls: type[Plugin]|str,
+        kls: type[Plugin] | str,
         enabled: bool,
         state: dict | None = None,
     ) -> Plugin | None:
@@ -283,6 +291,7 @@ class NeonPlayerApp(QApplication):
             if sys.platform == "darwin":
                 # hide dock icon for background jobs
                 from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+
                 NSApplication.sharedApplication().setActivationPolicy_(
                     NSApplicationActivationPolicyAccessory
                 )
@@ -293,8 +302,9 @@ class NeonPlayerApp(QApplication):
         self,
         title: str,
         message: str,
-        icon: QSystemTrayIcon.MessageIcon|QIcon = QSystemTrayIcon.MessageIcon.Information,
-        duration: int = 10000
+        icon: QSystemTrayIcon.MessageIcon
+        | QIcon = QSystemTrayIcon.MessageIcon.Information,
+        duration: int = 10000,
     ) -> None:
         self.tray_icon.showMessage(title, message, icon, duration)
 
@@ -326,7 +336,9 @@ class NeonPlayerApp(QApplication):
             settings_path = path / ".neon_player" / "settings.json"
             if settings_path.exists():
                 logging.info(f"Loading recording settings from {settings_path}")
-                self.recording_settings = RecordingSettings.from_dict(json.loads(settings_path.read_text()))
+                self.recording_settings = RecordingSettings.from_dict(
+                    json.loads(settings_path.read_text())
+                )
 
                 if len(self.recording_settings.export_window) != 2:
                     logging.warning("Invalid export window in settings")
@@ -346,7 +358,9 @@ class NeonPlayerApp(QApplication):
             logging.exception("Failed to load settings")
             self.recording_settings = RecordingSettings()
 
-        logging.info("Recording settings loaded", self.recording_settings.enabled_plugins)
+        logging.info(
+            "Recording settings loaded", self.recording_settings.enabled_plugins
+        )
 
         if self.settings.skip_gray_frames_on_load:
             self.seek_to(self.recording.scene[0].time)
@@ -403,7 +417,9 @@ class NeonPlayerApp(QApplication):
             return
 
         now = time.time_ns()
-        elapsed_time = (self.current_ts - self.recording.start_time) / self.playback_speed
+        elapsed_time = (
+            self.current_ts - self.recording.start_time
+        ) / self.playback_speed
         self.playback_start_anchor = now - elapsed_time
 
     def set_playback_state(self, playing: bool) -> None:
@@ -426,7 +442,9 @@ class NeonPlayerApp(QApplication):
             self.main_window.set_time_in_recording(self.current_ts)
 
         else:
-            self.current_ts = min(max(target_ts, self.recording.start_time), self.recording.stop_time)
+            self.current_ts = min(
+                max(target_ts, self.recording.start_time), self.recording.stop_time
+            )
             self.main_window.set_time_in_recording(self.current_ts)
 
             self.refresh_timer.stop()
@@ -463,7 +481,7 @@ class NeonPlayerApp(QApplication):
         self,
         t: int = -1,
         method: T.Literal["nearest", "backward", "forward"] = "backward",
-        tolerance: int | None = None
+        tolerance: int | None = None,
     ) -> int:
         if t < 0:
             t = self.current_ts
@@ -490,7 +508,7 @@ class NeonPlayerApp(QApplication):
             painter.setOpacity(1.0)
 
     def export_all(self, export_path: Path) -> None:
-        timestamp_str = time.strftime('%Y-%m-%d_%H-%M-%S')
+        timestamp_str = time.strftime("%Y-%m-%d_%H-%M-%S")
         export_path /= f"{timestamp_str}_export"
         export_path.mkdir(parents=True, exist_ok=True)
 
