@@ -7,8 +7,8 @@ from pyqtgraph.GraphicsScene.mouseEvents import (
     MouseClickEvent,
     MouseDragEvent,
 )
-from PySide6.QtCore import QPoint, QPointF, QSize, Qt
-from PySide6.QtGui import QColor, QIcon
+from PySide6.QtCore import QPoint, QPointF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QKeyEvent
 from PySide6.QtWidgets import (
     QGraphicsSceneMouseEvent,
     QHBoxLayout,
@@ -37,6 +37,8 @@ from pupil_labs.neon_player.utilities import clone_menu
 
 
 class TimeLineDock(QWidget):
+    key_pressed = Signal(QKeyEvent)
+
     def __init__(self) -> None:
         super().__init__()
         app = neon_player.instance()
@@ -134,6 +136,9 @@ class TimeLineDock(QWidget):
 
     def sizeHint(self) -> QSize:
         return QSize(100, 150)
+
+    def keyPressEvent(self, event: QKeyEvent):
+        self.key_pressed.emit(event)
 
     def resizeEvent(self, event):
         w = self.scroll_area.width() - self.scroll_area.verticalScrollBar().width()
@@ -286,6 +291,8 @@ class TimeLineDock(QWidget):
         if not create_if_missing:
             return None
 
+        logging.info(f"Adding plot {timeline_row_name} to timeline")
+
         row = self.graphics_layout.nextRow()
         is_timestamps_row = timeline_row_name == "Export window"
 
@@ -404,8 +411,6 @@ class TimeLineDock(QWidget):
             plot_index = len(plot_item.items)
             color = self.plot_colors[plot_index % len(self.plot_colors)]
 
-        logging.info(f"Adding plot {timeline_row_name}.{plot_name} to timeline")
-
         if "pen" not in kwargs:
             kwargs["pen"] = pg.mkPen(color=color, width=2, cap="flat")
 
@@ -420,6 +425,8 @@ class TimeLineDock(QWidget):
                 legend.addItem(plot_data_item, plot_name)
 
         self.fix_scroll_size()
+
+        return plot_item
 
     def fix_scroll_size(self):
         h = sum([p.preferredHeight() for p in self.timeline_plots.values()])
@@ -501,12 +508,12 @@ class TimeLineDock(QWidget):
     def add_timeline_line(
         self, timeline_row_name: str, data: list[tuple[int, int]], plot_name: str = ""  , **kwargs
     ) -> None:
-        self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
+        return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
 
     def add_timeline_scatter(
         self, name: str, data: list[tuple[int, int]], item_name: str = ""
     ) -> None:
-        self.add_timeline_plot(
+        return self.add_timeline_plot(
             name,
             data,
             item_name,
@@ -541,6 +548,8 @@ class TimeLineDock(QWidget):
             legend.addItem(bars, name=item_name)
 
         self.fix_scroll_size()
+
+        return plot_widget
 
     def register_data_point_action(
         self,

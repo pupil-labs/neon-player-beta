@@ -80,8 +80,8 @@ dev-dependencies = [
 ]
 
 [tool.uv.sources]
-qt-property-widgets = { git = "https://github.com/domstoppable/qt-property-widgets" }
 pupil-labs-neon-recording = { git = "https://github.com/pupil-labs/pl-neon-recording", branch = "api_update" }
+qt-property-widgets = { git = "https://github.com/domstoppable/qt-property-widgets" }
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]

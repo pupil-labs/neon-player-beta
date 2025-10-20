@@ -261,6 +261,15 @@ class MainWindow(QMainWindow):
 
         raise ValueError(f"Action {action_path} not found")
 
+    def sort_action_menu(self, menu_path: str):
+        menu = self.get_menu(menu_path)
+        sorted_actions = sorted(menu.actions(), key=lambda a: a.text().lower())
+        for action in sorted_actions:
+            shortcut = action.shortcut()
+            menu.removeAction(action)
+            menu.addAction(action)
+            action.setShortcut(shortcut)
+
     def register_action(
         self,
         action_path: str,
@@ -279,6 +288,15 @@ class MainWindow(QMainWindow):
             action.triggered.connect(on_triggered)
 
         return action
+
+    def unregister_action(self, action_path: str):
+        menu_path, action_name = action_path.rsplit("/", 1)
+
+        menu = self.get_menu(menu_path)
+        for action in menu.actions():
+            if action.text().replace("&", "") == action_name.replace("&", ""):
+                menu.removeAction(action)
+                break
 
     def add_dock(
         self,
