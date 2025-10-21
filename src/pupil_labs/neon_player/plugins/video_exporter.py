@@ -33,7 +33,7 @@ class VideoExporter(neon_player.Plugin):
 
         return self.bg_export(destination)
 
-    def bg_export(self, destination: Path) -> T.Generator:
+    def bg_export(self, destination: Path = Path()) -> T.Generator:
         self.is_exporting = True
         recording = self.app.recording
 

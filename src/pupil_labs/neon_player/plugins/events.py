@@ -285,7 +285,7 @@ class EventsPlugin(neon_player.Plugin):
         return event_type
 
     @action
-    def export(self, destination: Path = Path(".")):
+    def export(self, destination: Path = Path()):
         start_time, stop_time = neon_player.instance().recording_settings.export_window
         event_names = []
         for uid in self.events:

@@ -3,6 +3,7 @@ import importlib.util
 import json
 import logging
 import logging.handlers
+import os
 import sys
 import time
 import typing
@@ -82,6 +83,8 @@ class NeonPlayerApp(QApplication):
     def __init__(self, argv: list[str]) -> None:
         self._initializing = True
         super().__init__(argv)
+
+        os.chdir(Path.home())
 
         self.setApplicationName("Neon Player")
         self.setWindowIcon(QIcon(str(neon_player.asset_path("neon-player.svg"))))

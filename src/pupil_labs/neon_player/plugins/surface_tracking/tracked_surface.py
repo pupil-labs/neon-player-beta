@@ -91,7 +91,7 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
             viz.changed.connect(self.changed.emit)
 
     @action
-    def export_video(self, destination: Path):
+    def export_video(self, destination: Path = Path()):
         tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
         self.export_job = tracker_plugin.job_manager.run_background_action(
             f"{self._tracked_surface.name} Surface Video Export",
@@ -424,7 +424,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         ])
         return self.image_points_to_surface(offset_gazes)
 
-    def export_gazes(self, gazes, destination: Path):
+    def export_gazes(self, gazes, destination: Path = Path()):
         mapped_gazes = self.apply_offset_and_map_gazes(gazes)
 
         lower_pass = np.all(mapped_gazes >= 0, axis=1)
@@ -448,7 +448,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             cv2.applyColorMap(self._heatmap, self.heatmap_color.value)
         )
 
-    def export_fixations(self, gazes, destination: Path):
+    def export_fixations(self, gazes, destination: Path = Path()):
         try:
             gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
             fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
