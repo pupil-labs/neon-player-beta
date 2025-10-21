@@ -123,8 +123,8 @@ class MainWindow(QMainWindow):
         )
         self.register_action("&Help/&About", on_triggered=self.on_about_action)
 
-        self.register_action("&File/&Open", "Ctrl+o", self.on_open_action)
-        self.register_action("&File/&Close", None, self.on_close_action)
+        self.register_action("&File/&Open recording", "Ctrl+o", self.on_open_action)
+        self.register_action("&File/&Close recording", "Ctrl+w", app.unload)
         self.register_action("&File/&Global Settings", None, self.show_global_settings)
         self.rec_settings_action = self.register_action(
             "&File/&Recording Settings",
@@ -135,7 +135,6 @@ class MainWindow(QMainWindow):
         self.register_action(
             "&File/&Export All", on_triggered=app.export_all
         )
-        self.register_action("&File/&Close", "Ctrl+w", app.unload)
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
         self.register_action("&View/&Console", "Ctrl+Alt+c", self.console_window.show)
         self.play_action = self.register_action(
