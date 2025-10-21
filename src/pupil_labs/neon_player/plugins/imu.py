@@ -26,7 +26,7 @@ class IMUPlugin(neon_player.Plugin):
         except AssertionError:
             return
 
-        rotations = Rotation.from_quat(recording.imu.rotation, scalar_first=True)
+        rotations = Rotation.from_quat(recording.imu.rotation)
         eulers = rotations.as_euler(seq="yxz", degrees=True)
 
         self.imu_data = pd.DataFrame({
