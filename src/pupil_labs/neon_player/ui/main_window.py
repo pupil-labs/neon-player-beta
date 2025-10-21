@@ -5,10 +5,12 @@ from pathlib import Path
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
     Qt,
+    QUrl,
 )
 from PySide6.QtGui import (
     QAction,
     QColor,
+    QDesktopServices,
     QPalette,
 )
 from PySide6.QtWidgets import (
@@ -136,7 +138,17 @@ class MainWindow(QMainWindow):
             "&File/&Export All", on_triggered=app.export_all
         )
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
-        self.register_action("&View/&Console", "Ctrl+Alt+c", self.console_window.show)
+
+        self.register_action("&Tools/&Console", "Ctrl+Alt+c", self.console_window.show)
+        self.register_action(
+            "&Tools/&Browse recording folder", None, self.on_show_recording_folder
+        )
+        self.register_action(
+            "&Tools/Browse recording &settings and cache folder",
+            None,
+            self.on_show_recording_cache
+        )
+
         self.play_action = self.register_action(
             "&Playback/&Play\\Pause", "Space", self.on_play_action
         )
@@ -186,6 +198,22 @@ class MainWindow(QMainWindow):
 
     def on_quit_action(self) -> None:
         self.close()
+
+    def on_show_recording_folder(self) -> None:
+        app = neon_player.instance()
+        if app.recording is None:
+            return
+
+        url = QUrl.fromLocalFile(str(app.recording._rec_dir))
+        QDesktopServices.openUrl(url)
+
+    def on_show_recording_cache(self) -> None:
+        app = neon_player.instance()
+        if app.recording is None:
+            return
+
+        url = QUrl.fromLocalFile(str(app.recording._rec_dir / ".neon_player"))
+        QDesktopServices.openUrl(url)
 
     def dragEnterEvent(self, event):
         # Accept directories only
