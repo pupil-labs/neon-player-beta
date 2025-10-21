@@ -30,7 +30,10 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import ConsoleWindow
-from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
+from pupil_labs.neon_player.ui.settings_panel import (
+    SecretsManagementWidget,
+    SettingsPanel,
+)
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
@@ -109,7 +112,7 @@ class MainWindow(QMainWindow):
 
         self.console_window = ConsoleWindow()
         self.settings_panel = SettingsPanel()
-        self.add_dock(
+        self.settings_dock = self.add_dock(
             self.settings_panel, "Control Panel", Qt.DockWidgetArea.RightDockWidgetArea
         )
 
@@ -339,6 +342,9 @@ class GlobalSettingsDialog(QDialog):
         )
 
         expander_list.add_expander("General", global_settings_form)
+
+        secrets_management_widget = SecretsManagementWidget()
+        expander_list.add_expander("Secrets", secrets_management_widget)
 
         for cls in Plugin.known_classes:
             if cls.global_properties is not None:

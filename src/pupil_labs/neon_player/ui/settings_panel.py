@@ -2,7 +2,13 @@ from datetime import datetime
 
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QListWidget,
+    QMessageBox,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -10,7 +16,7 @@ from qt_property_widgets.expander import Expander, ExpanderList
 from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player import Plugin, secrets
 
 
 class RecordingInfoWidget(QWidget):
@@ -49,6 +55,86 @@ class RecordingInfoWidget(QWidget):
         self.recording_id_label.setText("-")
         self.recording_date_label.setText("-")
         self.wearer_label.setText("-")
+
+
+class SecretsManagementWidget(QWidget):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        self.secrets_list = QListWidget()
+        self.secrets_list.itemSelectionChanged.connect(self.on_selection_changed)
+        layout.addWidget(self.secrets_list)
+
+        buttons_layout = QHBoxLayout()
+        self.add_button = QPushButton("Add...")
+        self.add_button.clicked.connect(self.on_add_secret)
+        self.remove_button = QPushButton("Remove")
+        self.remove_button.clicked.connect(self.on_remove_secret)
+        self.remove_button.setEnabled(False)
+        buttons_layout.addWidget(self.add_button)
+        buttons_layout.addWidget(self.remove_button)
+        layout.addLayout(buttons_layout)
+
+        self.refresh_secrets_list()
+
+    def refresh_secrets_list(self):
+        self.secrets_list.clear()
+        keys = secrets.list_secret_keys()
+        self.secrets_list.addItems(keys)
+
+    def on_selection_changed(self):
+        self.remove_button.setEnabled(len(self.secrets_list.selectedItems()) > 0)
+
+    def on_add_secret(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Add Secret")
+        layout = QVBoxLayout()
+        dialog.setLayout(layout)
+
+        layout.addWidget(QLabel("Name:"))
+        name_input = QLineEdit()
+        layout.addWidget(name_input)
+
+        layout.addWidget(QLabel("Secret:"))
+        secret_input = QLineEdit()
+        secret_input.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(secret_input)
+
+        buttons_layout = QHBoxLayout()
+        ok_button = QPushButton("OK")
+        ok_button.clicked.connect(dialog.accept)
+        cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(dialog.reject)
+        buttons_layout.addWidget(ok_button)
+        buttons_layout.addWidget(cancel_button)
+        layout.addLayout(buttons_layout)
+
+        if dialog.exec():
+            name = name_input.text()
+            secret = secret_input.text()
+            if name and secret:
+                secrets.set_secret(name, secret)
+                self.refresh_secrets_list()
+
+    def on_remove_secret(self):
+        selected_items = self.secrets_list.selectedItems()
+        if not selected_items:
+            return
+
+        key_to_remove = selected_items[0].text()
+        reply = QMessageBox.question(
+            self,
+            "Remove Secret",
+            f"Are you sure you want to remove the secret '{key_to_remove}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            secrets.delete_secret(key_to_remove)
+            self.refresh_secrets_list()
 
 
 class SettingsPanel(ExpanderList):
