@@ -140,20 +140,21 @@ class EventsPlugin(neon_player.Plugin):
 
         timeline = self.get_timeline_dock()
         timeline.remove_timeline_plot("Events")
-        for uid in self.events:
-            name = uid if uid in IMMUTABLE_EVENTS else self.get_event_type(uid).name
+        for et in self._event_types:
+            timeline.remove_timeline_plot(f"Events - {et.name}")
 
-            timeline.remove_timeline_plot(f"Events/{name}")
+        for plot_name in IMMUTABLE_EVENTS:
+            timeline.remove_timeline_plot(f"Events - {plot_name}")
 
     def _setup_gui_for_event_type(self, event_type: EventType) -> None:
         timeline = self.get_timeline_dock()
         existing_plot = timeline.get_timeline_plot(
-            f"Events/{event_type.name}", create_if_not_exists=False
+            f"Events - {event_type.name}", create_if_not_exists=False
         )
         if existing_plot is not None:
             return
 
-        timeline.add_timeline_scatter(f"Events/{event_type.name}", [])
+        timeline.add_timeline_scatter(f"Events - {event_type.name}", [])
         if event_type.name not in IMMUTABLE_EVENTS:
             action = self.register_timeline_action(
                 f"Add Event/{event_type.name}",
@@ -165,15 +166,15 @@ class EventsPlugin(neon_player.Plugin):
         def register_data_actions():
             if event_type.name not in IMMUTABLE_EVENTS:
                 self.register_data_point_action(
-                    f"Events/{event_type.name}",
+                    f"Events - {event_type.name}",
                     f"Delete {event_type.name} instance",
                     lambda data_point, et=event_type: self.delete_event_instance(
-                        f"Events/{event_type.name}", data_point, et
+                        f"Events - {event_type.name}", data_point, et
                     )
                 )
 
             self.register_data_point_action(
-                f"Events/{event_type.name}",
+                f"Events - {event_type.name}",
                 f"Seek to this {event_type.name}",
                 self.seek_to_event_instance
             )
@@ -207,13 +208,13 @@ class EventsPlugin(neon_player.Plugin):
     def _update_timeline_data(self, event_type: EventType) -> None:
         timeline = self.get_timeline_dock()
         event_name = event_type.name
-        plot_item = timeline.get_timeline_plot(f"Events/{event_name}", True)
+        plot_item = timeline.get_timeline_plot(f"Events - {event_name}", True)
 
         events = self.events.get(event_type.uid, [])
 
         if len(plot_item.items) == 0:
             timeline.add_timeline_scatter(
-                f"Events/{event_name}",
+                f"Events - {event_name}",
                 np.array([[t, 0] for t in events]),
             )
         else:
@@ -259,7 +260,7 @@ class EventsPlugin(neon_player.Plugin):
                 del self.events[removed_event_type.uid]
 
             self.get_timeline_dock().remove_timeline_plot(
-                f"Events/{removed_event_type.name}"
+                f"Events - {removed_event_type.name}"
             )
             self.save_cached_json('events.json', self.events)
             self.app.main_window.unregister_action(
@@ -269,7 +270,7 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types = value
 
     def _on_event_name_changed(self, old_name, new_name, event_type) -> None:
-        self.get_timeline_dock().remove_timeline_plot(f"Events/{old_name}")
+        self.get_timeline_dock().remove_timeline_plot(f"Events - {old_name}")
         self._update_timeline_data(event_type)
 
     def _create_event_type(self, event_name: str) -> None:

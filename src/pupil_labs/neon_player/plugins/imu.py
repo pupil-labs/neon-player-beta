@@ -51,7 +51,7 @@ class IMUPlugin(neon_player.Plugin):
 
     def on_disabled(self) -> None:
         timeline = self.get_timeline_dock()
-        for name in ["Rotation", "Gyroscope", "Acceleration"]:
+        for name in ["IMU - Orientation", "IMU - Gyroscope", "IMU - Acceleration"]:
             timeline.remove_timeline_plot(name)
 
 
@@ -66,36 +66,36 @@ class IMUPlugin(neon_player.Plugin):
             for euler_axis in ["roll", "pitch", "yaw"]:
                 data = self.imu_data[["timestamp [ns]", f"{euler_axis} [deg]"]]
                 timeline.add_timeline_line(
-                    "IMU/Rotation",
+                    "IMU - Orientation",
                     data.to_numpy(),
                     euler_axis,
                 )
         elif not self._show_rotation and rotation_plot is not None:
-            timeline.remove_timeline_plot("IMU/Rotation")
+            timeline.remove_timeline_plot("IMU - Orientation")
 
-        gyro_plot = timeline.get_timeline_plot("IMU/Gyroscope")
+        gyro_plot = timeline.get_timeline_plot("IMU - Gyroscope")
         if self._show_gyro and gyro_plot is None:
             for gyro_axis in "xyz":
                 data = self.imu_data[["timestamp [ns]", f"gyro {gyro_axis} [deg/s]"]]
                 timeline.add_timeline_line(
-                    "IMU/Gyroscope",
+                    "IMU - Gyroscope",
                     data.to_numpy(),
                     gyro_axis,
             )
         elif not self._show_gyro and gyro_plot is not None:
-            timeline.remove_timeline_plot("IMU/Gyroscope")
+            timeline.remove_timeline_plot("IMU - Gyroscope")
 
-        acc_plot = timeline.get_timeline_plot("IMU/Acceleration")
+        acc_plot = timeline.get_timeline_plot("IMU - Acceleration")
         if self._show_acceleration and acc_plot is None:
             for acc_axis in "xyz":
                 data = self.imu_data[["timestamp [ns]", f"acceleration {acc_axis} [g]"]]
                 timeline.add_timeline_line(
-                    "IMU/Acceleration",
+                    "IMU - Acceleration",
                     data.to_numpy(),
                     acc_axis,
             )
         elif not self._show_acceleration and acc_plot is not None:
-            timeline.remove_timeline_plot("IMU/Acceleration")
+            timeline.remove_timeline_plot("IMU - Acceleration")
 
     @action
     def export(self, destination: Path = Path()) -> None:

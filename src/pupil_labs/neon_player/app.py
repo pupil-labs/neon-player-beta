@@ -319,11 +319,11 @@ class NeonPlayerApp(QApplication):
 
     def unload(self) -> None:
         self.set_playback_state(False)
-        self.recording = None
         class_names = list(self.plugins_by_class.keys())
         for plugin_class_name in class_names:
             self.toggle_plugin(plugin_class_name, False)
 
+        self.recording = None
         self.recording_unloaded.emit()
 
     def load(self, path: Path) -> None:

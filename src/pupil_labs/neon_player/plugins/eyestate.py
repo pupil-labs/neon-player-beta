@@ -178,11 +178,11 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
 
     def on_disabled(self) -> None:
         timeline = self.get_timeline_dock()
-        timeline.remove_timeline_plot("Eyestate/Pupil diameter")
-        timeline.remove_timeline_plot("Eyestate/Eyeball center")
-        timeline.remove_timeline_plot("Eyestate/Optical axis")
-        timeline.remove_timeline_plot("Eyestate/Eyelid angle")
-        timeline.remove_timeline_plot("Eyestate/Eyelid aperture")
+        timeline.remove_timeline_plot("Eyestate - Pupil diameter")
+        timeline.remove_timeline_plot("Eyestate - Eyeball center")
+        timeline.remove_timeline_plot("Eyestate - Optical axis")
+        timeline.remove_timeline_plot("Eyestate - Eyelid angle")
+        timeline.remove_timeline_plot("Eyestate - Eyelid aperture")
 
     def on_plot_visibilities_changed(self, name, value):
         return self._update_plot_visibilities(name, value)
@@ -196,7 +196,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
             return
 
         timeline = self.get_timeline_dock()
-        group_display_title = f"Eyestate/{group_name}"
+        group_display_title = f"Eyestate - {group_name}"
 
         for plot_name, enabled in plot_flags.items():
             existing_plot = timeline.get_timeline_series(group_display_title, plot_name)
