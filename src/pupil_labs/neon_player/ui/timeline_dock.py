@@ -10,6 +10,7 @@ from pyqtgraph.GraphicsScene.mouseEvents import (
 from PySide6.QtCore import QPoint, QPointF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QKeyEvent
 from PySide6.QtWidgets import (
+    QComboBox,
     QGraphicsSceneMouseEvent,
     QHBoxLayout,
     QMenu,
@@ -19,7 +20,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from qt_property_widgets.widgets import IntSpinboxWidget
 
 from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
@@ -70,31 +70,27 @@ class TimeLineDock(QWidget):
         )
         self.toolbar_layout.addWidget(self.play_button)
 
-        self.speed_control = IntSpinboxWidget()
-        self.speed_control.spinbox.setSuffix("%")
-        self.speed_control.slider.setVisible(True)
-        self.speed_control.setRange(-500, 500)
-        self.speed_control.slider.setTickInterval(10)
-        self.speed_control.value = 100
-        self.speed_control.setMaximumWidth(200)
-        self.speed_control.setStyleSheet("""
-            QSlider::groove:horizontal {
-                background: #333;
-            }
+        self.speed_control = QComboBox()
+        self.speed_control.addItems([
+            "-2.00x", "-1.75x", "-1.50x", "-1.25x",
+            "-1.00x", "-0.75x", "-0.50x", "-0.25x",
+        ])
+        self.speed_control.insertSeparator(self.speed_control.count())
+        self.speed_control.addItems([
+            " 0.25x", " 0.50x", " 0.75x", " 1.00x",
+            " 1.25x", " 1.50x", " 1.75x", " 2.00x",
+        ])
+        self.speed_control.setStyleSheet("font-family: monospace;")
+        self.speed_control.setCurrentText(" 1.00x")
 
-            QSlider::handle:horizontal {
-                background: #ffffff;
-                width: 10px;
-            }
-        """)
-        self.speed_control.value_changed.connect(
-            lambda v: app.set_playback_speed(v / 100)
+        self.speed_control.currentTextChanged.connect(
+            lambda t: app.set_playback_speed(float(t[:-1]))
         )
 
         self.toolbar_layout.addWidget(self.speed_control)
 
         self.timestamp_label = TimestampLabel()
-        self.toolbar_layout.addWidget(self.timestamp_label)
+        self.toolbar_layout.addWidget(self.timestamp_label, 1)
 
         self.main_layout.addLayout(self.toolbar_layout)
 
