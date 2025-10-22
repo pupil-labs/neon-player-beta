@@ -29,7 +29,7 @@ class FixationsPlugin(neon_player.Plugin):
     def __init__(self) -> None:
         super().__init__()
 
-        self._visualizations: list[FixationVisualization] = [FixationAnnulusViz()]
+        self._visualizations: list[FixationVisualization] = [FixationCircleViz()]
 
         self.gaze_plugin: GazeDataPlugin | None = None
         self.optic_flow: OpticFlow | None = None
@@ -301,7 +301,9 @@ class FixationVisualization(PersistentPropertiesMixin, QObject):
         self._adjust_for_optic_flow = value
 
 
-class FixationAnnulusViz(FixationVisualization):
+class FixationCircleViz(FixationVisualization):
+    label = "Circle"
+
     def __init__(self) -> None:
         super().__init__()
         self._color = QColor(255, 255, 0, 196)

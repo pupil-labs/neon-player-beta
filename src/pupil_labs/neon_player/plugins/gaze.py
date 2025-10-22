@@ -59,7 +59,7 @@ class GazeDataPlugin(neon_player.Plugin):
         self._offset_y = 0.0
 
         self._visualizations: list[GazeVisualization] = [
-            AnnulusViz(),
+            CircleViz(),
         ]
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
@@ -212,7 +212,7 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
     def __init__(self) -> None:
         super().__init__()
         self._use_offset = True
-        self._aggregation = Aggregation.Raw
+        self._aggregation = Aggregation.Mean
 
         self.recording: NeonRecording | None = None
 
@@ -249,7 +249,9 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
         self._aggregation = value
 
 
-class AnnulusViz(GazeVisualization):
+class CircleViz(GazeVisualization):
+    label = "Circle"
+
     def __init__(self) -> None:
         super().__init__()
         self._color = QColor(255, 0, 0, 128)
@@ -298,18 +300,33 @@ class AnnulusViz(GazeVisualization):
 
 
 class CrosshairViz(GazeVisualization):
+    label = "Crosshair"
+
     def __init__(self) -> None:
         super().__init__()
         self._color = QColor(0, 255, 0, 128)
-        self._size = 20
+        self._size = 40
+        self._gap_size = 20
         self._stroke_width = 5
+        self._draw_dot = True
 
     def render(
         self,
         painter: QPainter,
         gazes: npt.NDArray[np.float64],
     ) -> None:
+        brush = painter.brush()
         pen = painter.pen()
+        pen.setColor("#00000000")
+        painter.setPen(pen)
+        painter.setBrush(self._color)
+
+        if self._draw_dot:
+            for gaze in gazes:
+                center = QPointF(gaze[0], gaze[1])
+
+                painter.drawEllipse(center, self._stroke_width / 2, self._stroke_width / 2)
+
         pen.setWidth(self._stroke_width)
         pen.setColor(self._color)
         painter.setPen(pen)
@@ -317,17 +334,28 @@ class CrosshairViz(GazeVisualization):
         for gaze in gazes:
             center = QPointF(gaze[0], gaze[1])
 
-            # Draw horizontal line
+            # Draw horizontal lines
             painter.drawLine(
-                QPointF(center.x() - self._size, center.y()),
-                QPointF(center.x() + self._size, center.y()),
+                QPointF(center.x() - self._gap_size, center.y()),
+                QPointF(center.x() - self._gap_size - self._size, center.y()),
+            )
+            painter.drawLine(
+                QPointF(center.x() + self._gap_size + self._size, center.y()),
+                QPointF(center.x() + self._gap_size, center.y()),
             )
 
-            # Draw vertical line
+            # Draw vertical lines
             painter.drawLine(
-                QPointF(center.x(), center.y() - self._size),
-                QPointF(center.x(), center.y() + self._size),
+                QPointF(center.x(), center.y() - self._gap_size),
+                QPointF(center.x(), center.y() - self._gap_size - self._size),
             )
+
+            painter.drawLine(
+                QPointF(center.x(), center.y() + self._gap_size),
+                QPointF(center.x(), center.y() + self._gap_size + self._size),
+            )
+
+        painter.setBrush(brush)
 
     @property
     def color(self) -> QColor:
@@ -338,7 +366,7 @@ class CrosshairViz(GazeVisualization):
         self._color = value
 
     @property
-    @property_params(min=1, max=999)
+    @property_params(min=0, max=1920)
     def size(self) -> int:
         return self._size
 
@@ -347,10 +375,27 @@ class CrosshairViz(GazeVisualization):
         self._size = value
 
     @property
-    @property_params(min=1, max=999)
+    @property_params(min=0, max=1920)
+    def gap_size(self) -> int:
+        return self._gap_size
+
+    @gap_size.setter
+    def gap_size(self, value: int) -> None:
+        self._gap_size = value
+
+    @property
+    @property_params(min=1, max=100)
     def stroke_width(self) -> int:
         return self._stroke_width
 
     @stroke_width.setter
     def stroke_width(self, value: int) -> None:
         self._stroke_width = value
+
+    @property
+    def draw_dot(self) -> bool:
+        return self._draw_dot
+
+    @draw_dot.setter
+    def draw_dot(self, value: bool) -> None:
+        self._draw_dot = value
