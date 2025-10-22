@@ -47,7 +47,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
         return self.app.main_window.register_action(f"Timeline/{name}", None, func)
 
     def register_data_point_action(self, event_name: str, action_name: str, callback: T.Callable) -> None:
-        self.app.main_window.timeline_dock.register_data_point_action(
+        self.app.main_window.timeline.register_data_point_action(
             event_name,
             action_name,
             callback
@@ -75,8 +75,8 @@ class Plugin(PersistentPropertiesMixin, QObject):
     def trigger_scene_update(self) -> None:
         self.app.main_window.video_widget.update()
 
-    def get_timeline_dock(self) -> TimeLineDock:
-        return self.app.main_window.timeline_dock
+    def get_timeline(self) -> TimeLineDock:
+        return self.app.main_window.timeline
 
     def get_cache_path(self) -> Path:
         if self.recording is None:

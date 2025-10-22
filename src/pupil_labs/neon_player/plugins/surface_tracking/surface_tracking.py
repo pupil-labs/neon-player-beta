@@ -61,7 +61,7 @@ class SurfaceTrackingPlugin(Plugin):
         self.marker_edit_widgets = {}
 
     def on_disabled(self) -> None:
-        self.get_timeline_dock().remove_timeline_plot("Visible markers")
+        self.get_timeline().remove_timeline_plot("Visible markers")
 
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
@@ -303,7 +303,7 @@ class SurfaceTrackingPlugin(Plugin):
                     value
                 ))
 
-        self.get_timeline_dock().add_timeline_plot(
+        self.get_timeline().add_timeline_plot(
             "Visible markers",
             marker_count_changes
         )

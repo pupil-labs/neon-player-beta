@@ -75,7 +75,7 @@ class EventsPlugin(neon_player.Plugin):
     def __init__(self) -> None:
         super().__init__()
         self._event_types: list[EventType] = []
-        self.get_timeline_dock().key_pressed.connect(self._on_key_pressed)
+        self.get_timeline().key_pressed.connect(self._on_key_pressed)
 
     def _on_key_pressed(self, event: QKeyEvent) -> None:
         key_text = event.text().lower()
@@ -138,7 +138,7 @@ class EventsPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        timeline = self.get_timeline_dock()
+        timeline = self.get_timeline()
         timeline.remove_timeline_plot("Events")
         for et in self._event_types:
             timeline.remove_timeline_plot(f"Events - {et.name}")
@@ -147,7 +147,7 @@ class EventsPlugin(neon_player.Plugin):
             timeline.remove_timeline_plot(f"Events - {plot_name}")
 
     def _setup_gui_for_event_type(self, event_type: EventType) -> None:
-        timeline = self.get_timeline_dock()
+        timeline = self.get_timeline()
         existing_plot = timeline.get_timeline_plot(
             f"Events - {event_type.name}", create_if_not_exists=False
         )
@@ -206,7 +206,7 @@ class EventsPlugin(neon_player.Plugin):
         self.app.seek_to(data_point[0])
 
     def _update_timeline_data(self, event_type: EventType) -> None:
-        timeline = self.get_timeline_dock()
+        timeline = self.get_timeline()
         event_name = event_type.name
         plot_item = timeline.get_timeline_plot(f"Events - {event_name}", True)
 
@@ -259,7 +259,7 @@ class EventsPlugin(neon_player.Plugin):
             if removed_event_type.uid in self.events:
                 del self.events[removed_event_type.uid]
 
-            self.get_timeline_dock().remove_timeline_plot(
+            self.get_timeline().remove_timeline_plot(
                 f"Events - {removed_event_type.name}"
             )
             self.save_cached_json('events.json', self.events)
@@ -270,7 +270,7 @@ class EventsPlugin(neon_player.Plugin):
         self._event_types = value
 
     def _on_event_name_changed(self, old_name, new_name, event_type) -> None:
-        self.get_timeline_dock().remove_timeline_plot(f"Events - {old_name}")
+        self.get_timeline().remove_timeline_plot(f"Events - {old_name}")
         self._update_timeline_data(event_type)
 
     def _create_event_type(self, event_name: str) -> None:

@@ -15,13 +15,13 @@ class BlinksPlugin(neon_player.Plugin):
         if len(recording.blinks) == 0:
             return
 
-        self.get_timeline_dock().add_timeline_broken_bar(
+        self.get_timeline().add_timeline_broken_bar(
             "Blinks",
             self.recording.blinks[["start_time", "stop_time"]]
         )
 
     def on_disabled(self) -> None:
-        self.get_timeline_dock().remove_timeline_plot("Blinks")
+        self.get_timeline().remove_timeline_plot("Blinks")
 
     @action
     def export(self, destination: Path = Path()) -> None:

@@ -177,7 +177,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         self._update_plot_visibilities("Eyelid aperture", self._eyelid_aperture_plots)
 
     def on_disabled(self) -> None:
-        timeline = self.get_timeline_dock()
+        timeline = self.get_timeline()
         timeline.remove_timeline_plot("Eyestate - Pupil diameter")
         timeline.remove_timeline_plot("Eyestate - Eyeball center")
         timeline.remove_timeline_plot("Eyestate - Optical axis")
@@ -195,7 +195,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         if self.eyestate_data is None:
             return
 
-        timeline = self.get_timeline_dock()
+        timeline = self.get_timeline()
         group_display_title = f"Eyestate - {group_name}"
 
         for plot_name, enabled in plot_flags.items():

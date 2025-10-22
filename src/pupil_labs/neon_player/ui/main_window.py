@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QMenuBar,
     QMessageBox,
+    QStackedLayout,
     QVBoxLayout,
     QWidget,
 )
@@ -102,8 +103,33 @@ class MainWindow(QMainWindow):
             }
         """)
 
+        self.greeting_label = QLabel("""
+            <h1>Welcome to Neon Player!</h1>
+            <p>
+                To get started, drag and drop a recording folder here or
+                <a href="action:File/Open recording">browse to a recording folder</a>.
+            </p>
+            <p>
+                Visit our <a href="https://docs.pupil-labs.com/neon/neon-player/">
+                online documentation</a> for help and more information.
+            </p>
+        """, parent=self)
+        self.greeting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.greeting_label.setStyleSheet("background: #000000")
+        self.greeting_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        self.greeting_label.linkActivated.connect(self.on_greeting_link_clicked)
+
         self.video_widget = VideoRenderWidget()
-        self.setCentralWidget(self.video_widget)
+
+        self.greeting_switcher = QStackedLayout()
+        central_widget = QWidget(self)
+        central_widget.setLayout(self.greeting_switcher)
+        self.greeting_switcher.addWidget(self.greeting_label)
+        self.greeting_switcher.addWidget(self.video_widget)
+        self.setCentralWidget(central_widget)
+
+        app.recording_loaded.connect(self.on_recording_opened)
+        app.recording_unloaded.connect(self.on_recording_closed)
 
         self.job_status_label = QLabel()
 
@@ -111,13 +137,13 @@ class MainWindow(QMainWindow):
 
         self.console_window = ConsoleWindow()
         self.settings_panel = SettingsPanel()
-        self.add_dock(
+        self.settings_dock = self.add_dock(
             self.settings_panel, "Control Panel", Qt.DockWidgetArea.RightDockWidgetArea
         )
 
-        self.timeline_dock = TimeLineDock()
-        self.add_dock(
-            self.timeline_dock, "Timeline", Qt.DockWidgetArea.BottomDockWidgetArea
+        self.timeline = TimeLineDock()
+        self.timeline_dock = self.add_dock(
+            self.timeline, "Timeline", Qt.DockWidgetArea.BottomDockWidgetArea
         )
 
         self.register_action(
@@ -154,7 +180,7 @@ class MainWindow(QMainWindow):
         )
 
         self.register_action(
-            "&Timeline/&Reset view", None, self.timeline_dock.reset_view
+            "&Timeline/&Reset view", None, self.timeline.reset_view
         )
 
         self.setCorner(
@@ -165,6 +191,31 @@ class MainWindow(QMainWindow):
         app.recording_loaded.connect(
             lambda recording: self.rec_settings_action.setDisabled(recording is None)
         )
+
+        self.on_recording_closed()
+
+    def on_greeting_link_clicked(self, link: str):
+        if link.startswith("action:"):
+            action = self.get_action(link[7:])
+            if action:
+                action.trigger()
+
+        else:
+            QDesktopServices.openUrl(QUrl(link))
+
+    def on_recording_opened(self):
+        self.greeting_switcher.setCurrentIndex(1)
+        self.timeline_dock.show()
+        self.settings_dock.show()
+        self.menuBar().show()
+        self.statusBar().show()
+
+    def on_recording_closed(self):
+        self.greeting_switcher.setCurrentIndex(0)
+        self.timeline_dock.hide()
+        self.settings_dock.hide()
+        self.menuBar().hide()
+        self.statusBar().hide()
 
     def on_open_action(self) -> None:
         app = neon_player.instance()
