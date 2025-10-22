@@ -64,14 +64,21 @@ class SettingsPanel(ExpanderList):
         )
 
     def add_plugin_settings(self, instance: Plugin) -> None:
+        app = neon_player.instance()
+
         cls = instance.__class__
         class_name = cls.__name__
 
         settings_form = PropertyForm(instance)
-        expander = self.add_expander(cls.get_label(), settings_form)
+        expander = self.add_expander(
+            cls.get_label(),
+            settings_form,
+            not app.loading_recording
+        )
         self.plugin_class_expanders[class_name] = expander
 
     def remove_plugin_settings(self, class_name: str) -> None:
         expander = self.plugin_class_expanders[class_name]
         self.remove_expander(expander)
         del self.plugin_class_expanders[class_name]
+

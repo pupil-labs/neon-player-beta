@@ -102,6 +102,7 @@ class NeonPlayerApp(QApplication):
         self.playback_speed = 1.0
 
         self.settings = GeneralSettings()
+        self.loading_recording = False
         self.recording_settings = None
 
         self.refresh_timer = QTimer(self)
@@ -328,6 +329,7 @@ class NeonPlayerApp(QApplication):
 
     def load(self, path: Path) -> None:
         """Load a recording from the given path."""
+        self.loading_recording = True
         self.unload()
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
@@ -365,10 +367,12 @@ class NeonPlayerApp(QApplication):
             self.seek_to(self.recording.start_time)
 
         QTimer.singleShot(0, self.toggle_plugins_by_settings)
-        QTimer.singleShot(10, self.main_window.timeline.init_view)
+        QTimer.singleShot(10, self.on_recording_load_complete)
         self.recording_settings.changed.connect(self.toggle_plugins_by_settings)
         SlotDebouncer.debounce(self.recording_settings.changed, self.save_settings)
 
+    def on_recording_load_complete(self) -> None:
+        self.loading_recording = False
         self.recording_loaded.emit(self.recording)
 
     def toggle_plugins_by_settings(self) -> None:
