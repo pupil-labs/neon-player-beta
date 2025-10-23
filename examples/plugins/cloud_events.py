@@ -1,8 +1,6 @@
 # /// script
 # requires-python = ">=3.10"
 # dependencies = [
-# "pandas",
-# "pupil-labs-neon-recording",
 # "numpy",
 # "aiohttp",
 # ]
@@ -80,18 +78,18 @@ class CloudEventsPlugin(Plugin):
             try:
                 cloud_events = await from_cloud(workspace_id, recording_id, token)
                 for event in cloud_events:
+                    event_type = None
                     if event.name in IMMUTABLE_EVENTS:
                         continue  # Skip immutable events
                     print(
                         f"Fetched event from cloud: {event.name} at {event.timestamp_ns} ns"
                     )
-                    for event_type in events_plugin._event_types:
-                        if event.name == event_type.name:
-                            etype = event_type
-                            break
-                    else:
-                        etype = events_plugin._create_event_type(event.name)
-                    events_plugin.add_event(event.name, etype, event.timestamp_ns)
+                    event_type = [
+                        et for et in events_plugin.event_types if et.name == event.name
+                    ]
+                    if not event_type:
+                        event_type = events_plugin._create_event_type(event.name)
+                    events_plugin.add_event(event_type, int(event.timestamp_ns))
                 self.app.show_notification("Success", "Events synced from Pupil Cloud.")
             except Exception as e:
                 self.app.show_notification("Error", f"Failed to sync events: {e}")
