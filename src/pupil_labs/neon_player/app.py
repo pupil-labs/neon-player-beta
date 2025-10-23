@@ -14,13 +14,14 @@ from PySide6.QtGui import QAction, QIcon, QPainter
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QMessageBox,
     QSystemTrayIcon,
 )
 from qt_property_widgets.utilities import ComplexEncoder, create_action_object
 
 from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
-from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player import Plugin, secrets
 from pupil_labs.neon_player.job_manager import JobManager
 from pupil_labs.neon_player.plugins import (
     audio,  # noqa: F401
@@ -71,6 +72,7 @@ def setup_logging() -> None:
     # Log startup message
     logging.info("Neon Player starting up")
     logging.info(f"Logging to file: {log_file}")
+
 
 class NeonPlayerApp(QApplication):
     playback_state_changed = Signal(bool)
@@ -303,6 +305,21 @@ class NeonPlayerApp(QApplication):
             self.tray_icon.setContextMenu(context_menu)
 
         return self.exec()
+
+    def get_secret(self, key_name: str) -> str | None:
+        secret = secrets.get_secret(key_name)
+        if secret is None:
+            reply = QMessageBox.question(
+                self.main_window,
+                "Secret not found",
+                f"The required secret '{key_name}' is not set. Would you like to open settings to add it?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self.main_window.settings_dock.show()
+                # ToDo: focus the secrets management widget
+        return secret
 
     def show_notification(
         self,
