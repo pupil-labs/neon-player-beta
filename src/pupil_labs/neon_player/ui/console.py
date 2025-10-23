@@ -18,6 +18,13 @@ from PySide6.QtWidgets import (
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import BackgroundJob
 
+LOG_COLORS = {
+    "DEBUG": Qt.GlobalColor.green,
+    "INFO": Qt.GlobalColor.white,
+    "WARNING": Qt.GlobalColor.yellow,
+    "ERROR": Qt.GlobalColor.red,
+    "CRITICAL": Qt.GlobalColor.magenta,
+}
 
 class QTextEditLogger(logging.Handler):
     """Custom logging handler that writes to a QTextEdit.
@@ -31,14 +38,6 @@ class QTextEditLogger(logging.Handler):
         self._buffer: list[str] = []
         self._text_edit: QTextEdit | None = None
 
-        self.colors = {
-            "DEBUG": Qt.GlobalColor.green,
-            "INFO": Qt.GlobalColor.white,
-            "WARNING": Qt.GlobalColor.yellow,
-            "ERROR": Qt.GlobalColor.red,
-            "CRITICAL": Qt.GlobalColor.magenta,
-        }
-
     def set_text_edit(self, text_edit: QTextEdit) -> None:
         self._text_edit = text_edit
         # Flush any buffered messages
@@ -49,7 +48,7 @@ class QTextEditLogger(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         """Emit a log record to the text edit."""
         msg = self.format(record)
-        color = self.colors.get(record.levelname)
+        color = LOG_COLORS[record.levelname]
         self._append_text(msg, color)
 
     def _append_text(self, text: str, color: Qt.GlobalColor | None = None) -> None:

@@ -1,3 +1,4 @@
+import logging
 import typing
 import webbrowser
 from pathlib import Path
@@ -22,6 +23,8 @@ from PySide6.QtWidgets import (
     QMenu,
     QMenuBar,
     QMessageBox,
+    QProgressBar,
+    QPushButton,
     QStackedLayout,
     QVBoxLayout,
     QWidget,
@@ -32,7 +35,7 @@ from qt_property_widgets.widgets import PropertyForm
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ui import QtShortcutType
-from pupil_labs.neon_player.ui.console import ConsoleWindow
+from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
@@ -101,6 +104,15 @@ class MainWindow(QMainWindow):
                 border: 1px solid #555;
                 background-color: #111;
             }
+
+            QStatusBar {
+                border-top: 1px solid #333;
+            }
+
+            QStatusBar > QPushButton {
+                text-align: left;
+                padding: 5px 10px;
+            }
         """)
 
         self.greeting_label = QLabel("""
@@ -131,9 +143,19 @@ class MainWindow(QMainWindow):
         app.recording_loaded.connect(self.on_recording_opened)
         app.recording_unloaded.connect(self.on_recording_closed)
 
-        self.job_status_label = QLabel()
+        self.status_label = QPushButton()
+        self.status_label.setFlat(True)
+        self.status_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.job_progress_bar = QProgressBar()
+        self.job_progress_bar.hide()
+        self.job_progress_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.statusBar().addWidget(self.job_status_label)
+        self.statusBar().addWidget(self.status_label, stretch=5)
+        self.statusBar().addWidget(self.job_progress_bar, stretch=1)
+        app.job_manager.updated.connect(self.update_job_status)
+
+        self.log_status_handler = StatusBarLogHandler(self.status_label)
+        logging.getLogger().addHandler(self.log_status_handler)
 
         self.console_window = ConsoleWindow()
         self.settings_panel = SettingsPanel()
@@ -193,6 +215,7 @@ class MainWindow(QMainWindow):
         )
 
         self.on_recording_closed()
+        self.status_label.clicked.connect(self.console_window.show)
 
     def on_greeting_link_clicked(self, link: str):
         if link.startswith("action:"):
@@ -216,6 +239,30 @@ class MainWindow(QMainWindow):
         self.settings_dock.hide()
         self.menuBar().hide()
         self.statusBar().hide()
+
+    def update_job_status(self) -> None:
+        job_manager = neon_player.instance().job_manager
+
+        job_count = len(job_manager.current_jobs)
+        if job_count == 0:
+            self.job_progress_bar.hide()
+
+        else:
+            self.job_progress_bar.show()
+
+            if job_count == 1:
+                job = job_manager.current_jobs[0]
+                if job.progress > 0:
+                    self.job_progress_bar.setRange(0, 100)
+                    self.job_progress_bar.setValue(100 * job.progress)
+                    self.job_progress_bar.setFormat(f"{job.name} - %p%")
+                else:
+                    self.job_progress_bar.setRange(0, 0)
+
+            else:
+                self.job_progress_bar.setRange(0, 0)
+
+        self.job_progress_bar.setTextVisible(True)
 
     def on_open_action(self) -> None:
         app = neon_player.instance()
@@ -446,3 +493,27 @@ class RecordingSettingsDialog(QDialog):
 
         recording_settings_form = PropertyForm(app.recording_settings)
         layout.addWidget(recording_settings_form)
+
+
+class StatusBarLogHandler(logging.Handler):
+    def __init__(self, label: QWidget) -> None:
+        super().__init__()
+        self.label = label
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if record.levelname == "DEBUG":
+            return
+
+        msg = self.format(record)
+        msg = msg.split("\n")[0]
+
+        if record.levelname == "ERROR":
+            msg = f"❗ {msg}"
+        elif record.levelname == "WARNING":
+            msg = f"⚠️ {msg}"
+        elif msg == "Settings saved":
+            msg = f"💾 {msg}"
+
+        color = LOG_COLORS[record.levelname].name
+        self.label.setStyleSheet(f"color: {color}")
+        self.label.setText(msg)

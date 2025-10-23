@@ -37,6 +37,7 @@ class BackgroundJob(QObject):
 
         self.name = name
         self.job_id = job_id
+        self.progress = -1
 
         read_fd, write_fd = os.pipe()
         self.read_fd = read_fd
@@ -56,7 +57,7 @@ class BackgroundJob(QObject):
         else:
             cmd = [sys.executable, "-m", "pupil_labs.neon_player"] + args
 
-        logging.info(f"Executing bg job {' '.join(cmd)}")
+        logging.debug(f"Executing bg job {' '.join(cmd)}")
 
         self.proc = subprocess.Popen(
             cmd,
@@ -72,12 +73,15 @@ class BackgroundJob(QObject):
         self.poll_timer.timeout.connect(self.poll)
         self.poll_timer.start(10)
 
+        logging.info(f"Background job started: {self.name}")
+
     def poll(self):
         for obj in self.read_objects():
             if obj is None:
                 return
 
             self.progress_changed.emit(obj.progress)
+            self.progress = obj.progress
         else:
             self.poll_timer.stop()
             self.finished.emit()
@@ -113,6 +117,7 @@ class BackgroundJob(QObject):
 
 
 class JobManager(QObject):
+    updated = Signal()
     job_started = Signal(BackgroundJob)
     job_finished = Signal(BackgroundJob)
     job_canceled = Signal(BackgroundJob)
@@ -160,22 +165,29 @@ class JobManager(QObject):
 
         job.canceled.connect(lambda: self.on_job_canceled(job))
         job.finished.connect(lambda: self.on_job_finished(job))
+        job.progress_changed.connect(lambda _: self.updated.emit())
 
         self.current_jobs.append(job)
         self.job_started.emit(job)
+        self.updated.emit()
+
+        logging.info(f"{job.name} started in the background")
 
         return job
 
     def on_job_finished(self, job: BackgroundJob) -> None:
+        logging.info(f"{job.name} finished")
         neon_player.instance().show_notification(
             "Job finished",
             f"Job '{job.name}' has completed"
         )
         self.remove_job(job)
+        self.updated.emit()
 
     def on_job_canceled(self, job: BackgroundJob) -> None:
         self.job_canceled.emit(job)
         self.remove_job(job)
+        self.updated.emit()
 
     def remove_job(self, job: BackgroundJob) -> None:
         self.job_counter -= 1

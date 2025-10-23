@@ -287,7 +287,7 @@ class TimeLineDock(QWidget):
         if not create_if_missing:
             return None
 
-        logging.info(f"Adding plot {timeline_row_name} to timeline")
+        logging.debug(f"Adding plot '{timeline_row_name}' to timeline")
 
         row = self.graphics_layout.nextRow()
         is_timestamps_row = timeline_row_name == "Export window"

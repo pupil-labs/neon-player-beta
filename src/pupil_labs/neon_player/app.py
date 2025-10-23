@@ -195,7 +195,6 @@ class NeonPlayerApp(QApplication):
         if self._initializing:
             return
 
-        logging.info("Saving settings")
         try:
             settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
             settings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -210,6 +209,7 @@ class NeonPlayerApp(QApplication):
                 with settings_path.open("w") as f:
                     json.dump(data, f, cls=ComplexEncoder)
 
+            logging.info("Settings saved")
         except Exception:
             logging.exception("Failed to save settings")
             raise
@@ -263,7 +263,6 @@ class NeonPlayerApp(QApplication):
         currently_enabled = kls.__name__ in self.plugins_by_class
 
         if enabled and not currently_enabled:
-            logging.info(f"Enabling plugin {kls.__name__}")
             try:
                 if state is None:
                     state = self.recording_settings.plugin_states.get(kls.__name__, {})
@@ -282,13 +281,16 @@ class NeonPlayerApp(QApplication):
                 logging.exception(f"Failed to enable plugin {kls}")
                 return None
 
+            logging.info(f"Enabled plugin: {kls.__name__}")
+
         elif not enabled and currently_enabled:
-            logging.info(f"Disabling plugin {kls.__name__}")
             plugin = self.plugins_by_class[kls.__name__]
 
             plugin.on_disabled()
             del self.plugins_by_class[kls.__name__]
             self.main_window.settings_panel.remove_plugin_settings(kls.__name__)
+
+            logging.info(f"Disabled plugin: {kls.__name__}")
 
         self.plugins = list(self.plugins_by_class.values())
         self.plugins.sort(key=lambda p: p.render_layer)
@@ -374,6 +376,7 @@ class NeonPlayerApp(QApplication):
     def on_recording_load_complete(self) -> None:
         self.loading_recording = False
         self.recording_loaded.emit(self.recording)
+        logging.info(f"Loaded `{self.recording._rec_dir}`")
 
     def toggle_plugins_by_settings(self) -> None:
         for cls_name, enabled in self.recording_settings.enabled_plugins.items():
