@@ -372,13 +372,14 @@ class SurfaceTrackingPlugin(Plugin):
             stop_mask = self.recording.gaze.time <= stop_time
 
             gazes = self.recording.gaze[start_mask & stop_mask]
-            mapped_gazes = np.append(
-                mapped_gazes,
-                surface.apply_offset_and_map_gazes(gazes),
-                axis=0
-            )
+            if len(gazes) > 0:
+                mapped_gazes = np.append(
+                    mapped_gazes,
+                    surface.apply_offset_and_map_gazes(gazes),
+                    axis=0
+                )
 
-            yield ProgressUpdate(idx / len(scene_frames))
+            yield ProgressUpdate((1 + idx) / len(scene_frames))
 
         lower_pass = np.all(mapped_gazes >= 0.0, axis=1)
         upper_pass = np.all(mapped_gazes <= 1.0, axis=1)
