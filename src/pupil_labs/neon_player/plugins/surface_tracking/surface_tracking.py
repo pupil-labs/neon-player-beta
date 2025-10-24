@@ -44,7 +44,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         self._marker_color = QColor("#22ff22")
         self._marker_color.setAlpha(200)
-        self._render_overlays_in_export = False
+        self._export_overlays = False
 
         self.markers_by_frame: list[list[Marker]] = []
         self.surface_locations: dict[str, list[SurfaceLocation]] = {}
@@ -144,7 +144,7 @@ class SurfaceTrackingPlugin(Plugin):
                 self.marker_detection_job.finished.connect(self._load_marker_cache)
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
-        if not self._render_overlays_in_export:
+        if not self._export_overlays:
             exporter = Plugin.get_instance_by_name("VideoExporter")
             if exporter is not None and exporter.is_exporting:
                 return
@@ -441,12 +441,12 @@ class SurfaceTrackingPlugin(Plugin):
         self._marker_color = value
 
     @property
-    def render_overlays_in_export(self) -> bool:
-        return self._render_overlays_in_export
+    def export_overlays(self) -> bool:
+        return self._export_overlays
 
-    @render_overlays_in_export.setter
-    def render_overlays_in_export(self, value: bool) -> None:
-        self._render_overlays_in_export = value
+    @export_overlays.setter
+    def export_overlays(self, value: bool) -> None:
+        self._export_overlays = value
 
     @property
     def surfaces(self) -> list["TrackedSurface"]:
