@@ -176,12 +176,6 @@ class MainWindow(QMainWindow):
         self.register_action("&File/&Open recording", "Ctrl+o", self.on_open_action)
         self.register_action("&File/&Close recording", "Ctrl+w", app.unload)
         self.register_action("&File/&Global Settings", None, self.show_global_settings)
-        self.rec_settings_action = self.register_action(
-            "&File/&Recording Settings",
-            None,
-            self.show_recording_settings
-        )
-        self.rec_settings_action.setDisabled(True)
         self.register_action(
             "&File/&Export All", on_triggered=app.export_all
         )
@@ -209,10 +203,6 @@ class MainWindow(QMainWindow):
             Qt.Corner.BottomRightCorner, Qt.DockWidgetArea.RightDockWidgetArea
         )
         self.setCorner(Qt.Corner.BottomLeftCorner, Qt.DockWidgetArea.LeftDockWidgetArea)
-
-        app.recording_loaded.connect(
-            lambda recording: self.rec_settings_action.setDisabled(recording is None)
-        )
 
         self.on_recording_closed()
         self.status_label.clicked.connect(self.console_window.show)
@@ -281,17 +271,6 @@ class MainWindow(QMainWindow):
     def show_global_settings(self) -> None:
         dialog = GlobalSettingsDialog(self)
         dialog.resize(500, 600)
-        dialog.exec()
-
-    def show_recording_settings(self) -> None:
-        if neon_player.instance().recording is None:
-            QMessageBox.information(
-                self, "Neon Player - Recording Settings", "Please open a recording."
-            )
-
-            return
-
-        dialog = RecordingSettingsDialog(self)
         dialog.exec()
 
     def on_quit_action(self) -> None:

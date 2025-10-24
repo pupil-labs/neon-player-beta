@@ -26,7 +26,7 @@ dependencies = [
     "opencv-python>=4.11.0.86",
     "pandas>=2.2.3",
     "pupil-apriltags>=1.0.4.post11",
-    "pupil-labs-neon-recording>=1.0.1",
+    "pupil-labs-neon-recording>=2.0.0",
     "pyqtgraph>=0.13.7",
     "pyside6>=6.9.0",
     "qt-property-widgets",
@@ -81,7 +81,6 @@ dev-dependencies = [
 ]
 
 [tool.uv.sources]
-pupil-labs-neon-recording = { git = "https://github.com/pupil-labs/pl-neon-recording", branch = "api_update" }
 qt-property-widgets = { git = "https://github.com/domstoppable/qt-property-widgets" }
 
 [build-system]
