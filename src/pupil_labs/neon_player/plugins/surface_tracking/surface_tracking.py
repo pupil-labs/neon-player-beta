@@ -284,6 +284,7 @@ class SurfaceTrackingPlugin(Plugin):
                 if marker.uid not in self.marker_edit_widgets:
                     widget = MarkerEditWidget(marker.uid)
                     widget.setParent(self.app.main_window.video_widget)
+                    widget.hide()
                     self.marker_edit_widgets[marker.uid] = widget
 
         # marker visibility plot
