@@ -27,6 +27,7 @@ dependencies = [
     "pandas>=2.2.3",
     "pupil-apriltags>=1.0.4.post11",
     "pupil-labs-neon-recording>=2.0.0",
+    "pyobjc; sys_platform == 'darwin'",
     "pyqtgraph>=0.13.7",
     "pyside6>=6.9.0",
     "qt-property-widgets",

@@ -305,6 +305,14 @@ class NeonPlayerApp(QApplication):
             context_menu = clone_menu(menu)
             self.tray_icon.setContextMenu(context_menu)
 
+        else:
+            if sys.platform == "darwin":
+                # hide dock icon for background jobs
+                from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+                NSApplication.sharedApplication().setActivationPolicy_(
+                    NSApplicationActivationPolicyAccessory
+                )
+
         return self.exec()
 
     def show_notification(
