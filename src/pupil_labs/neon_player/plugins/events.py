@@ -7,7 +7,11 @@ import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QKeyEvent
-from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
+from qt_property_widgets.utilities import (
+    FilePath,
+    PersistentPropertiesMixin,
+    property_params,
+)
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
@@ -97,7 +101,7 @@ class EventsPlugin(neon_player.Plugin):
 
         if cached_events is None:
             for event in self.recording.events:
-                et = self._create_event_type(str(event.event))
+                et = self.create_event_type(str(event.event))
                 if event.event in IMMUTABLE_EVENTS:
                     et.uid = str(event.event)
 
@@ -106,12 +110,12 @@ class EventsPlugin(neon_player.Plugin):
             recording_event_names = [et.name for et in self._event_types]
             for event_name in self.global_properties.global_event_types:
                 if event_name not in recording_event_names:
-                    self._create_event_type(event_name)
+                    self.create_event_type(event_name)
         else:
             self.events = cached_events
             for uid in self.events:
                 if uid in IMMUTABLE_EVENTS:
-                    et = self._create_event_type(uid)
+                    et = self.create_event_type(uid)
                     et.uid = uid
                 else:
                     et = self.get_event_type(uid)
@@ -276,7 +280,7 @@ class EventsPlugin(neon_player.Plugin):
         self.get_timeline().remove_timeline_plot(f"Events - {old_name}")
         self._update_timeline_data(event_type)
 
-    def _create_event_type(self, event_name: str) -> None:
+    def create_event_type(self, event_name: str) -> None:
         event_type = EventType()
         event_type.uid = str(uuid.uuid4())
         event_type._name = event_name
@@ -287,6 +291,24 @@ class EventsPlugin(neon_player.Plugin):
             self.event_types = [*self._event_types, event_type]
 
         return event_type
+
+    def get_event_type_by_name(self, name: str) -> EventType|None:
+        for event_type in self._event_types:
+            if event_type.name == name:
+                return event_type
+
+    @action
+    def import_csv(self, source: FilePath):
+        events_df = pd.read_csv(source)
+        for _, row in events_df.iterrows():
+            if row["name"] in IMMUTABLE_EVENTS:
+                continue
+
+            event_type = self.get_event_type_by_name(row["name"])
+            if event_type is None:
+                event_type = self.create_event_type(row["name"])
+
+            self.add_event(event_type, row["timestamp [ns]"])
 
     @action
     def export(self, destination: Path = Path()):
@@ -299,7 +321,7 @@ class EventsPlugin(neon_player.Plugin):
         events_df = pd.DataFrame({
             "recording id": self.recording.info["recording_id"],
             "timestamp [ns]": list(self.events.values()),
-            "event": event_names,
+            "name": event_names,
         })
 
         events_df = events_df.explode("timestamp [ns]").reset_index(drop=True).dropna()
