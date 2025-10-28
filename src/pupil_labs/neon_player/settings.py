@@ -5,6 +5,14 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, Plugin
 
 
+def plugin_label_lookup(cls_name: str) -> str:
+    cls = Plugin.get_class_by_name(cls_name)
+    if cls and hasattr(cls, "label"):
+        return cls.label
+
+    return cls_name
+
+
 class GeneralSettings(PersistentPropertiesMixin, QObject):
     changed = Signal()
 
@@ -90,6 +98,7 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
         self.changed.emit()
 
     @property
+    @property_params(label_lookup=plugin_label_lookup)
     def enabled_plugins(self) -> dict[str, bool]:
         for cls in Plugin.known_classes:
             if cls.__name__ not in self._enabled_plugins:
