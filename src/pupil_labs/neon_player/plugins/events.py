@@ -223,7 +223,10 @@ class EventsPlugin(neon_player.Plugin):
             )
 
     @property
-    @property_params()
+    @property_params(
+        add_button_text="Create new event type",
+        item_params={ "label_field": "name" }
+    )
     def event_types(self) -> list[EventType]:
         return self._event_types
 
