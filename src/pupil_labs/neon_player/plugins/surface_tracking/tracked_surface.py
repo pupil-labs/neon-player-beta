@@ -79,7 +79,11 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         self._render_size.setHeight(value)
 
     @property
-    @property_params(use_subclass_selector=True, add_button_text="Add visualization")
+    @property_params(
+        use_subclass_selector=True,
+        add_button_text="Add visualization",
+        item_params={ "label_field": "label" }
+    )
     def visualizations(self) -> list["GazeVisualization"]:
         return self._visualizations
 
@@ -137,6 +141,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     view_requested = Signal(object)
     marker_edit_changed = Signal()
     heatmap_invalidated = Signal()
+
+    label = "Surface"
 
     def __init__(self) -> None:
         super().__init__()

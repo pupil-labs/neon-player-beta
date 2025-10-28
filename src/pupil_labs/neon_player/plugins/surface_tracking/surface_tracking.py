@@ -14,6 +14,7 @@ from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QMessageBox
+from qt_property_widgets.utilities import property_params
 from surface_tracker import (
     Camera,
     CornerId,
@@ -449,6 +450,10 @@ class SurfaceTrackingPlugin(Plugin):
         self._export_overlays = value
 
     @property
+    @property_params(
+        add_button_text="Add Surface",
+        item_params={"label_field": "name"}
+    )
     def surfaces(self) -> list["TrackedSurface"]:
         return self._surfaces
 

@@ -178,7 +178,11 @@ class FixationsPlugin(neon_player.Plugin):
         print(f"Wrote {export_file}")
 
     @property
-    @property_params(use_subclass_selector=True, add_button_text="Add visualization")
+    @property_params(
+        use_subclass_selector=True,
+        add_button_text="Add visualization",
+        item_params={ "label_field": "label" }
+    )
     def visualizations(self) -> list["FixationVisualization"]:
         return self._visualizations
 

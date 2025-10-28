@@ -190,7 +190,11 @@ class GazeDataPlugin(neon_player.Plugin):
         self.offset_changed.emit()
 
     @property
-    @property_params(use_subclass_selector=True, add_button_text="Add visualization")
+    @property_params(
+        use_subclass_selector=True,
+        add_button_text="Add visualization",
+        item_params={"label_field": "label"},
+    )
     def visualizations(self) -> list["GazeVisualization"]:
         return self._visualizations
 
