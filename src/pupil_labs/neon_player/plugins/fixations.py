@@ -142,7 +142,7 @@ class FixationsPlugin(neon_player.Plugin):
         offset = self.get_gaze_offset()
         offset *= np.array([self.recording.scene.width, self.recording.scene.height])
 
-        offset_means = fixations.mean_gaze + offset
+        offset_means = fixations.mean_gaze_point + offset
 
         scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(
             self.recording
@@ -175,7 +175,7 @@ class FixationsPlugin(neon_player.Plugin):
 
         export_file = destination / "fixations.csv"
         export_data.to_csv(export_file, index=False)
-        print(f"Wrote {export_file}")
+        logging.info(f"Exported fixations to '{export_file}'")
 
     @property
     @property_params(
