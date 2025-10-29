@@ -331,4 +331,8 @@ class EventsPlugin(neon_player.Plugin):
         start_mask = (events_df["timestamp [ns]"] >= start_time)
         stop_mask = (events_df["timestamp [ns]"] <= stop_time)
         events_df = events_df[start_mask & stop_mask]
-        events_df.to_csv(destination / "events.csv", index=False)
+
+        destination_file = destination / "events.csv"
+        events_df.to_csv(destination_file, index=False)
+
+        logging.info(f"Exported events to {destination_file}")

@@ -26,6 +26,7 @@ from pupil_labs.neon_player.plugins import (
     audio,  # noqa: F401
     blinks,  # noqa: F401
     events,  # noqa: F401
+    export_all,  # noqa: F401
     eye_overlay,  # noqa: F401
     eyestate,  # noqa: F401
     fixations,  # noqa: F401
@@ -479,23 +480,17 @@ class NeonPlayerApp(QApplication):
             painter.setFont(font)
             painter.setOpacity(1.0)
 
-    def export_all(self) -> None:
-        if self.recording is None:
-            return
-
-        # ask user for export path
-        export_path = QFileDialog.getExistingDirectory(
-            self.main_window,
-            "Select export directory",
-            str(self.recording._rec_dir),
-        )
-
-        if not export_path:
-            return
+    def export_all(self, export_path: Path) -> None:
+        timestamp_str = time.strftime('%Y-%m-%d_%H-%M-%S')
+        export_path /= f"{timestamp_str}_export"
+        export_path.mkdir(parents=True, exist_ok=True)
 
         for plugin in self.plugins:
             if hasattr(plugin, "export"):
-                plugin.export(Path(export_path))
+                try:
+                    plugin.export(Path(export_path))
+                except Exception:
+                    logging.exception(f"Exception while exporting plugin {plugin}")
 
     @property
     def is_playing(self) -> bool:

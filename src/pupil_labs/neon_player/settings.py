@@ -28,6 +28,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
             "GazeDataPlugin": True,
             "SceneRendererPlugin": True,
             "EventsPlugin": True,
+            "ExportAllPlugin": True,
         })
 
     @property
