@@ -770,6 +770,7 @@ class OptimalCamera(Camera):
 
 def insert_interpolated_points(points: npt.NDArray, n_between: int = 10) -> npt.NDArray:
     points = np.asarray(points, dtype=float)
+    points = np.concatenate((points, points[0:1]), axis=0)
 
     n_pts, dim = points.shape
     if n_pts < 2:
