@@ -25,7 +25,7 @@ class PlotProps:
         }
         self._eyelid_angle_plots = {
             f"{half} {side}": True
-            for half in ("Top", "Bottom")
+            for half in ("Top", "Bot.")
             for side in ("left", "right")
         }
         self._eyelid_aperture_plots = dict.fromkeys(("Left", "Right"), True)
@@ -199,7 +199,8 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         group_display_title = f"Eyestate - {group_name}"
 
         for plot_name, enabled in plot_flags.items():
-            existing_plot = timeline.get_timeline_series(group_display_title, plot_name)
+            legend_label = plot_name.replace("Bottom ", "Bot ")
+            existing_plot = timeline.get_timeline_series(group_display_title, legend_label)
             if enabled and existing_plot is None:
                 # add plot
                 key = f"{group_name.lower()} {plot_name.lower()}"
@@ -214,11 +215,12 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
                     logging.warning(f"{key} data not found for this recording")
                     data = np.empty((0, 2))
 
-                timeline.add_timeline_line(group_display_title, data, plot_name, color=color)
+
+                timeline.add_timeline_line(group_display_title, data, legend_label, color=color)
 
             elif not enabled and existing_plot is not None:
                 # remove plot
-                timeline.remove_timeline_series(group_display_title, plot_name)
+                timeline.remove_timeline_series(group_display_title, legend_label)
 
     @action
     def export(self, destination: Path = Path()) -> None:

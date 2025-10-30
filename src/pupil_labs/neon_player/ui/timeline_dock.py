@@ -64,6 +64,8 @@ class TimeLineDock(QWidget):
 
         self.toolbar_layout = QHBoxLayout()
         self.play_button = QToolButton()
+        self.play_button.setToolTip("Play/Pause")
+        self.play_button.setIconSize(QSize(32, 32))
         self.play_button.setIcon(QIcon(str(neon_player.asset_path("play.svg"))))
         self.play_button.clicked.connect(
             lambda: app.get_action("Playback/Play\\Pause").trigger()
@@ -71,6 +73,7 @@ class TimeLineDock(QWidget):
         self.toolbar_layout.addWidget(self.play_button)
 
         self.speed_control = QComboBox()
+        self.speed_control.setToolTip("Playback rate")
         self.speed_control.addItems([
             "-2.00x", "-1.75x", "-1.50x", "-1.25x",
             "-1.00x", "-0.75x", "-0.50x", "-0.25x",
@@ -320,10 +323,14 @@ class TimeLineDock(QWidget):
         legend_container.addItem(legend_label)
         legend_container.addItem(legend, row=1, col=0)
 
-        plot_item = SmartSizePlotItem(legend=legend, axisItems={"top": time_axis}, viewBox=vb)
+        plot_item = SmartSizePlotItem(
+            legend=legend,
+            axisItems={"top": time_axis},
+            viewBox=vb
+        )
         legend_container.setSizePolicy(
-            QSizePolicy.Policy.Minimum,
-            QSizePolicy.Policy.Minimum
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Ignored
         )
 
         if is_timestamps_row:
