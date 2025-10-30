@@ -9,11 +9,10 @@ import time
 import typing
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Signal
+from PySide6.QtCore import QIODevice, QTimer, Signal
 from PySide6.QtGui import QAction, QIcon, QPainter
 from PySide6.QtWidgets import (
     QApplication,
-    QFileDialog,
     QSystemTrayIcon,
 )
 from qt_property_widgets.utilities import ComplexEncoder, create_action_object
@@ -21,6 +20,7 @@ from qt_property_widgets.utilities import ComplexEncoder, create_action_object
 from pupil_labs import neon_player
 from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player.ipc_logger import IPCLogger
 from pupil_labs.neon_player.job_manager import JobManager
 from pupil_labs.neon_player.plugins import (
     audio,  # noqa: F401
@@ -40,38 +40,6 @@ from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
 
-
-def setup_logging() -> None:
-    """Configure logging to both console and file."""
-    log_dir = Path.home() / "Pupil Labs" / "Neon Player" / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    log_file = log_dir / "neon_player.log"
-
-    # Set up root logger
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-
-    # Create formatters
-    log_formatter = logging.Formatter(neon_player.LOG_FORMAT_STRING)
-
-    # File handler with rotation (10MB per file, keep 5 backups)
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
-    )
-    file_handler.setFormatter(log_formatter)
-
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(log_formatter)
-
-    # Add handlers
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    # Log startup message
-    logging.info("Neon Player starting up")
-    logging.info(f"Logging to file: {log_file}")
 
 class NeonPlayerApp(QApplication):
     playback_state_changed = Signal(bool)
@@ -134,7 +102,9 @@ class NeonPlayerApp(QApplication):
 
         self.main_window = MainWindow()
 
-        setup_logging()
+        self.ipc_logger = IPCLogger()
+        logging.info("Neon Player starting up")
+
         # Iterate through all modules within plugins and register them
         plugin_search_path = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"
         if plugin_search_path.exists():

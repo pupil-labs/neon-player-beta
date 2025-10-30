@@ -1,3 +1,4 @@
+import logging
 import typing as T
 from pathlib import Path
 
@@ -34,6 +35,8 @@ class VideoExporter(neon_player.Plugin):
         return self.bg_export(destination)
 
     def bg_export(self, destination: Path = Path()) -> T.Generator:
+        logging.getLogger("pupil_labs.video.writer").setLevel(logging.ERROR)
+
         self.is_exporting = True
         recording = self.app.recording
 
