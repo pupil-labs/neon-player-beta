@@ -82,7 +82,7 @@ class NeonPlayerApp(QApplication):
 
         parser = argparse.ArgumentParser()
         parser.add_argument("recording", nargs="?", default=None, help="")
-        parser.add_argument("--progress_stream_fd", type=int, default=None)
+        parser.add_argument("--progress-ipc-name", type=str, default=None)
         parser.add_argument(
             "--plugin-action",
             action="append",
@@ -98,7 +98,7 @@ class NeonPlayerApp(QApplication):
 
         self.args = parser.parse_args()
 
-        self.progress_stream_fd = self.args.progress_stream_fd
+        self.progress_ipc_name = self.args.progress_ipc_name
 
         self.main_window = MainWindow()
 

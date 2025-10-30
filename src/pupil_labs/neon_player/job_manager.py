@@ -1,14 +1,13 @@
 import logging
-import os
 import pickle
 import subprocess
 import sys
 import typing as T
 from dataclasses import dataclass
 from pathlib import Path
-from selectors import select
 
-from PySide6.QtCore import QObject, QTimer, Signal
+from PySide6.QtCore import QDataStream, QObject, Signal
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from tqdm import tqdm
 
 from pupil_labs import neon_player
@@ -31,26 +30,34 @@ class BackgroundJob(QObject):
         job_id: int,
         recording_path: Path,
         action_name: str,
-        *args: T.Any
+        *args: T.Any,
     ):
         super().__init__()
 
         self.name = name
         self.job_id = job_id
         self.progress = -1
+        self.socket = None
 
-        read_fd, write_fd = os.pipe()
-        self.read_fd = read_fd
+        server_name = f"neon-player-job-{job_id}"
+        self.server = QLocalServer()
+        QLocalServer.removeServer(server_name)  # remove any dangling sockets
+        if not self.server.listen(server_name):
+            logging.error(f"Could not start IPC server for job {name}")
+            return
 
-        os.set_inheritable(write_fd, True)
+        self.server.newConnection.connect(self._handle_connection)
 
-        args = [
-            str(recording_path),
-            "--progress_stream_fd",
-            str(write_fd),
-            "--job",
-            action_name,
-        ] + [str(arg) for arg in args]
+        args = (
+            [
+                str(recording_path),
+                "--progress-ipc-name",
+                server_name,
+                "--job",
+                action_name,
+            ]
+            + [str(arg) for arg in args]
+        )
 
         if neon_player.is_frozen():
             cmd = [sys.executable] + args
@@ -59,61 +66,41 @@ class BackgroundJob(QObject):
 
         logging.debug(f"Executing bg job {' '.join(cmd)}")
 
-        self.proc = subprocess.Popen(
-            cmd,
-            pass_fds=(write_fd,),
-            close_fds=False  # keep our read_fd open
-        )
-        # Close our copy of the write end; child has its own copy
-        os.close(write_fd)
-
-        self.read_stream = os.fdopen(self.read_fd, 'rb', closefd=True)
-
-        self.poll_timer = QTimer()
-        self.poll_timer.timeout.connect(self.poll)
-        self.poll_timer.start(10)
+        self.proc = subprocess.Popen(cmd)
 
         logging.info(f"Background job started: {self.name}")
 
-    def poll(self):
-        for obj in self.read_objects():
-            if obj is None:
+    def _handle_connection(self):
+        self.socket = self.server.nextPendingConnection()
+        self.socket.readyRead.connect(self._read_progress_update)
+        self.socket.disconnected.connect(self.finished.emit)
+        self.server.close()
+
+    def _read_progress_update(self):
+        if not self.socket:
+            return
+
+        stream = QDataStream(self.socket)
+        while self.socket.bytesAvailable() >= 4:
+            # Read the length of the data
+            expected_len = stream.readUInt32()
+
+            # Wait until all data is available
+            if self.socket.bytesAvailable() < expected_len:
                 return
 
-            self.progress_changed.emit(obj.progress)
-            self.progress = obj.progress
-        else:
-            self.poll_timer.stop()
-            self.finished.emit()
-
-    def read_objects(self):
-        """Generator: poll the pipe and yield objects as they arrive."""
-        with os.fdopen(self.read_fd, 'rb', closefd=False) as stream:
-            while self.proc.returncode is None:
-                # Wait until read_fd is ready or timeout expires
-                rlist, _, _ = select.select([stream], [], [], 0)
-                if not rlist:
-                    # No data ready, yield control to caller
-                    yield None
-                    break
-
-                # Read 4-byte length header
-                length_bytes = stream.read(4)
-                if not length_bytes:
-                    break  # EOF
-                length = int.from_bytes(length_bytes, byteorder='little')
-
-                # Read the pickled payload
-                data_bytes = stream.read(length)
-                yield pickle.loads(data_bytes)
-
-                if stream.closed:
-                    return
+            # Read and unpickle the data
+            data = stream.readRawData(expected_len)
+            try:
+                obj = pickle.loads(data)
+                self.progress_changed.emit(obj.progress)
+                self.progress = obj.progress
+            except Exception:
+                logging.exception("Could not unpickle progress update")
 
     def cancel(self):
         self.proc.terminate()
         self.proc.wait()
-        self.poll_timer.stop()
 
 
 class JobManager(QObject):
@@ -128,18 +115,26 @@ class JobManager(QObject):
         self.job_counter = 0
 
     def work_job(self, job: T.Generator[ProgressUpdate, None, None]) -> None:
-        progress_stream_fd = neon_player.instance().progress_stream_fd
+        ipc_name = neon_player.instance().progress_ipc_name
         # runs in child process
-        if progress_stream_fd:
-            with open(progress_stream_fd, "wb") as progress_stream:
-                if not hasattr(job, "__iter__"):
-                    logging.warning(f"A background job did not generate progress updates")
-                else:
-                    for update in job:
-                        data = pickle.dumps(update)
-                        length = len(data).to_bytes(4, byteorder='little')
-                        progress_stream.write(length + data)
-                        progress_stream.flush()
+        if ipc_name:
+            socket = QLocalSocket()
+            socket.connectToServer(ipc_name)
+            if not socket.waitForConnected(1000):
+                logging.error(f"Could not connect to IPC server {ipc_name}")
+                return
+
+            if not hasattr(job, "__iter__"):
+                logging.warning(f"A background job did not generate progress updates")
+            else:
+                outstream = QDataStream(socket)
+                for update in job:
+                    data = pickle.dumps(update)
+                    outstream.writeUInt32(len(data))
+                    outstream.writeRawData(data)
+                    socket.flush()
+
+            socket.disconnectFromServer()
 
         else:
             with tqdm(total=1.0) as pbar:
