@@ -2,7 +2,6 @@ import logging
 import pickle
 from pathlib import Path
 
-from PySide6.QtCore import QIODevice, QObject, QTimer, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
 from pupil_labs import neon_player
