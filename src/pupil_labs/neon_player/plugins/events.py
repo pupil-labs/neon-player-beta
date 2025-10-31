@@ -158,7 +158,9 @@ class EventsPlugin(neon_player.Plugin):
         if existing_plot is not None:
             return
 
-        timeline.add_timeline_scatter(f"Events - {event_type.name}", [])
+        plot_item = timeline.add_timeline_scatter(f"Events - {event_type.name}", [])
+        plot_item.getViewBox().allow_y_panning = False
+
         if event_type.name not in IMMUTABLE_EVENTS:
             action = self.register_timeline_action(
                 f"Add Event/{event_type.name}",
@@ -217,7 +219,7 @@ class EventsPlugin(neon_player.Plugin):
         events = self.events.get(event_type.uid, [])
 
         if len(plot_item.items) == 0:
-            timeline.add_timeline_scatter(
+            plot_item = timeline.add_timeline_scatter(
                 f"Events - {event_name}",
                 np.array([[t, 0] for t in events]),
             )

@@ -310,6 +310,7 @@ class TimeLineDock(QWidget):
 
         vb = ScrubbableViewBox()
         if is_timestamps_row:
+            vb.allow_y_panning = False
             vb.scrub_start.connect(self.on_trim_area_drag_start)
             vb.scrubbed.connect(self.on_trim_area_dragged)
             vb.scrub_end.connect(self.on_trim_area_drag_end)
@@ -354,6 +355,7 @@ class TimeLineDock(QWidget):
                     self.graphics_layout.getItem(move_row, 0),
                     self.graphics_layout.getItem(move_row, 1)
                 ))
+
             for (l, p) in items_to_move:
                 self.graphics_layout.removeItem(l)
                 self.graphics_layout.removeItem(p)
@@ -401,7 +403,7 @@ class TimeLineDock(QWidget):
         plot_name: str = "",
         color: QColor | None = None,
         **kwargs,
-    ):
+    ) -> pg.PlotDataItem|None:
         app = neon_player.instance()
         if app.recording is None:
             return
@@ -510,12 +512,12 @@ class TimeLineDock(QWidget):
 
     def add_timeline_line(
         self, timeline_row_name: str, data: list[tuple[int, int]], plot_name: str = ""  , **kwargs
-    ) -> None:
+    ) -> pg.PlotDataItem:
         return self.add_timeline_plot(timeline_row_name, data, plot_name, **kwargs)
 
     def add_timeline_scatter(
         self, name: str, data: list[tuple[int, int]], item_name: str = ""
-    ) -> None:
+    ) -> pg.PlotDataItem:
         return self.add_timeline_plot(
             name,
             data,
@@ -529,6 +531,8 @@ class TimeLineDock(QWidget):
         self, timeline_row_name: str, start_and_stop_times, item_name: str = ""
     ) -> None:
         plot_widget = self.get_timeline_plot(timeline_row_name, True)
+        plot_widget.getViewBox().allow_y_panning = False
+
         pen = pg.mkPen("white")
         brush = pg.mkBrush("white")
 

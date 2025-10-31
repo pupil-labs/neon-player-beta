@@ -19,10 +19,15 @@ class ScrubbableViewBox(pg.ViewBox):
     scrub_end = Signal(MouseDragEvent)
     scrubbed = Signal(object)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.allow_y_panning = True
+
     def mousePressEvent(self, ev: QGraphicsSceneMouseEvent) -> None:
         if ev.button() == Qt.MouseButton.LeftButton:
             if Qt.KeyboardModifier.ControlModifier == ev.modifiers():
-                self.setMouseMode(pg.ViewBox.RectMode)
+                if self.allow_y_panning:
+                    self.setMouseMode(pg.ViewBox.RectMode)
 
             else:
                 self.scrubbed.emit(ev)
@@ -31,7 +36,7 @@ class ScrubbableViewBox(pg.ViewBox):
 
     def mouseDragEvent(self, ev: MouseDragEvent, axis=None) -> None:
         if ev.button() == Qt.MouseButton.MiddleButton:
-            self.setMouseEnabled(x=True, y=True)
+            self.setMouseEnabled(x=True, y=self.allow_y_panning)
             return super().mouseDragEvent(ev, axis)
 
         if self.state["mouseMode"] == pg.ViewBox.RectMode:
@@ -55,6 +60,8 @@ class ScrubbableViewBox(pg.ViewBox):
             "x": Qt.KeyboardModifier.ControlModifier in ev.modifiers(),
             "y": Qt.KeyboardModifier.ShiftModifier in ev.modifiers(),
         }
+        mouse_enabled["y"] = self.allow_y_panning and mouse_enabled["y"]
+
         if any(mouse_enabled.values()):
             self.setMouseEnabled(**mouse_enabled)
             return super().wheelEvent(ev, axis)
