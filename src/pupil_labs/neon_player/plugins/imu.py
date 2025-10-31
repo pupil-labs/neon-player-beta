@@ -1,11 +1,11 @@
 from pathlib import Path
 
 import pandas as pd
+from pupil_labs.neon_recording import NeonRecording
 from scipy.spatial.transform import Rotation
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
-from pupil_labs.neon_recording import NeonRecording
 
 
 class IMUPlugin(neon_player.Plugin):
@@ -15,7 +15,7 @@ class IMUPlugin(neon_player.Plugin):
         super().__init__()
         self.imu_data: pd.DataFrame | None = None
 
-        self._show_rotation = True
+        self._show_orientation = True
         self._show_gyro = True
         self._show_acceleration = True
 
@@ -61,8 +61,8 @@ class IMUPlugin(neon_player.Plugin):
 
         timeline = self.get_timeline()
 
-        rotation_plot = timeline.get_timeline_plot("    Rotation")
-        if self._show_rotation and rotation_plot is None:
+        orientation_plot = timeline.get_timeline_plot("IMU - Orientation")
+        if self._show_orientation and orientation_plot is None:
             for euler_axis in ["roll", "pitch", "yaw"]:
                 data = self.imu_data[["timestamp [ns]", f"{euler_axis} [deg]"]]
                 timeline.add_timeline_line(
@@ -70,7 +70,7 @@ class IMUPlugin(neon_player.Plugin):
                     data.to_numpy(),
                     euler_axis,
                 )
-        elif not self._show_rotation and rotation_plot is not None:
+        elif not self._show_orientation and orientation_plot is not None:
             timeline.remove_timeline_plot("IMU - Orientation")
 
         gyro_plot = timeline.get_timeline_plot("IMU - Gyroscope")
@@ -110,12 +110,12 @@ class IMUPlugin(neon_player.Plugin):
         self.imu_data[start_mask & stop_mask].to_csv(export_file, index=False)
 
     @property
-    def rotation(self) -> bool:
-        return self._show_rotation
+    def orientation(self) -> bool:
+        return self._show_orientation
 
-    @rotation.setter
-    def rotation(self, value: bool) -> None:
-        self._show_rotation = value
+    @orientation.setter
+    def orientation(self, value: bool) -> None:
+        self._show_orientation = value
         self.update_plots()
 
     @property
