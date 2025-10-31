@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QGraphicsSceneMouseEvent,
     QLabel,
     QSizePolicy,
+    QStyleOptionGraphicsItem,
     QWidget,
 )
 
@@ -228,6 +229,9 @@ class SmartSizePlotItem(pg.PlotItem):
             QSizePolicy.Policy.Preferred
         )
 
+        self.preferred_height_1d = 25
+        self.preferred_height_2d = 150
+
     def addItem(self, *args, **kwargs) -> None:
         super().addItem(*args, **kwargs)
         self.adjust_size()
@@ -237,16 +241,36 @@ class SmartSizePlotItem(pg.PlotItem):
         self.adjust_size()
 
     def adjust_size(self):
-        has_line = False
-        for item in self.items:
-            if isinstance(item, pg.PlotDataItem) and len(item.curve.xData) > 0:
-                has_line = True
-                break
-
-        height = 150 if has_line else 50
+        height = self.preferred_height_2d if self.has_line else self.preferred_height_1d
 
         self.setFixedHeight(height)
+
+        self.legend_handle.setFixedHeight(height)
         self.legend_handle.parentItem().setFixedHeight(height)
+
+    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
+        pen = painter.pen()
+        pen.setColor("#444")
+        pen.setWidth(1)
+        painter.setPen(pen)
+
+        if self.has_line:
+            painter.drawLine(-2000, 0, self.width(), 0)
+            painter.drawLine(-2000, self.height() - 1, self.width(), self.height() - 1)
+
+        super().paint(painter, option, widget)
+
+    @property
+    def has_line(self) -> bool:
+        for item in self.items:
+            if isinstance(item, pg.PlotDataItem) and len(item.curve.xData) > 0:
+                return True
+
+        return False
+
+    @property
+    def has_bar(self) -> bool:
+        return any(isinstance(item, pg.BarGraphItem) for item in self.items)
 
 
 class PlotOverlay(QWidget):

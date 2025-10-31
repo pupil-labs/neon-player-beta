@@ -101,6 +101,7 @@ class TimeLineDock(QWidget):
         self.graphics_view.setBackground("transparent")
         self.graphics_layout = pg.GraphicsLayout()
         self.graphics_layout.setSpacing(0)
+        self.graphics_layout.setContentsMargins(0, 0, 0, 0)
         self.graphics_view.setCentralItem(self.graphics_layout)
 
         self.graphics_view.scene().sigMouseClicked.connect(self.on_chart_area_clicked)
@@ -118,7 +119,6 @@ class TimeLineDock(QWidget):
             "Export window", create_if_missing=True
         )
         self.timestamps_plot.showAxis("top")
-        self.timestamps_plot.setMaximumHeight(50)
         self.timestamps_plot.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Fixed
@@ -318,20 +318,26 @@ class TimeLineDock(QWidget):
             vb.scrubbed.connect(self.on_chart_area_clicked)
 
         legend = FixedLegend()
+        legend.layout.setContentsMargins(0, 0, 0, 50)
+        legend.layout.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Minimum,
+        )
         legend_container = pg.GraphicsLayout()
         legend_container.setSpacing(0)
+        legend_container.setContentsMargins(0, 0, 0, 0)
         legend_label = pg.LabelItem(f"<b>{timeline_row_name}</b>")
+
         legend_container.addItem(legend_label)
         legend_container.addItem(legend, row=1, col=0)
-
+        legend_container.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Fixed,
+        )
         plot_item = SmartSizePlotItem(
             legend=legend,
             axisItems={"top": time_axis},
             viewBox=vb
-        )
-        legend_container.setSizePolicy(
-            QSizePolicy.Policy.Ignored,
-            QSizePolicy.Policy.Ignored
         )
 
         if is_timestamps_row:
@@ -340,33 +346,11 @@ class TimeLineDock(QWidget):
         legend.layout.setSpacing(0)
         self.timeline_legends[timeline_row_name] = legend
 
-        # determine the alphabetical order of this row
         if timeline_row_name == "Export window":
-            row = 0
-        else:
-            sorted_names = sorted(self.timeline_legends.keys())
-            sorted_names.remove("Export window")
-            row = sorted_names.index(timeline_row_name) + 1
-
-        items_to_move = []
-        if row < len(self.timeline_legends) - 1:
-            for move_row in range(row, len(sorted_names)):
-                items_to_move.append((
-                    self.graphics_layout.getItem(move_row, 0),
-                    self.graphics_layout.getItem(move_row, 1)
-                ))
-
-            for (l, p) in items_to_move:
-                self.graphics_layout.removeItem(l)
-                self.graphics_layout.removeItem(p)
+            plot_item.preferred_height_1d = 50
 
         self.graphics_layout.addItem(legend_container, row=row, col=0)
         self.graphics_layout.addItem(plot_item, row=row, col=1)
-
-        for (l, p) in items_to_move:
-            row += 1
-            self.graphics_layout.addItem(l, row=row, col=0)
-            self.graphics_layout.addItem(p, row=row, col=1)
 
         plot_item.setMouseEnabled(x=False, y=False)
         plot_item.hideButtons()
@@ -429,7 +413,7 @@ class TimeLineDock(QWidget):
             if timeline_row_name in self.timeline_legends and plot_name != "":
                 legend.addItem(plot_data_item, plot_name)
 
-        self.fix_scroll_size()
+        self.sort_plots()
 
         return plot_item
 
@@ -450,31 +434,7 @@ class TimeLineDock(QWidget):
             self.graphics_layout.removeItem(legend.parentItem())
             del self.timeline_legends[plot_name]
 
-        items_to_move = []
-        rows_dict = self.graphics_layout.rows
-        dead_row_idx = -1
-        for row_idx, row_contents in rows_dict.items():
-            if row_contents == {}:
-                dead_row_idx = row_idx
-
-            elif dead_row_idx >= 0:
-                items_to_move.append((
-                    self.graphics_layout.getItem(row_idx, 0),
-                    self.graphics_layout.getItem(row_idx, 1)
-                ))
-
-        for (l, p) in items_to_move:
-            self.graphics_layout.removeItem(l)
-            self.graphics_layout.removeItem(p)
-
-        for (l, p) in items_to_move:
-            self.graphics_layout.addItem(l, row=dead_row_idx, col=0)
-            self.graphics_layout.addItem(p, row=dead_row_idx, col=1)
-            dead_row_idx += 1
-
-        del self.graphics_layout.rows[dead_row_idx]
-
-        self.fix_scroll_size()
+        self.sort_plots()
 
     def remove_timeline_series(self, plot_name: str, series_name: str):
         if plot_name not in self.timeline_plots:
@@ -554,9 +514,46 @@ class TimeLineDock(QWidget):
             legend = self.timeline_legends[timeline_row_name]
             legend.addItem(bars, name=item_name)
 
-        self.fix_scroll_size()
+        self.sort_plots()
 
         return plot_widget
+
+    def sort_plots(self) -> None:
+        items_to_move = {}
+        for move_row in range(self.graphics_layout.currentRow, 1, -1):
+            legend = self.graphics_layout.getItem(move_row, 0)
+            plot = self.graphics_layout.getItem(move_row, 1)
+
+            if plot is None:
+                continue
+
+            if plot.has_line:
+                prefix = "30"
+            elif plot.has_bar:
+                prefix = "10"
+            else:
+                prefix = "20"
+
+            sort_key = f"{prefix}-{legend.rows[0][0].text.lower()}"
+            items_to_move[sort_key] = (legend, plot)
+
+            self.graphics_layout.removeItem(legend)
+            self.graphics_layout.removeItem(plot)
+
+            del self.graphics_layout.rows[move_row]
+
+        self.graphics_layout.currentRow = 1
+
+        sorted_keys = sorted(items_to_move.keys())
+
+        for key in sorted_keys:
+            l, p = items_to_move[key]
+            row = self.graphics_layout.nextRow()
+            self.graphics_layout.addItem(l, row=row, col=0)
+            self.graphics_layout.addItem(p, row=row, col=1)
+
+
+        self.fix_scroll_size()
 
     def register_data_point_action(
         self,
