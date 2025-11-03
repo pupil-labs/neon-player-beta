@@ -5,6 +5,7 @@ from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPoint, QPointF, QPropertyAnimation, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColorConstants,
+    QMouseEvent,
     QPainter,
     QPaintEvent,
     QResizeEvent,
@@ -20,10 +21,15 @@ from pupil_labs import neon_player
 
 
 class ScalingWidget(QOpenGLWidget):
-    scaled_clicked = Signal(float, float)
+    mouse_pressed = Signal(QMouseEvent)
+    mouse_released = Signal(QMouseEvent)
+    mouse_clicked = Signal(QMouseEvent)
+    mouse_moved = Signal(QMouseEvent)
 
     def __init__(self, parent: QWidget):
         super().__init__(parent)
+        self.setMouseTracking(True)
+
         self.source_size = QSize(100, 100)
         self.scaled_children_positions = {}
         self._mouse_down = False
@@ -50,16 +56,17 @@ class ScalingWidget(QOpenGLWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self._mouse_down = True
 
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            if self._mouse_down:
-                pos = QPointF(event.pos()) - self.offset
-                self.scaled_clicked.emit(
-                    pos.x() / self.scale,
-                    pos.y() / self.scale
-                )
+        self.mouse_pressed.emit(event)
 
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self._mouse_down:
+            self.mouse_clicked.emit(event)
             self._mouse_down = False
+
+        self.mouse_released.emit(event)
+
+    def mouseMoveEvent(self, event):
+        self.mouse_moved.emit(event)
 
     def on_fade_finished(self):
         self._last_frame_time = None
