@@ -2,15 +2,14 @@ import json
 import typing as T
 from pathlib import Path
 
-import numpy as np
 from numpyencoder import NumpyEncoder
 from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.sample import match_ts
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
 from pupil_labs import neon_player
+from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 
 if T.TYPE_CHECKING:
@@ -40,11 +39,17 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
         neon_player.instance().aboutToQuit.connect(self.on_disabled)
 
-    def register_action(self, name: str, func: T.Callable) -> None:
-        return self.app.main_window.register_action(name, None, func)
+    def register_action(self, name: str, shortcut: QtShortcutType, func: T.Callable) -> None:
+        return self.app.main_window.register_action(name, shortcut, func)
 
-    def register_timeline_action(self, name: str, func: T.Callable) -> None:
-        return self.app.main_window.register_action(f"Timeline/{name}", None, func)
+    def unregister_action(self, name: str) -> None:
+        return self.app.main_window.unregister_action(name)
+
+    def register_timeline_action(self, name: str, shortcut: QtShortcutType, func: T.Callable) -> None:
+        return self.app.main_window.register_action(f"Timeline/{name}", shortcut, func)
+
+    def unregister_timeline_action(self, name: str) -> None:
+        return self.app.main_window.unregister_action(f"Timeline/{name}")
 
     def register_data_point_action(self, event_name: str, action_name: str, callback: T.Callable) -> None:
         self.app.main_window.timeline.register_data_point_action(
@@ -113,11 +118,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
         method: T.Literal["nearest", "backward", "forward"] = "backward",
         tolerance: int | None = None
     ) -> int:
-        if t < 0:
-            t = self.app.current_ts
-
-        scene_idx = match_ts([t], self.recording.scene.time, method, tolerance)[0]
-        return -1 if np.isnan(scene_idx) else scene_idx
+        return self.app.get_scene_idx_for_time(t, method, tolerance)
 
     def is_time_gray(self, t: int = -1) -> bool:
         if t == -1:

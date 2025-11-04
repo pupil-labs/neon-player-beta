@@ -164,6 +164,7 @@ class EventsPlugin(neon_player.Plugin):
         if event_type.name not in IMMUTABLE_EVENTS:
             action = self.register_timeline_action(
                 f"Add Event/{event_type.name}",
+                None,
                 lambda: self.add_event(event_type)
             )
             self.app.main_window.sort_action_menu("Timeline/Add Event")

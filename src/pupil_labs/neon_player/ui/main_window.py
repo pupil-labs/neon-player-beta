@@ -5,6 +5,7 @@ from pathlib import Path
 
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
+    QKeyCombination,
     Qt,
     QUrl,
 )
@@ -188,9 +189,27 @@ class MainWindow(QMainWindow):
             self.on_show_recording_cache
         )
 
-        self.play_action = self.register_action(
-            "&Playback/&Play\\Pause", "Space", self.on_play_action
-        )
+        self.playback_actions = [
+            self.register_action(
+                "&Playback/&Play\\Pause", "Space", self.on_play_action
+            ),
+            self.register_action(
+                "&Playback/Skip forward 5s", Qt.Key.Key_Right, lambda: app.seek_by(5e9)
+            ),
+            self.register_action(
+                "&Playback/Skip backwards 5s", Qt.Key.Key_Left, lambda: app.seek_by(-5e9)
+            ),
+            self.register_action(
+                "&Playback/Next scene frame",
+                QKeyCombination(Qt.KeyboardModifier.ShiftModifier, Qt.Key.Key_Right),
+                lambda: app.seek_by_frame(1)
+            ),
+            self.register_action(
+                "&Playback/Previous scene frame",
+                QKeyCombination(Qt.KeyboardModifier.ShiftModifier, Qt.Key.Key_Left),
+                lambda: app.seek_by_frame(-1)
+            ),
+        ]
 
         self.register_action(
             "&Timeline/&Reset view", None, self.timeline.reset_view

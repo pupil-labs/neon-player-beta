@@ -2,14 +2,15 @@ import argparse
 import importlib.util
 import json
 import logging
-import logging.handlers
 import os
 import sys
 import time
-import typing
+import typing as T
 from pathlib import Path
 
-from PySide6.QtCore import QIODevice, QTimer, Signal
+import numpy as np
+from pupil_labs.neon_recording.sample import match_ts
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QAction, QIcon, QPainter
 from PySide6.QtWidgets import (
     QApplication,
@@ -153,7 +154,7 @@ class NeonPlayerApp(QApplication):
 
         self.quit()
 
-    def load_global_settings(self) -> typing.Any:
+    def load_global_settings(self) -> T.Any:
         settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
         logging.info(f"Loading settings from {settings_path}")
         return json.loads(settings_path.read_text())
@@ -439,6 +440,29 @@ class NeonPlayerApp(QApplication):
 
         self.position_changed.emit(self.current_ts)
         self.seeked.emit(self.current_ts)
+
+    def seek_by(self, ns: int) -> None:
+        self.seek_to(self.current_ts + ns)
+
+    def seek_by_frame(self, frame_delta: int) -> None:
+        if self.recording is None:
+            return
+
+        scene_idx = self.get_scene_idx_for_time()
+        scene_idx = max(0, min(scene_idx + frame_delta, len(self.recording.scene) - 1))
+        self.seek_to(self.recording.scene[scene_idx].time)
+
+    def get_scene_idx_for_time(
+        self,
+        t: int = -1,
+        method: T.Literal["nearest", "backward", "forward"] = "backward",
+        tolerance: int | None = None
+    ) -> int:
+        if t < 0:
+            t = self.current_ts
+
+        scene_idx = match_ts([t], self.recording.scene.time, method, tolerance)[0]
+        return -1 if np.isnan(scene_idx) else scene_idx
 
     def render_to(self, painter: QPainter, ts: int | None = None) -> None:
         if ts is None:

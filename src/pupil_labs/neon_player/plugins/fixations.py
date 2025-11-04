@@ -8,7 +8,7 @@ import numpy.typing as npt
 import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries import FixationTimeseries
-from PySide6.QtCore import QObject, QPointF, Signal
+from PySide6.QtCore import QKeyCombination, QObject, QPointF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 
@@ -34,6 +34,18 @@ class FixationsPlugin(neon_player.Plugin):
         self.gaze_plugin: GazeDataPlugin | None = None
         self.optic_flow: OpticFlow | None = None
 
+    def seek_by_fixation(self, direction: int) -> None:
+        if len(self.recording.fixations) == 0:
+            return
+
+        fixations_up_to_now = self.recording.fixations[
+            self.recording.fixations.start_time <= self.app.current_ts
+        ]
+
+        current_idx = len(fixations_up_to_now) - 1
+        idx = max(0, min(len(self.recording.fixations) - 1, current_idx + direction))
+        self.app.seek_to(self.recording.fixations.start_time[idx])
+
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         for viz in self._visualizations:
             viz.on_recording_loaded(recording)
@@ -53,6 +65,17 @@ class FixationsPlugin(neon_player.Plugin):
         self.get_timeline().add_timeline_broken_bar(
             "Fixations",
             self.fixations[["start_time", "stop_time"]]
+        )
+
+        self.register_action(
+            "Playback/Next Fixation",
+            QKeyCombination(Qt.Key.Key_S),
+            lambda: self.seek_by_fixation(1)
+        )
+        self.register_action(
+            "Playback/Previous Fixation",
+            QKeyCombination(Qt.Key.Key_A),
+            lambda: self.seek_by_fixation(-1)
         )
 
     def _load_optic_flow(self) -> None:
@@ -128,6 +151,8 @@ class FixationsPlugin(neon_player.Plugin):
 
     def on_disabled(self) -> None:
         self.get_timeline().remove_timeline_plot("Fixations")
+        self.unregister_action("Playback/Next Fixation")
+        self.unregister_action("Playback/Previous Fixation")
 
     def get_export_data(self) -> pd.DataFrame:
         start_time, stop_time = neon_player.instance().recording_settings.export_window
