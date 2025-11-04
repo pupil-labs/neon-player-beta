@@ -15,7 +15,7 @@ class IPCLogger(logging.Handler):
         super().__init__()
 
         logger = logging.getLogger()
-        logger.setLevel(logging.INFO)
+        logger.setLevel(logging.DEBUG)
 
         self.server = None
         self._client_sockets = []
@@ -42,7 +42,7 @@ class IPCLogger(logging.Handler):
 
         # Set up root logger
         logger = logging.getLogger()
-        logger.setLevel(logging.INFO)
+        logger.setLevel(logging.DEBUG)
 
         # Create formatters
         log_formatter = logging.Formatter(neon_player.LOG_FORMAT_STRING)

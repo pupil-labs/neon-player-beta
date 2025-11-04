@@ -117,16 +117,12 @@ class NeonPlayerApp(QApplication):
         except Exception:
             logging.exception("Failed to load settings")
 
-        if self.args.recording:
+        if self.args.job and self.args.recording:
+            self.load(Path(self.args.recording))
+        elif self.args.recording:
             QTimer.singleShot(1, lambda: self.load(Path(self.args.recording)))
-
-        self._initializing = False
-
-        if self.args.plugin_action:
-            QTimer.singleShot(100, lambda: self.run_plugin_actions(self.args.plugin_action))
-
-        if self.args.job:
-            QTimer.singleShot(100, lambda: self.run_jobs(self.args.job))
+        else:
+            self._initializing = False
 
     def run_jobs(self, job):
         plugin_name, action_name = job[0].split(".")
@@ -234,6 +230,7 @@ class NeonPlayerApp(QApplication):
         currently_enabled = kls.__name__ in self.plugins_by_class
 
         if enabled and not currently_enabled:
+            logging.info(f"Enabling plugin: {kls.__name__}")
             try:
                 if state is None:
                     state = self.recording_settings.plugin_states.get(kls.__name__, {})
@@ -251,8 +248,6 @@ class NeonPlayerApp(QApplication):
             except Exception:
                 logging.exception(f"Failed to enable plugin {kls}")
                 return None
-
-            logging.info(f"Enabled plugin: {kls.__name__}")
 
         elif not enabled and currently_enabled:
             plugin = self.plugins_by_class[kls.__name__]
@@ -311,6 +306,7 @@ class NeonPlayerApp(QApplication):
     def load(self, path: Path) -> None:
         """Load a recording from the given path."""
         self.loading_recording = True
+        self._initializing = True
         self.unload()
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
@@ -342,6 +338,8 @@ class NeonPlayerApp(QApplication):
             logging.exception("Failed to load settings")
             self.recording_settings = RecordingSettings()
 
+        logging.info("Recording settings loaded", self.recording_settings.enabled_plugins)
+
         if self.settings.skip_gray_frames_on_load:
             self.seek_to(self.recording.scene[0].time)
         else:
@@ -361,6 +359,12 @@ class NeonPlayerApp(QApplication):
         for cls_name, enabled in self.recording_settings.enabled_plugins.items():
             state = self.recording_settings.plugin_states.get(cls_name, {})
             self.toggle_plugin(cls_name, enabled, state)
+
+        self._initializing = False
+
+        if self.args.job:
+            logging.info("Running jobs")
+            self.run_jobs(self.args.job)
 
     def get_action(self, action_path: str) -> QAction:
         return self.main_window.get_action(action_path)
