@@ -341,13 +341,12 @@ class TimeLineDock(QWidget):
         )
 
         if is_timestamps_row:
+            plot_item.preferred_height_1d = 50
+            plot_item.adjust_size()
             legend_label.anchor((.5, 0), (.5, 0), (0, 20))
 
         legend.layout.setSpacing(0)
         self.timeline_legends[timeline_row_name] = legend
-
-        if timeline_row_name == "Export window":
-            plot_item.preferred_height_1d = 50
 
         self.graphics_layout.addItem(legend_container, row=row, col=0)
         self.graphics_layout.addItem(plot_item, row=row, col=1)
@@ -420,6 +419,7 @@ class TimeLineDock(QWidget):
     def fix_scroll_size(self):
         h = sum([p.preferredHeight() for p in self.timeline_plots.values()])
         self.graphics_view.setFixedHeight(h)
+        self.playhead.refresh_geometry()
 
     def remove_timeline_plot(self, plot_name: str):
         plot = self.get_timeline_plot(plot_name)
@@ -552,7 +552,6 @@ class TimeLineDock(QWidget):
             self.graphics_layout.addItem(l, row=row, col=0)
             self.graphics_layout.addItem(p, row=row, col=1)
 
-
         self.fix_scroll_size()
 
     def register_data_point_action(
@@ -579,11 +578,7 @@ class TimeLineDock(QWidget):
             app.recording.stop_time
         ])
 
-    def init_view(self):
-        h = self.height()
-        self.resize(self.width(), h + 1)
-        self.resize(self.width(), h)
-        self.reset_view()
+        self.playhead.refresh_geometry()
 
     def get_export_window(self) -> list[int]:
         times = [tm.time for tm in self.trim_markers]

@@ -231,6 +231,7 @@ class SmartSizePlotItem(pg.PlotItem):
 
         self.preferred_height_1d = 25
         self.preferred_height_2d = 150
+        self.adjust_size()
 
     def addItem(self, *args, **kwargs) -> None:
         super().addItem(*args, **kwargs)
@@ -288,7 +289,7 @@ class PlotOverlay(QWidget):
         plot_rect = self.linked_plot.geometry()
         self.setGeometry(
             plot_rect.x(), 10,
-            plot_rect.width(), self.parent().height() - 10
+            plot_rect.width(), self.parent().centralWidget.height() - 10
         )
 
 

@@ -7,6 +7,7 @@ from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
     QKeyCombination,
     Qt,
+    QTimer,
     QUrl,
 )
 from PySide6.QtGui import (
@@ -240,6 +241,7 @@ class MainWindow(QMainWindow):
         self.settings_dock.show()
         self.menuBar().show()
         self.statusBar().show()
+        QTimer.singleShot(1, self.timeline.reset_view)
 
     def on_recording_closed(self):
         self.greeting_switcher.setCurrentIndex(0)
