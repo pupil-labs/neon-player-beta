@@ -46,11 +46,12 @@ from pupil_labs.neon_player.utilities import SlotDebouncer
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Neon Player")
+
+        app = neon_player.instance()
+        self.setWindowTitle(f"{app.applicationName()} - v{app.applicationVersion()}")
         self.setAcceptDrops(True)
         self.resize(1600, 1000)
 
-        app = neon_player.instance()
         app.setPalette(QPalette(QColor("#1c2021")))
 
         self.setStyleSheet("""
@@ -338,11 +339,13 @@ class MainWindow(QMainWindow):
         webbrowser.open("https://docs.pupil-labs.com/neon/neon-player/")
 
     def on_about_action(self) -> None:
+        app = neon_player.instance()
+
         QMessageBox.about(
             self,
-            "About Neon Player vX.y.z",
+            f"About {app.applicationName()}",
             (
-                "Neon Player\nVersion X.y.z\n\n"
+                f"{app.applicationName()}\nv{app.applicationVersion()}\n\n"
                 "A Neon recording analysis application by Pupil Labs."
             ),
         )

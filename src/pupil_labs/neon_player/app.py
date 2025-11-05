@@ -6,6 +6,7 @@ import os
 import sys
 import time
 import typing as T
+from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
@@ -56,7 +57,13 @@ class NeonPlayerApp(QApplication):
 
         os.chdir(Path.home())
 
+        try:
+            app_version = version("pupil_labs.neon_player")
+        except Exception:
+            app_version = "?"
+
         self.setApplicationName("Neon Player")
+        self.setApplicationVersion(app_version)
         self.setWindowIcon(QIcon(str(neon_player.asset_path("neon-player.svg"))))
         self.setStyle("Fusion")
 
@@ -104,7 +111,7 @@ class NeonPlayerApp(QApplication):
         self.main_window = MainWindow()
 
         self.ipc_logger = IPCLogger()
-        logging.info("Neon Player starting up")
+        logging.info(f"{self.applicationName()} v{self.applicationVersion()} starting up")
 
         # Iterate through all modules within plugins and register them
         plugin_search_path = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"
