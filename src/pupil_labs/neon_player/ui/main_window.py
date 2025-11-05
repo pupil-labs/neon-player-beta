@@ -183,6 +183,7 @@ class MainWindow(QMainWindow):
         self.register_action("&File/&Quit", "Ctrl+q", self.on_quit_action)
 
         self.register_action("&Tools/&Console", "Ctrl+Alt+c", self.console_window.show)
+        self.register_action("&Tools/&Reset docks", None, self.reset_docks)
         self.register_action(
             "&Tools/&Browse recording folder", None, self.on_show_recording_folder
         )
@@ -225,6 +226,17 @@ class MainWindow(QMainWindow):
 
         self.on_recording_closed()
         self.status_label.clicked.connect(self.console_window.show)
+
+    def reset_docks(self):
+        docks_and_areas = {
+            self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
+            self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea
+        }
+
+        for dock, area in docks_and_areas.items():
+            self.addDockWidget(area, dock)
+            dock.setFloating(False)
+            dock.show()
 
     def on_greeting_link_clicked(self, link: str):
         if link.startswith("action:"):
