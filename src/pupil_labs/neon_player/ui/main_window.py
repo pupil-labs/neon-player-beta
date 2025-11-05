@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QStackedLayout,
     QVBoxLayout,
     QWidget,
@@ -468,8 +469,12 @@ class GlobalSettingsDialog(QDialog):
         self.setLayout(layout)
 
         expander_list = ExpanderList(self)
+        scroll_area = QScrollArea()
+        scroll_area.setWidget(expander_list)
+        scroll_area.setWidgetResizable(True)
+
         layout.addWidget(QLabel("<h2>Global Settings</h2>"))
-        layout.addWidget(expander_list)
+        layout.addWidget(scroll_area)
 
         global_settings_form = PropertyForm(app.settings)
         SlotDebouncer.debounce(

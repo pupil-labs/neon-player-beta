@@ -2,11 +2,7 @@ from datetime import datetime
 
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import (
-    QLabel,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QLabel, QScrollArea, QVBoxLayout, QWidget
 from qt_property_widgets.expander import Expander, ExpanderList
 from qt_property_widgets.widgets import PropertyForm, PropertyWidget
 
@@ -52,24 +48,25 @@ class RecordingInfoWidget(QWidget):
         self.wearer_label.setText("-")
 
 
-class SettingsPanel(QWidget):
+class SettingsPanel(QScrollArea):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent=parent)
         app = neon_player.instance()
         app.recording_loaded.connect(self.on_recording_loaded)
         app.recording_unloaded.connect(self.on_recording_unloaded)
 
-        layout = QVBoxLayout()
-        self.setLayout(layout)
+        self.content_widget = QWidget()
+        self.content_layout = QVBoxLayout()
+        self.content_widget.setLayout(self.content_layout)
+        self.setWidgetResizable(True)
 
         self.plugin_list_widget = ExpanderList(parent=self)
-
         self.setMinimumSize(400, 100)
 
         self.plugin_class_expanders: dict[str, Expander] = {}
 
         self.recording_info_widget = RecordingInfoWidget()
-        layout.addWidget(Expander(
+        self.content_layout.addWidget(Expander(
             self,
             "Recording Information",
             self.recording_info_widget,
@@ -78,8 +75,10 @@ class SettingsPanel(QWidget):
 
         header = QLabel("<h3>Enabled Plugins</h3>")
         header.setStyleSheet("padding-top: 30px")
-        layout.addWidget(header)
-        layout.addWidget(self.plugin_list_widget)
+        self.content_layout.addWidget(header)
+        self.content_layout.addWidget(self.plugin_list_widget)
+
+        self.setWidget(self.content_widget)
         self.plugins_form = None
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
@@ -89,11 +88,11 @@ class SettingsPanel(QWidget):
             "Plugin Manager",
             PropertyWidget.from_property("enabled_plugins", app.recording_settings)
         )
-        self.layout().insertWidget(1, self.plugins_form)
+        self.content_layout.insertWidget(1, self.plugins_form)
 
     def on_recording_unloaded(self) -> None:
         if self.plugins_form is not None:
-            self.layout().removeWidget(self.plugins_form)
+            self.content_layout.removeWidget(self.plugins_form)
             self.plugins_form.deleteLater()
             self.plugins_form = None
 
