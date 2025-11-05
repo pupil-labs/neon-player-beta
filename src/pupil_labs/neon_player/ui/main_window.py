@@ -164,12 +164,12 @@ class MainWindow(QMainWindow):
         self.console_window = ConsoleWindow()
         self.settings_panel = SettingsPanel()
         self.settings_dock = self.add_dock(
-            self.settings_panel, "Control Panel", Qt.DockWidgetArea.RightDockWidgetArea
+            self.settings_panel, "", Qt.DockWidgetArea.RightDockWidgetArea
         )
 
         self.timeline = TimeLineDock()
         self.timeline_dock = self.add_dock(
-            self.timeline, "Timeline", Qt.DockWidgetArea.BottomDockWidgetArea
+            self.timeline, "", Qt.DockWidgetArea.BottomDockWidgetArea
         )
 
         self.register_action(
@@ -431,6 +431,7 @@ class MainWindow(QMainWindow):
         area: Qt.DockWidgetArea = Qt.DockWidgetArea.LeftDockWidgetArea,
     ) -> QDockWidget:
         dock = QDockWidget(title, self)
+        dock.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
         dock.setWidget(widget)
         dock.setFeatures(dock.features() & ~QDockWidget.DockWidgetClosable)
         self.addDockWidget(area, dock)
