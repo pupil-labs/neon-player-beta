@@ -34,7 +34,7 @@ from qt_property_widgets.expander import ExpanderList
 from qt_property_widgets.widgets import PropertyForm
 
 from pupil_labs import neon_player
-from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
@@ -117,16 +117,17 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        self.greeting_label = QLabel("""
+        self.greeting_label = QLabel(f"""
+            <p>
+                <img src="{asset_path('Primary-White-200px.png')}" />
+            </p>
             <h1>Welcome to Neon Player!</h1>
-            <p>
-                To get started, drag and drop a recording folder here or
+            <br/>
+            <h2>
+                Drag and drop a recording folder here or
                 <a href="action:File/Open recording">browse to a recording folder</a>.
-            </p>
-            <p>
-                Visit our <a href="https://docs.pupil-labs.com/neon/neon-player/">
-                online documentation</a> for help and more information.
-            </p>
+            </h2>
+            <br/><br/>
         """, parent=self)
         self.greeting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.greeting_label.setStyleSheet("background: #000000")
