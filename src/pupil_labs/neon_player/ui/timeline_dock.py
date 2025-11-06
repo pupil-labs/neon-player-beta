@@ -83,7 +83,9 @@ class TimeLineDock(QWidget):
             " 0.25x", " 0.50x", " 0.75x", " 1.00x",
             " 1.25x", " 1.50x", " 1.75x", " 2.00x",
         ])
-        self.speed_control.setStyleSheet("font-family: monospace;")
+        font = self.speed_control.font()
+        font.setFixedPitch(True)
+        self.speed_control.setFont(font)
         self.speed_control.setCurrentText(" 1.00x")
 
         self.speed_control.currentTextChanged.connect(

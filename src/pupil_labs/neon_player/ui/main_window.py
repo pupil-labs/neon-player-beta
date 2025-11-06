@@ -3,7 +3,6 @@ import typing
 import webbrowser
 from pathlib import Path
 
-from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
     QKeyCombination,
     Qt,
@@ -43,6 +42,7 @@ from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
+from pupil_labs.neon_recording import NeonRecording
 
 
 class MainWindow(QMainWindow):
@@ -56,7 +56,7 @@ class MainWindow(QMainWindow):
 
         app.setPalette(QPalette(QColor("#1c2021")))
 
-        self.setStyleSheet("""
+        app.setStyleSheet("""
             QWidget {
                 font-family: arial;
                 font-size: 11pt;
@@ -81,7 +81,16 @@ class MainWindow(QMainWindow):
 
             Expander>QToolButton {
                 border: none;
-                font-family: monospace;
+                font-family: 'Menlo', 'Monico', 'Consolas', 'Lucida Console', 'monospace', 'Courier New', 'Courier';
+            }
+
+            ConsoleWindow>QTextEdit {
+                font-family: 'Menlo', 'Monico', 'Consolas', 'Lucida Console', 'monospace', 'Courier New', 'Courier';
+            }
+
+            TimestampLabel {
+                font-weight: bold;
+                font-size: 16pt;
             }
 
             BoolWidget>QToolButton {

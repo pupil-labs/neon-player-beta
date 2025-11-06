@@ -210,7 +210,9 @@ class TimestampLabel(QLabel):
         super().__init__()
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.set_time(0)
-        self.setStyleSheet("font-family: monospace; font-weight: bold;")
+        font = self.font()
+        font.setFixedPitch(True)
+        self.setFont(font)
 
     def set_time(self, time_ns: int) -> None:
         hours = time_ns // (1e9 * 60 * 60)
