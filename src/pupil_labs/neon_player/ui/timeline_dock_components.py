@@ -285,11 +285,13 @@ class PlotOverlay(QWidget):
         linked_plot.vb.sigResized.connect(self.refresh_geometry)
 
     def get_x_pixel_for_x_value(self, x_value: float) -> float:
-        x_range = self.linked_plot.vb.viewRange()[0]
-        return (x_value - x_range[0]) / (x_range[1] - x_range[0]) * self.width()
+        vb = self.linked_plot.vb
+        x_range = vb.viewRange()[0]
+        return (x_value - x_range[0]) / (x_range[1] - x_range[0]) * vb.width() - 1
 
     def refresh_geometry(self) -> None:
-        plot_rect = self.linked_plot.geometry()
+        vb = self.linked_plot.vb
+        plot_rect = vb.mapToScene(vb.geometry()).boundingRect()
         self.setGeometry(
             plot_rect.x(), 20,
             plot_rect.width(), self.parent().centralWidget.height() - 20
