@@ -81,6 +81,7 @@ class TimeAxisItem(pg.AxisItem):
         self.recording_stop_time_ns = 0
 
         self.interval = 1
+        self.setStyle(autoReduceTextSpace=False)
 
     def tickValues(self, minVal, maxVal, size):
         if self.recording_start_time_ns == 0 or self.recording_stop_time_ns == 0:
@@ -290,8 +291,8 @@ class PlotOverlay(QWidget):
     def refresh_geometry(self) -> None:
         plot_rect = self.linked_plot.geometry()
         self.setGeometry(
-            plot_rect.x(), 10,
-            plot_rect.width(), self.parent().centralWidget.height() - 10
+            plot_rect.x(), 20,
+            plot_rect.width(), self.parent().centralWidget.height() - 20
         )
 
 
