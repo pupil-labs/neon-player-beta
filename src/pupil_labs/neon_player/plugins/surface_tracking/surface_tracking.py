@@ -12,7 +12,7 @@ import pupil_apriltags
 import pupil_labs.video as plv
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPointF, Qt, QTimer
-from PySide6.QtGui import QColor, QImage, QPainter
+from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QMessageBox
 from qt_property_widgets.utilities import property_params
 from surface_tracker import (
@@ -44,6 +44,7 @@ class SurfaceTrackingPlugin(Plugin):
         self.surface_cache_file = self.get_cache_path() / "surfaces.npy"
 
         self._draw_marker_ids = False
+        self._draw_names = True
         self._export_overlays = False
 
         self.markers_by_frame: list[list[Marker]] = []
@@ -158,12 +159,15 @@ class SurfaceTrackingPlugin(Plugin):
             return
 
         # Render markers
+        font = painter.font()
+        font.setBold(True)
+        font.setPointSize(24)
+        painter.setFont(font)
         if frame_idx < len(self.markers_by_frame):
             for marker in self.markers_by_frame[frame_idx]:
                 corners = np.array(marker.vertices())
                 self._distort_and_draw_marker(painter, corners, marker.uid)
 
-        painter.setOpacity(1.0)
         for surface in self.surfaces:
             if surface.uid not in self.surface_locations:
                 continue
@@ -228,18 +232,37 @@ class SurfaceTrackingPlugin(Plugin):
                     CornerId.all_corners()
                 )
                 anchors = np.array(list(anchors.values()))
-            self._distort_and_trace_surface(painter, anchors)
+
+            points = self._distort_and_trace_surface(painter, anchors)
+            if self._draw_names:
+                painter.setBrush(QColor("#000"))
+                pen = QPen(QColor("white"))
+                pen.setWidthF(5.0)
+                pen.setJoinStyle(Qt.RoundJoin)
+                painter.setPen(pen)
+
+                path = QPainterPath()
+
+                center = np.mean(points[0:-1], axis=0)
+                text_rect = painter.fontMetrics().boundingRect(surface.name)
+                path.addText(
+                    int(center[0] - text_rect.width() / 2),
+                    int(center[1] + text_rect.height() / 2) - 8,
+                    painter.font(),
+                    surface.name
+                )
+                painter.drawPath(path)
+                painter.setPen(Qt.NoPen)
+                painter.drawPath(path)
 
     def _distort_and_trace_surface(
         self,
         painter: QPainter,
         anchors,
         resolution=10,
-    ) -> None:
+    ) -> np.ndarray:
         points = insert_interpolated_points(anchors, resolution)
         points = self.camera.distort_points(points)
-
-        points = [QPointF(*point) for point in points]
 
         pen = painter.pen()
         pen.setWidth(5)
@@ -247,6 +270,7 @@ class SurfaceTrackingPlugin(Plugin):
         pen.setCapStyle(Qt.PenCapStyle.FlatCap)
         painter.setPen(pen)
 
+        qpoints = [QPointF(*point) for point in points]
         for seg_idx in [1, 2, 3, 0]:
             if seg_idx == 0:
                 pen.setColor("#ff0000")
@@ -255,7 +279,9 @@ class SurfaceTrackingPlugin(Plugin):
             start_idx = seg_idx * (resolution + 1)
             end_idx = start_idx + resolution + 2
 
-            painter.drawPolyline(points[start_idx:end_idx])
+            painter.drawPolyline(qpoints[start_idx:end_idx])
+
+        return points
 
     def _distort_and_draw_marker(
         self,
@@ -280,18 +306,30 @@ class SurfaceTrackingPlugin(Plugin):
         painter.drawPolygon([QPointF(*point) for point in points])
 
         if self._draw_marker_ids:
-            painter.setPen("#000")
-            font = painter.font()
-            font.setPointSize(24)
-            font.setBold(True)
-            painter.setFont(font)
+            old_pen = painter.pen()
+
+            painter.setBrush("#000")
+            pen = QPen(QColor("#fff"))
+            pen.setWidthF(5.0)
+            pen.setJoinStyle(Qt.RoundJoin)
+            painter.setPen(pen)
+
             text_rect = painter.fontMetrics().boundingRect(marker_id)
             center = np.mean(points[0:-1], axis=0)
-            painter.drawText(
+
+            path = QPainterPath()
+            text_rect = painter.fontMetrics().boundingRect(marker_id)
+            path.addText(
                 int(center[0] - text_rect.width() / 2),
                 int(center[1] + text_rect.height() / 2) - 8,
+                painter.font(),
                 marker_id
             )
+            painter.drawPath(path)
+            painter.setPen(Qt.NoPen)
+            painter.drawPath(path)
+
+            painter.setPen(old_pen)
 
     def _load_marker_cache(self) -> None:
         self.markers_by_frame = np.load(self.marker_cache_file, allow_pickle=True)
@@ -456,6 +494,15 @@ class SurfaceTrackingPlugin(Plugin):
     @draw_marker_ids.setter
     def draw_marker_ids(self, value: bool) -> None:
         self._draw_marker_ids = value
+
+
+    @property
+    def draw_names(self) -> bool:
+        return self._draw_names
+
+    @draw_names.setter
+    def draw_names(self, value: bool) -> None:
+        self._draw_names = value
 
     @property
     def export_overlays(self) -> bool:
