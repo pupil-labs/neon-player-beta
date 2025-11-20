@@ -3,6 +3,7 @@ import typing
 import webbrowser
 from pathlib import Path
 
+from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
     QKeyCombination,
     Qt,
@@ -14,7 +15,9 @@ from PySide6.QtGui import (
     QColor,
     QDesktopServices,
     QPalette,
+    QPixmap,
 )
+from PySide6.QtUiTools import loadUiType
 from PySide6.QtWidgets import (
     QDialog,
     QDockWidget,
@@ -42,7 +45,42 @@ from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
-from pupil_labs.neon_recording import NeonRecording
+
+Ui_Class, QtBaseClass = loadUiType(str(asset_path("splash.ui")))
+
+class SplashWidget(Ui_Class, QtBaseClass):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setupUi(self)
+        self.logo.setPixmap(QPixmap(asset_path("Primary-White-76px.png")))
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event) -> None:
+        # Accept directories only
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if len(urls) == 1 and urls[0].isLocalFile() and urls[0].toLocalFile():
+                path = Path(urls[0].toLocalFile())
+                if path.is_dir():
+                    event.acceptProposedAction()
+                    self.dropbox.setStyleSheet("#dropbox { background: #141414 }")
+                    return
+
+        event.ignore()
+
+    def dragLeaveEvent(self, event) -> None:
+        self.dropbox.setStyleSheet("#dropbox { background: #080808 }")
+
+    def dropEvent(self, event) -> None:
+        urls = event.mimeData().urls()
+        if urls and urls[0].isLocalFile():
+            path = Path(urls[0].toLocalFile())
+            if path.is_dir():
+                neon_player.instance().load(path)
+                event.acceptProposedAction()
+                return
+
+        event.ignore()
 
 
 class MainWindow(QMainWindow):
@@ -128,29 +166,15 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        self.greeting_label = QLabel(f"""
-            <p>
-                <img src="{asset_path('Primary-White-200px.png')}" />
-            </p>
-            <h1>Welcome to Neon Player!</h1>
-            <br/>
-            <h2>
-                Drag and drop a recording folder here or
-                <a href="action:File/Open recording">browse to a recording folder</a>.
-            </h2>
-            <br/><br/>
-        """, parent=self)
-        self.greeting_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.greeting_label.setStyleSheet("background: #000000")
-        self.greeting_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        self.greeting_label.linkActivated.connect(self.on_greeting_link_clicked)
+        self.splash_widget = SplashWidget()
+        self.splash_widget.browse_button.clicked.connect(self.on_open_action)
 
         self.video_widget = VideoRenderWidget()
 
         self.greeting_switcher = QStackedLayout()
         central_widget = QWidget(self)
         central_widget.setLayout(self.greeting_switcher)
-        self.greeting_switcher.addWidget(self.greeting_label)
+        self.greeting_switcher.addWidget(self.splash_widget)
         self.greeting_switcher.addWidget(self.video_widget)
         self.setCentralWidget(central_widget)
 
@@ -248,15 +272,6 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
-    def on_greeting_link_clicked(self, link: str):
-        if link.startswith("action:"):
-            action = self.get_action(link[7:])
-            if action:
-                action.trigger()
-
-        else:
-            QDesktopServices.openUrl(QUrl(link))
-
     def on_recording_opened(self):
         self.greeting_switcher.setCurrentIndex(1)
         self.timeline_dock.show()
@@ -335,27 +350,10 @@ class MainWindow(QMainWindow):
         QDesktopServices.openUrl(url)
 
     def dragEnterEvent(self, event):
-        # Accept directories only
-        if event.mimeData().hasUrls():
-            urls = event.mimeData().urls()
-            if len(urls) == 1 and urls[0].isLocalFile() and urls[0].toLocalFile():
-                path = Path(urls[0].toLocalFile())
-                if path.is_dir():
-                    event.acceptProposedAction()
-                    return
-
-        event.ignore()
+        return self.splash_widget.dragEnterEvent(event)
 
     def dropEvent(self, event):
-        urls = event.mimeData().urls()
-        if urls and urls[0].isLocalFile():
-            path = Path(urls[0].toLocalFile())
-            if path.is_dir():
-                neon_player.instance().load(path)
-                event.acceptProposedAction()
-                return
-
-        event.ignore()
+        return self.splash_widget.dropEvent(event)
 
     def on_play_action(self) -> None:
         neon_player.instance().toggle_play()
