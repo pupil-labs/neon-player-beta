@@ -43,8 +43,7 @@ class SurfaceTrackingPlugin(Plugin):
         self.marker_cache_file = self.get_cache_path() / "markers.npy"
         self.surface_cache_file = self.get_cache_path() / "surfaces.npy"
 
-        self._marker_color = QColor("#22ff22")
-        self._marker_color.setAlpha(200)
+        self._draw_marker_ids = False
         self._export_overlays = False
 
         self.markers_by_frame: list[list[Marker]] = []
@@ -159,21 +158,12 @@ class SurfaceTrackingPlugin(Plugin):
             return
 
         # Render markers
-        painter.setBrush(self._marker_color)
-        painter.setPen(self._marker_color)
         if frame_idx < len(self.markers_by_frame):
             for marker in self.markers_by_frame[frame_idx]:
                 corners = np.array(marker.vertices())
-                self._distort_and_paint_polygon(painter, corners)
+                self._distort_and_draw_marker(painter, corners, marker.uid)
 
         painter.setOpacity(1.0)
-
-        font = painter.font()
-        font.setPointSize(24)
-        font.setBold(True)
-        painter.setFont(font)
-
-        default_transform = painter.transform()
         for surface in self.surfaces:
             if surface.uid not in self.surface_locations:
                 continue
@@ -223,30 +213,14 @@ class SurfaceTrackingPlugin(Plugin):
                     )
                     painter.setOpacity(1.0)
 
-            p = painter.pen()
-            p.setColor(surface.outline_color)
-            p.setWidth(surface.outline_width)
-            painter.setPen(p)
-            painter.setBrush(QColor("#00000000"))
-
             if surface.edit_corners:
                 vrw = self.app.main_window.video_widget
                 points = [
-                    vrw.map_point(w.geometry().center())
+                    vrw.scaled_children_positions[w]
                     for w in surface.handle_widgets.values()
                 ]
-                anchors = np.array([ (p.x(), p.y()) for p in points ])
+                anchors = np.array([ (p[0], p[1]) for p in points ])
                 anchors = self.camera.undistort_points(anchors)
-
-                p.setStyle(Qt.PenStyle.DashLine)
-                p.setDashPattern([1, 4])
-                painter.setPen(p)
-
-                self._distort_and_paint_polygon(painter, anchors)
-
-                p.setStyle(Qt.PenStyle.SolidLine)
-                painter.setPen(p)
-
             else:
                 anchors = self.tracker.surface_corner_positions_in_image_space(
                     surface.tracker_surface,
@@ -254,28 +228,70 @@ class SurfaceTrackingPlugin(Plugin):
                     CornerId.all_corners()
                 )
                 anchors = np.array(list(anchors.values()))
+            self._distort_and_trace_surface(painter, anchors)
 
-                self._distort_and_paint_polygon(painter, anchors)
-
-            top_edge = anchors[1] - anchors[0]
-
-            # Compute angle with respect to the x‑axis
-            angle_rad = np.arctan2(top_edge[1], top_edge[0])
-            top_middle = top_edge / 2.0 + anchors[0]
-            top_middle_distorted = self.camera.distort_points([top_middle]).flatten()
-            painter.translate(QPointF(*top_middle_distorted))
-            painter.rotate(np.degrees(angle_rad))
-            painter.translate(QPointF(-15, -5))
-
-            painter.drawText(0, 0, "Top")
-            painter.setTransform(default_transform)
-
-    def _distort_and_paint_polygon(self, painter: QPainter, points, resolution=10) -> None:
-        points = insert_interpolated_points(points, resolution)
+    def _distort_and_trace_surface(
+        self,
+        painter: QPainter,
+        anchors,
+        resolution=10,
+    ) -> None:
+        points = insert_interpolated_points(anchors, resolution)
         points = self.camera.distort_points(points)
 
         points = [QPointF(*point) for point in points]
-        painter.drawPolygon(points)
+
+        pen = painter.pen()
+        pen.setWidth(5)
+        pen.setColor("#039be5")
+        pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+        painter.setPen(pen)
+
+        for seg_idx in [1, 2, 3, 0]:
+            if seg_idx == 0:
+                pen.setColor("#ff0000")
+                painter.setPen(pen)
+
+            start_idx = seg_idx * (resolution + 1)
+            end_idx = start_idx + resolution + 2
+
+            painter.drawPolyline(points[start_idx:end_idx])
+
+    def _distort_and_draw_marker(
+        self,
+        painter: QPainter,
+        points,
+        marker_id,
+        resolution=10,
+    ) -> None:
+        marker_id = str(marker_id)
+        points = insert_interpolated_points(points, resolution)
+        points = self.camera.distort_points(points)
+
+        color = QColor("#00ff00")
+
+        pen = painter.pen()
+        pen.setWidth(5)
+        pen.setColor(color)
+        painter.setPen(pen)
+
+        color.setAlpha(200)
+        painter.setBrush(color)
+        painter.drawPolygon([QPointF(*point) for point in points])
+
+        if self._draw_marker_ids:
+            painter.setPen("#000")
+            font = painter.font()
+            font.setPointSize(24)
+            font.setBold(True)
+            painter.setFont(font)
+            text_rect = painter.fontMetrics().boundingRect(marker_id)
+            center = np.mean(points[0:-1], axis=0)
+            painter.drawText(
+                int(center[0] - text_rect.width() / 2),
+                int(center[1] + text_rect.height() / 2) - 8,
+                marker_id
+            )
 
     def _load_marker_cache(self) -> None:
         self.markers_by_frame = np.load(self.marker_cache_file, allow_pickle=True)
@@ -434,12 +450,12 @@ class SurfaceTrackingPlugin(Plugin):
         self.attempt_load_surface_heatmap(surface_uid)
 
     @property
-    def marker_color(self) -> QColor:
-        return self._marker_color
+    def draw_marker_ids(self) -> bool:
+        return self._draw_marker_ids
 
-    @marker_color.setter
-    def marker_color(self, value: QColor) -> None:
-        self._marker_color = value
+    @draw_marker_ids.setter
+    def draw_marker_ids(self, value: bool) -> None:
+        self._draw_marker_ids = value
 
     @property
     def export_overlays(self) -> bool:

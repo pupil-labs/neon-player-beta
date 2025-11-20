@@ -478,6 +478,10 @@ class NeonPlayerApp(QApplication):
         brush = painter.brush()
         pen = painter.pen()
         font = painter.font()
+        painter.setRenderHints(
+            QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
+        )
+
         for plugin in self.plugins:
             plugin.render(painter, ts)
             painter.setBrush(brush)

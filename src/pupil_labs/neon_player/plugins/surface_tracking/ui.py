@@ -91,15 +91,13 @@ class SurfaceHandle(QWidget):
 
     def paintEvent(self, event: QPaintEvent):
         painter = QPainter(self)
-        painter.setPen(self.surface.outline_color)
-        painter.setBrush(self.surface.outline_color)
-        painter.setOpacity(0.5)
-
-        painter.drawPie(
-            0, 0,
-            self.width() - 1, self.height() - 1,
-            self.starting_angles[self.corner_id] * 16,
-            270 * 16
+        pen = painter.pen()
+        pen.setColor("#039be5")
+        pen.setWidth(3)
+        painter.setPen(pen)
+        painter.setBrush("#fff")
+        painter.drawEllipse(
+            3, 3, self.width() - 4, self.height() - 4
         )
 
     def mouseMoveEvent(self, event: QMouseEvent):

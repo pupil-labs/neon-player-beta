@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import QObject, QPointF, QSize, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
+from PySide6.QtGui import QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
 from surface_tracker import (
@@ -149,8 +149,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._uid = ""
         self._name = ""
         self._markers = []
-        self._outline_color: QColor = QColor(255, 0, 255, 255)
-        self._outline_width: float = 3
         self._can_edit_corners = False
         self._can_edit_markers = False
         self._preview_options = SurfaceViewDisplayOptions()
@@ -227,7 +225,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     @location.setter
     def location(self, value: SurfaceLocation|None) -> None:
         if self._location is not None and value is not None:
-            if np.all(value.transform_matrix_from_image_to_surface_undistorted == self._location.transform_matrix_from_image_to_surface_undistorted):
+            t1 = value.transform_matrix_from_image_to_surface_undistorted
+            t2 = self._location.transform_matrix_from_image_to_surface_undistorted
+            if np.all(t1 == t2):
                 return
 
         self._location = value
@@ -296,7 +296,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             }
 
             for corner_id, w in self.handle_widgets.items():
-                w.setFixedSize(25, 25)
+                w.setFixedSize(20, 20)
                 w.setParent(vrw)
                 w.position_changed.connect(
                     lambda pos, corner=corner_id: self.on_corner_changed(corner, pos)
@@ -365,23 +365,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def uid(self, value: str):
         self._uid = value
 
-    @property
-    def outline_color(self) -> QColor:
-        return self._outline_color
-
-    @outline_color.setter
-    def outline_color(self, outline_color: QColor) -> None:
-        self._outline_color = outline_color
-
-    @property
-    @property_params(min=0, max=100)
-    def outline_width(self) -> float:
-        return self._outline_width
-
-    @outline_width.setter
-    def outline_width(self, value: float) -> None:
-        self._outline_width = value
-
     @action
     def view_surface(self) -> None:
         self.preview_window = SurfaceViewWindow(self)
@@ -421,7 +404,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         try:
             gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
         except KeyError:
-            logging.warning("Surface fixations export requires gaze and fixations plugins to be enabled.")
+            logging.warning(
+                "Surface fixations export requires gaze and fixations plugins to be enabled."
+            )
             return
 
         offset_gazes = gazes.point + np.array([
@@ -459,7 +444,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
             fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
         except KeyError:
-            logging.warning("Surface fixations export requires gaze and fixations plugins to be enabled.")
+            logging.warning(
+                "Surface fixations export requires gaze and fixations plugins to be enabled."
+            )
             return
 
         fixation_data = fixations_plugin.get_export_data()

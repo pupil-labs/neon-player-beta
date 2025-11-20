@@ -28,6 +28,11 @@ class ScalingWidget(QOpenGLWidget):
 
     def __init__(self, parent: QWidget):
         super().__init__(parent)
+
+        surface_format = self.format()
+        surface_format.setSamples(10)
+        self.setFormat(surface_format)
+
         self.setMouseTracking(True)
 
         self.source_size = QSize(100, 100)
