@@ -128,10 +128,10 @@ border-radius: 5px;
               </sizepolicy>
              </property>
              <property name="text">
-              <string>Choose a recording folder</string>
+              <string> Choose a recording folder</string>
              </property>
              <property name="icon">
-              <iconset theme="QIcon::ThemeIcon::FolderOpen"/>
+              <iconset theme="folder"/>
              </property>
              <property name="flat">
               <bool>false</bool>
