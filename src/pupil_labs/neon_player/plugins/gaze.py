@@ -28,23 +28,27 @@ class Aggregation(enum.Enum):
     First = "First"
     Last = "Last"
 
-    def apply(self, gazes):
-        if self is Aggregation.Raw or len(gazes) == 0:
-            v = gazes
+    def apply(self, samples):
+        if self is Aggregation.Raw or len(samples) == 0:
+            v = samples
 
         elif self is Aggregation.Mean:
-            v = gazes.mean(axis=0)
+            v = samples.mean(axis=0)
 
         elif self is Aggregation.Median:
-            v = np.median(gazes, axis=0)
+            v = np.median(samples, axis=0)
 
         elif self is Aggregation.First:
-            v = gazes[0]
+            v = samples[0]
 
         elif self is Aggregation.Last:
-            v = gazes[-1]
+            v = samples[-1]
 
-        return v.reshape(-1, 2)
+        if len(samples.shape) > 1:
+            return v.reshape(-1, samples.shape[-1])
+
+        else:
+            return v
 
 
 class GazeDataPlugin(neon_player.Plugin):
@@ -66,6 +70,29 @@ class GazeDataPlugin(neon_player.Plugin):
         for viz in self._visualizations:
             viz.on_recording_loaded(recording)
 
+        try:
+            worn_data = self.recording.worn[["time", "worn"]]
+            if len(worn_data) == 0:
+                return
+        except Exception:
+            logging.exception("Failed to load worn data")
+            return
+
+        worn_on = self.recording.worn["worn"] // 255
+        worn_on = np.concatenate([[0], worn_on])
+        state_diff = np.diff(worn_on.astype(int))
+
+        start_times = worn_data[state_diff == 1][:, 0].tolist()
+        stop_times = worn_data[state_diff == -1][:, 0].tolist()
+
+        if len(stop_times) < len(start_times):
+            stop_times.append(worn_data[-1][0])
+
+        self.get_timeline().add_timeline_broken_bar(
+            "Worn",
+            list(zip(start_times, stop_times, strict=False)),
+        )
+
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         if self.recording is None:
             return
@@ -74,23 +101,38 @@ class GazeDataPlugin(neon_player.Plugin):
         if scene_idx >= len(self.recording.scene) or scene_idx < 0:
             return
 
-        gazes = self.get_gazes_for_scene(scene_idx).point
+        samples = self.get_gazes_for_scene(scene_idx)
+        gazes = samples.point
         offset_gazes = gazes + np.array([
             self._offset_x * self.recording.scene.width,
             self._offset_y * self.recording.scene.height,
         ])
 
+        worns = self.recording.worn.sample(samples.time).worn
+
         aggregations = {}
         offset_aggregations = {}
+        worn_aggregations = {}
         for viz in self._visualizations:
             if viz._aggregation not in aggregations:
                 aggregations[viz._aggregation] = viz._aggregation.apply(gazes)
                 offset_aggregations[viz._aggregation] = viz._aggregation.apply(offset_gazes)
+                worn_aggregations[viz._aggregation] = viz._aggregation.apply(worns)
 
             aggregation_dict = offset_aggregations if viz.use_offset else aggregations
+
+            renderable_mask = np.array([False] * len(aggregation_dict[viz._aggregation]))
+            if viz.show_when_worn:
+                mask = worn_aggregations[viz._aggregation] >= 128
+                renderable_mask = renderable_mask | mask
+
+            if viz.show_when_not_worn:
+                mask = worn_aggregations[viz._aggregation] < 128
+                renderable_mask = renderable_mask | mask
+
             viz.render(
                 painter,
-                aggregation_dict[viz._aggregation]
+                aggregation_dict[viz._aggregation][renderable_mask],
             )
 
     def get_gazes_for_scene(self, scene_idx: int = -1):
@@ -217,6 +259,8 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
         super().__init__()
         self._use_offset = True
         self._aggregation = Aggregation.Mean
+        self._show_when_worn = True
+        self._show_when_not_worn = False
 
         self.recording: NeonRecording | None = None
 
@@ -251,6 +295,22 @@ class GazeVisualization(PersistentPropertiesMixin, QObject):
     @aggregation.setter
     def aggregation(self, value: Aggregation) -> None:
         self._aggregation = value
+
+    @property
+    def show_when_worn(self) -> bool:
+        return self._show_when_worn
+
+    @show_when_worn.setter
+    def show_when_worn(self, value: bool) -> None:
+        self._show_when_worn = value
+
+    @property
+    def show_when_not_worn(self) -> bool:
+        return self._show_when_not_worn
+
+    @show_when_not_worn.setter
+    def show_when_not_worn(self, value: bool) -> None:
+        self._show_when_not_worn = value
 
 
 class CircleViz(GazeVisualization):
