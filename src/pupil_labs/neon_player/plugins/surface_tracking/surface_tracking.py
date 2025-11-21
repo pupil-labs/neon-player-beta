@@ -180,7 +180,8 @@ class SurfaceTrackingPlugin(Plugin):
             if surface.tracker_surface is None:
                 continue
 
-            if surface.heatmap_alpha > 0.0 and surface._heatmap is not None:
+            show_heatmap = surface.show_heatmap and surface.heatmap_alpha > 0.0
+            if show_heatmap and surface._heatmap is not None:
                 export_window = self.app.recording_settings.export_window
                 if export_window[0] <= time_in_recording <= export_window[1]:
                     scalar = np.float64([

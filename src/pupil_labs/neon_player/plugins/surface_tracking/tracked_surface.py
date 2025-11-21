@@ -153,6 +153,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._can_edit_markers = False
         self._preview_options = SurfaceViewDisplayOptions()
         self._preview_options._tracked_surface = self
+        self._show_heatmap = False
         self._heatmap_smoothness = 0.35
         self._heatmap_alpha = .75
         self._heatmap = None
@@ -328,6 +329,14 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def edit_markers(self, value: bool) -> None:
         self._can_edit_markers = value
         self.marker_edit_changed.emit()
+
+    @property
+    def show_heatmap(self) -> bool:
+        return self._show_heatmap
+
+    @show_heatmap.setter
+    def show_heatmap(self, value: bool) -> None:
+        self._show_heatmap = value
 
     @property
     @property_params(min=0, max=1)
