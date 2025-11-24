@@ -48,7 +48,7 @@ class Aggregation(enum.Enum):
             return v.reshape(-1, samples.shape[-1])
 
         else:
-            return v
+            return v.reshape(-1)
 
 
 class GazeDataPlugin(neon_player.Plugin):
@@ -71,22 +71,25 @@ class GazeDataPlugin(neon_player.Plugin):
             viz.on_recording_loaded(recording)
 
         try:
-            worn_data = self.recording.worn[["time", "worn"]]
-            if len(worn_data) == 0:
-                return
+            self.worn_data = self.recording.worn[["time", "worn"]]
         except Exception:
-            logging.exception("Failed to load worn data")
-            return
+            logging.warning("Failed to load worn data")
+            self.worn_data = np.ndarray(
+                shape=(len(self.recording.eye.time), 2),
+                dtype=np.int64
+            )
+            self.worn_data[:, 0] = self.recording.eye.time
+            self.worn_data[:, 1] = 255
 
-        worn_on = self.recording.worn["worn"] // 255
+        worn_on = self.worn_data[:, 1] // 255
         worn_on = np.concatenate([[0], worn_on])
         state_diff = np.diff(worn_on.astype(int))
 
-        start_times = worn_data[state_diff == 1][:, 0].tolist()
-        stop_times = worn_data[state_diff == -1][:, 0].tolist()
+        start_times = self.worn_data[state_diff == 1][:, 0].tolist()
+        stop_times = self.worn_data[state_diff == -1][:, 0].tolist()
 
         if len(stop_times) < len(start_times):
-            stop_times.append(worn_data[-1][0])
+            stop_times.append(self.worn_data[-1][0])
 
         self.get_timeline().add_timeline_broken_bar(
             "Worn",
@@ -108,8 +111,7 @@ class GazeDataPlugin(neon_player.Plugin):
             self._offset_y * self.recording.scene.height,
         ])
 
-        worns = self.recording.worn.sample(samples.time).worn
-
+        worns = self.worn_data[np.isin(self.worn_data[:, 0], samples.time)][:, 1]
         aggregations = {}
         offset_aggregations = {}
         worn_aggregations = {}
@@ -120,6 +122,8 @@ class GazeDataPlugin(neon_player.Plugin):
                 worn_aggregations[viz._aggregation] = viz._aggregation.apply(worns)
 
             aggregation_dict = offset_aggregations if viz.use_offset else aggregations
+            if len(aggregation_dict[viz._aggregation]) == 0:
+                continue
 
             renderable_mask = np.array([False] * len(aggregation_dict[viz._aggregation]))
             if viz.show_when_worn:
@@ -161,7 +165,7 @@ class GazeDataPlugin(neon_player.Plugin):
         stop_mask = self.recording.gaze.time <= stop_time
 
         export_gazes = self.recording.gaze[start_mask & stop_mask]
-        export_worn = self.recording.worn[start_mask & stop_mask]
+        export_worn = self.worn_data[start_mask & stop_mask]
 
         scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(
             self.recording
