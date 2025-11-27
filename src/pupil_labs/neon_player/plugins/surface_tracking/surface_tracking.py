@@ -60,7 +60,7 @@ class SurfaceTrackingPlugin(Plugin):
         self.marker_edit_widgets = {}
 
     def on_disabled(self) -> None:
-        self.get_timeline().remove_timeline_plot("Visible markers")
+        self.get_timeline().remove_timeline_plot("Marker visibility")
 
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
@@ -349,25 +349,19 @@ class SurfaceTrackingPlugin(Plugin):
                     self.marker_edit_widgets[marker.uid] = widget
 
         # marker visibility plot
-        marker_count_by_frame = [len(v) for v in self.markers_by_frame]
-        marker_count_changes = []
-        for frame_idx, value in enumerate(marker_count_by_frame):
-            t = self.recording.scene[frame_idx].time
-            if len(marker_count_changes) == 0:
-                marker_count_changes.append((t, value))
-            elif marker_count_changes[-1][1] != value:
-                marker_count_changes.append((
-                    t - 1,
-                    marker_count_changes[-1][1]
-                ))
-                marker_count_changes.append((
-                    t,
-                    value
-                ))
+        marker_count_by_frame = np.array(
+            [0] + [len(v) > 0 for v in self.markers_by_frame],
+            dtype=np.int8
+        )
+        state_diff = np.diff(marker_count_by_frame.astype(int))
+        start_times = self.recording.scene.time[state_diff == 1].tolist()
+        stop_times = self.recording.scene.time[state_diff == -1].tolist()
+        if len(stop_times) < len(start_times):
+            stop_times.append(self.recording.scene.time[-1])
 
-        self.get_timeline().add_timeline_plot(
-            "Visible markers",
-            marker_count_changes
+        self.get_timeline().add_timeline_broken_bar(
+            "Marker visibility",
+            list(zip(start_times, stop_times, strict=False)),
         )
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:
