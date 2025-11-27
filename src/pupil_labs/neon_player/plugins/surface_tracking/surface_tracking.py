@@ -52,8 +52,6 @@ class SurfaceTrackingPlugin(Plugin):
         self.tracker = SurfaceTracker()
 
         self._surfaces: list["TrackedSurface"] = []
-        self._jobs = []
-        self._surface_locator_jobs = {}
 
         self.timer = QTimer()
         self.timer.setInterval(33)
@@ -406,6 +404,7 @@ class SurfaceTrackingPlugin(Plugin):
                     "SurfaceTrackingPlugin.bg_build_heatmap",
                     surface_uid
                 )
+                surface.add_bg_job(heatmap_job)
                 heatmap_job.finished.connect(
                     lambda: self._load_surface_heatmap(surface_uid)
                 )
@@ -626,9 +625,6 @@ class SurfaceTrackingPlugin(Plugin):
         self._start_bg_surface_locator(surface)
 
     def _start_bg_surface_locator(self, surface: "TrackedSurface", *args, **kwargs):
-        if surface.uid in self._surface_locator_jobs:
-            self._surface_locator_jobs[surface.uid].cancel()
-
         job = self.job_manager.run_background_action(
             f"Detect Surface Locations [{surface.name}]",
             "SurfaceTrackingPlugin.bg_detect_surface_locations",
@@ -636,11 +632,10 @@ class SurfaceTrackingPlugin(Plugin):
             *args,
             **kwargs
         )
+        surface.add_bg_job(job)
         job.finished.connect(
             lambda: self._load_surface_locations_cache(surface.uid)
         )
-
-        self._surface_locator_jobs[surface.uid] = job
 
     def get_surface(self, uid: str):
         for s in self._surfaces:

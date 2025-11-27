@@ -101,6 +101,7 @@ class BackgroundJob(QObject):
     def cancel(self):
         self.proc.terminate()
         self.proc.wait()
+        self.canceled.emit()
 
 
 class JobManager(QObject):

@@ -165,6 +165,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.preview_window = None
         self.handle_widgets = {}
         self.corner_positions = {}
+        self.jobs = []
 
         neon_player.instance().recording_settings.export_window_changed.connect(
             self.heatmap_invalidated.emit
@@ -172,6 +173,14 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         Plugin.get_instance_by_name("GazeDataPlugin").offset_changed.connect(
             self.heatmap_invalidated.emit
         )
+
+    def add_bg_job(self, job):
+        for j in self.jobs:
+            j.cancel()
+
+        self.jobs.append(job)
+        job.finished.connect(lambda: self.jobs.remove(job))
+        job.canceled.connect(lambda: self.jobs.remove(job))
 
     def __del__(self):
         self.cleanup_widgets()
