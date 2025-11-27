@@ -149,8 +149,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._uid = ""
         self._name = ""
         self._markers = []
-        self._can_edit_corners = False
-        self._can_edit_markers = False
+        self._can_edit = False
         self._preview_options = SurfaceViewDisplayOptions()
         self._preview_options._tracked_surface = self
         self._show_heatmap = False
@@ -179,8 +178,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     def to_dict(self) -> dict[str, T.Any]:
         state = super().to_dict()
-        state["edit_markers"] = False
-        state["edit_corners"] = False
+        state["edit"] = False
         return state
 
     @classmethod
@@ -277,13 +275,31 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def name(self, name: str) -> None:
         self._name = name
 
-    @property
-    def edit_corners(self) -> bool:
-        return self._can_edit_corners
+    def on_corner_changed(self, corner_id: CornerId, pos: QPointF) -> None:
+        camera = Plugin.get_instance_by_name("SurfaceTrackingPlugin").camera
 
-    @edit_corners.setter
-    def edit_corners(self, value: bool) -> None:
-        self._can_edit_corners = value
+        pos = np.array([pos.x(), pos.y()])
+        undistorted_corner = camera.undistort_points(pos)
+        self.corner_positions[corner_id] = undistorted_corner.flatten()
+        tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
+        tracker = tracker_plugin.tracker
+
+        tracker.move_surface_corner_positions_in_image_space(
+            self.tracker_surface,
+            self.location,
+            self.corner_positions
+        )
+        self.locations_invalidated.emit()
+
+    @property
+    def edit(self) -> bool:
+        return self._can_edit
+
+    @edit.setter
+    def edit(self, value: bool) -> None:
+        self._can_edit = value
+        self.marker_edit_changed.emit()
+
         if not value:
             self.cleanup_widgets()
 
@@ -304,31 +320,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
                 )
 
             self.update_handle_positions()
-
-    def on_corner_changed(self, corner_id: CornerId, pos: QPointF) -> None:
-        camera = Plugin.get_instance_by_name("SurfaceTrackingPlugin").camera
-
-        pos = np.array([pos.x(), pos.y()])
-        undistorted_corner = camera.undistort_points(pos)
-        self.corner_positions[corner_id] = undistorted_corner.flatten()
-        tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
-        tracker = tracker_plugin.tracker
-
-        tracker.move_surface_corner_positions_in_image_space(
-            self.tracker_surface,
-            self.location,
-            self.corner_positions
-        )
-        self.locations_invalidated.emit()
-
-    @property
-    def edit_markers(self) -> bool:
-        return self._can_edit_markers
-
-    @edit_markers.setter
-    def edit_markers(self, value: bool) -> None:
-        self._can_edit_markers = value
-        self.marker_edit_changed.emit()
 
     @property
     def show_heatmap(self) -> bool:

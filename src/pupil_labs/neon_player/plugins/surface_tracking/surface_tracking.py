@@ -75,7 +75,7 @@ class SurfaceTrackingPlugin(Plugin):
 
             for surface in self._surfaces:
                 surface.location = None
-                if surface.edit_markers:
+                if surface.edit:
                     for handle_widget in surface.handle_widgets.values():
                         handle_widget.hide()
 
@@ -88,7 +88,7 @@ class SurfaceTrackingPlugin(Plugin):
             surface.location = self.surface_locations[surface.uid][frame_idx]
 
         # if we're editing a surface's markers
-        if any(s.edit_markers for s in self._surfaces):
+        if any(s.edit for s in self._surfaces):
             self._update_editing_markers()
 
     def _update_editing_markers(self):
@@ -96,7 +96,7 @@ class SurfaceTrackingPlugin(Plugin):
         markers = self.markers_by_frame[frame_idx]
         present_markers = {m.uid: m for m in markers}
         vrw = self.app.main_window.video_widget
-        edit_surface = next((s for s in self._surfaces if s.edit_markers), None)
+        edit_surface = next((s for s in self._surfaces if s.edit), None)
         if edit_surface is not None and edit_surface.location is None:
             for marker_widget in self.marker_edit_widgets.values():
                 marker_widget.hide()
@@ -218,7 +218,7 @@ class SurfaceTrackingPlugin(Plugin):
                     )
                     painter.setOpacity(1.0)
 
-            if surface.edit_corners:
+            if surface.edit:
                 vrw = self.app.main_window.video_widget
                 points = [
                     vrw.scaled_children_positions[w]
@@ -235,15 +235,18 @@ class SurfaceTrackingPlugin(Plugin):
                 anchors = np.array(list(anchors.values()))
 
             points = self._distort_and_trace_surface(painter, anchors)
+
             if self._draw_names:
+                old_pen = painter.pen()
+                old_brush = painter.brush()
+
                 painter.setBrush(QColor("#000"))
                 pen = QPen(QColor("white"))
                 pen.setWidthF(5.0)
                 pen.setJoinStyle(Qt.RoundJoin)
-                painter.setPen(pen)
 
                 path = QPainterPath()
-
+                painter.setPen(pen)
                 center = np.mean(points[0:-1], axis=0)
                 text_rect = painter.fontMetrics().boundingRect(surface.name)
                 path.addText(
@@ -252,9 +255,13 @@ class SurfaceTrackingPlugin(Plugin):
                     painter.font(),
                     surface.name
                 )
+
                 painter.drawPath(path)
                 painter.setPen(Qt.NoPen)
                 painter.drawPath(path)
+
+                painter.setPen(old_pen)
+                painter.setBrush(old_brush)
 
     def _distort_and_trace_surface(
         self,
@@ -574,7 +581,7 @@ class SurfaceTrackingPlugin(Plugin):
                 self._start_bg_surface_locator(surface, frame_idx)
 
         for surface in removed_surfaces:
-            if surface.edit_markers:
+            if surface.edit:
                 for marker_widget in self.marker_edit_widgets.values():
                     marker_widget.hide()
 
@@ -594,10 +601,10 @@ class SurfaceTrackingPlugin(Plugin):
         self.changed.emit()
 
     def on_marker_edit_changed(self, surface: "TrackedSurface") -> None:
-        if surface.edit_markers:
+        if surface.edit:
             for other_surface in self.surfaces:
                 if other_surface != surface:
-                    other_surface.edit_markers = False
+                    other_surface.edit = False
 
             self.marker_editing_surface = surface
             for w in self.marker_edit_widgets.values():
