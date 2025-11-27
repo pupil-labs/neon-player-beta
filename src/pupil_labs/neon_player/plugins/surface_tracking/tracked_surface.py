@@ -562,3 +562,13 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
                 painter,
                 aggregation_dict[viz._aggregation]
             )
+
+    @action
+    def rotate(self) -> None:
+        markers = self.tracker_surface._registered_markers_by_uid_undistorted.values()
+        for marker in markers:
+            for pos in marker._Marker__vertices_by_corner_id.values():
+                x, y = pos
+                pos[:] = np.array([y, 1.0 - x], dtype=np.float32)
+
+        self.locations_invalidated.emit()
