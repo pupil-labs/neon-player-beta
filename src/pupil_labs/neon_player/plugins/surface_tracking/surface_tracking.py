@@ -25,6 +25,7 @@ from surface_tracker import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
+from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
     SlotDebouncer,
     ndarray_from_qimage,
@@ -58,6 +59,7 @@ class SurfaceTrackingPlugin(Plugin):
         self.timer.timeout.connect(self._update_displays)
 
         self.marker_edit_widgets = {}
+        self.header_action = ListPropertyAppenderAction("surfaces", "+ Add surface")
 
     def on_disabled(self) -> None:
         self.get_timeline().remove_timeline_plot("Marker visibility")
@@ -515,7 +517,7 @@ class SurfaceTrackingPlugin(Plugin):
 
     @property
     @property_params(
-        add_button_text="Add Surface",
+        prevent_add=True,
         item_params={"label_field": "name"}
     )
     def surfaces(self) -> list["TrackedSurface"]:

@@ -38,3 +38,16 @@ class GUIEventNotifier:
     def wheelEvent(self, event: QWheelEvent) -> None:
         self.mouse_wheel_moved.emit(event)
         return super().wheelEvent(event)
+
+
+class HeaderAction:
+    def __init__(self, callback, name):
+        self.callback = callback
+        self.name = name
+
+
+class ListPropertyAppenderAction(HeaderAction):
+    def __init__(self, property_name, name):
+        super().__init__(None, name)
+        self.property_name = property_name
+        self.form = None

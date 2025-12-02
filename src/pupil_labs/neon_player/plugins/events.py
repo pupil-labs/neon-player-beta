@@ -15,6 +15,7 @@ from qt_property_widgets.utilities import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
+from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 
 IMMUTABLE_EVENTS = ["recording.begin", "recording.end"]
 
@@ -80,6 +81,7 @@ class EventsPlugin(neon_player.Plugin):
         super().__init__()
         self._event_types: list[EventType] = []
         self.get_timeline().key_pressed.connect(self._on_key_pressed)
+        self.header_action = ListPropertyAppenderAction("event_types", "+ Add event type")
 
     def _on_key_pressed(self, event: QKeyEvent) -> None:
         key_text = event.text().lower()
@@ -232,7 +234,8 @@ class EventsPlugin(neon_player.Plugin):
     @property
     @property_params(
         add_button_text="Create new event type",
-        item_params={ "label_field": "name" }
+        item_params={ "label_field": "name" },
+        prevent_add=True,
     )
     def event_types(self) -> list[EventType]:
         return self._event_types

@@ -1,13 +1,21 @@
 from datetime import datetime
 
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QLabel, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import (
+    QFormLayout,
+    QLabel,
+    QScrollArea,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 from qt_property_widgets.expander import Expander, ExpanderList
 from qt_property_widgets.widgets import PropertyForm, PropertyWidget
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
+from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 
 
 class RecordingInfoWidget(QWidget):
@@ -108,6 +116,24 @@ class SettingsPanel(QScrollArea):
             settings_form,
             not app.loading_recording
         )
+        if hasattr(instance, "header_action"):
+            tb = QToolButton()
+            tb.setText(instance.header_action.name)
+            tb.setCursor(Qt.CursorShape.PointingHandCursor)
+            if isinstance(instance.header_action, ListPropertyAppenderAction):
+                for row_idx in range(settings_form.form_layout.rowCount()):
+                    widget = settings_form.form_layout.itemAt(
+                        row_idx,
+                        QFormLayout.ItemRole.FieldRole
+                    ).widget()
+                    widget_prop_name = widget.source_property.fget.__name__
+                    if widget_prop_name == instance.header_action.property_name:
+                        instance.header_action.callback = widget.on_add_button_clicked
+
+            tb.clicked.connect(lambda _: instance.header_action.callback())
+            tb.setObjectName("HeaderAction")
+            expander.controls_layout.addWidget(tb)
+
         self.plugin_class_expanders[class_name] = expander
         if not app.loading_recording:
             QTimer.singleShot(

@@ -13,6 +13,7 @@ from qt_property_widgets.utilities import PersistentPropertiesMixin, property_pa
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
+from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
     cart_to_spherical,
     find_ranged_index,
@@ -65,6 +66,8 @@ class GazeDataPlugin(neon_player.Plugin):
         self._visualizations: list[GazeVisualization] = [
             CircleViz(),
         ]
+
+        self.header_action = ListPropertyAppenderAction("visualizations", "+ Add viz")
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         for viz in self._visualizations:
@@ -238,7 +241,7 @@ class GazeDataPlugin(neon_player.Plugin):
     @property
     @property_params(
         use_subclass_selector=True,
-        add_button_text="Add visualization",
+        prevent_add=True,
         item_params={"label_field": "label"},
     )
     def visualizations(self) -> list["GazeVisualization"]:

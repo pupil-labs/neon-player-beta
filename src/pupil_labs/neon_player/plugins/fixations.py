@@ -16,6 +16,7 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player import action
 from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_player.plugins.gaze import GazeDataPlugin
+from pupil_labs.neon_player.ui import ListPropertyAppenderAction
 from pupil_labs.neon_player.utilities import (
     cart_to_spherical,
     get_scene_intrinsics,
@@ -33,6 +34,7 @@ class FixationsPlugin(neon_player.Plugin):
 
         self.gaze_plugin: GazeDataPlugin | None = None
         self.optic_flow: OpticFlow | None = None
+        self.header_action = ListPropertyAppenderAction("visualizations", "+ Add viz")
 
     def seek_by_fixation(self, direction: int) -> None:
         if len(self.recording.fixations) == 0:
@@ -205,7 +207,7 @@ class FixationsPlugin(neon_player.Plugin):
     @property
     @property_params(
         use_subclass_selector=True,
-        add_button_text="Add visualization",
+        prevent_add=True,
         item_params={ "label_field": "label" }
     )
     def visualizations(self) -> list["FixationVisualization"]:

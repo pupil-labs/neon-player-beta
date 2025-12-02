@@ -117,9 +117,10 @@ class MainWindow(QMainWindow):
                 font-weight: normal;
             }
 
-            Expander>QToolButton {
+            Expander>QToolButton#HeaderAction {
+                background-color: #6d7be0;
                 border: none;
-                font-family: 'Menlo', 'Monico', 'Consolas', 'Lucida Console', 'monospace', 'Courier New', 'Courier';
+                border-radius: 4px;
             }
 
             ConsoleWindow>QTextEdit {
