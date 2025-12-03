@@ -101,31 +101,55 @@ class MainWindow(QMainWindow):
                 color: #a09fa6;
             }
 
+            QMenuBar, QMenu {
+                color: #ccc;
+                background: #1c2021;
+            }
+
+            QMenuBar::item:selected,
+            QMenu::item:selected {
+                color: #fff;
+                background: #292d2d;
+            }
+
             QPushButton {
                 color: #d0cfd6;
             }
 
             Expander {
-                border-top: 0;
-                border-bottom: 2px solid #494d4d;
+                border-top: 1px solid #292d2d;
+                border-bottom: 1px solid #292d2d;
+                padding-top: 10px;
+                padding-bottom: 10px;
+            }
+
+            PluginManagerWidget>QLabel {
+                padding-top: 15px;
+                padding-bottom: 15px;
+            }
+
+            ExpanderList {
+                border: 2px solid #ff0000;
             }
 
             Expander Expander {
-                border-bottom: none;
+                border: none;
+                padding-top: 5px;
+                padding-bottom: 5px;
             }
 
-            Expander QLabel#ExpanderName {
+            SettingsPanel QLabel#ExpanderName {
                 color: #fff;
-                font-size: 13pt;
+                font-size: 12pt;
                 font-weight: bold;
             }
 
             Expander Expander QLabel#ExpanderName {
-                font-size: 12pt;
+                font-size: 11pt;
                 font-weight: normal;
             }
 
-            Expander>QToolButton#HeaderAction {
+            QToolButton#HeaderAction {
                 background-color: #6d7be0;
                 border: none;
                 border-radius: 4px;

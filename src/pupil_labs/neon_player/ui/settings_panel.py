@@ -1,9 +1,9 @@
 from datetime import datetime
 
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QFormLayout,
+    QHBoxLayout,
     QLabel,
     QScrollArea,
     QToolButton,
@@ -56,6 +56,40 @@ class RecordingInfoWidget(QWidget):
         self.wearer_label.setText("-")
 
 
+class PluginManagerWidget(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        layout = QHBoxLayout()
+        self.setLayout(layout)
+        layout.setContentsMargins(10, 0, 0, 0)
+
+        self.label = QLabel("Plugins")
+        self.label.setObjectName("ExpanderName")
+        layout.addWidget(self.label, 1)
+
+        self.button = QToolButton()
+        self.button.setText("Add/Remove")
+        self.button.setObjectName("HeaderAction")
+        layout.addWidget(self.button)
+        self.button.clicked.connect(self.show_dialog)
+        self.button.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def show_dialog(self) -> None:
+        app = neon_player.instance()
+        form = PropertyWidget.from_property("enabled_plugins", app.recording_settings)
+        dialog = QWidget(self, Qt.WindowType.Dialog)
+        dialog.setContentsMargins(10, 10, 10, 10)
+        dialog.setWindowTitle("Plugin Manager")
+        dialog_layout = QVBoxLayout(dialog)
+        dialog.setLayout(dialog_layout)
+
+        dialog_layout.addWidget(form)
+
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        dialog.resize(300, 300)
+        dialog.show()
+
+
 class SettingsPanel(QScrollArea):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent=parent)
@@ -67,10 +101,13 @@ class SettingsPanel(QScrollArea):
 
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout()
+        self.content_layout.setContentsMargins(0, 0, 5, 0)
         self.content_widget.setLayout(self.content_layout)
         self.setWidgetResizable(True)
 
         self.plugin_list_widget = ExpanderList(parent=self)
+        self.plugin_list_widget.setContentsMargins(0, 0, 0, 0)
+        self.plugin_list_widget.searchbar_visibility = False
         self.setMinimumSize(400, 100)
 
         self.plugin_class_expanders: dict[str, Expander] = {}
@@ -83,21 +120,13 @@ class SettingsPanel(QScrollArea):
             True
         ))
 
-        header = QLabel("<h3>Enabled Plugins</h3>")
-        header.setStyleSheet("padding-top: 30px")
-        self.content_layout.addWidget(header)
         self.content_layout.addWidget(self.plugin_list_widget)
 
         self.setWidget(self.content_widget)
         self.plugins_form = None
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
-        app = neon_player.instance()
-        self.plugins_form = Expander(
-            self,
-            "Plugin Manager",
-            PropertyWidget.from_property("enabled_plugins", app.recording_settings)
-        )
+        self.plugins_form = PluginManagerWidget()
         self.content_layout.insertWidget(1, self.plugins_form)
 
     def on_recording_unloaded(self) -> None:
@@ -135,11 +164,6 @@ class SettingsPanel(QScrollArea):
             expander.controls_layout.addWidget(tb)
 
         self.plugin_class_expanders[class_name] = expander
-        if not app.loading_recording:
-            QTimer.singleShot(
-                100,
-                lambda: self.plugin_list_widget.highlight(expander)
-            )
 
     def remove_plugin_settings(self, class_name: str) -> None:
         expander = self.plugin_class_expanders[class_name]
