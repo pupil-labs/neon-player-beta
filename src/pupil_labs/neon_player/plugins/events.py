@@ -236,6 +236,7 @@ class EventsPlugin(neon_player.Plugin):
         add_button_text="Create new event type",
         item_params={ "label_field": "name" },
         prevent_add=True,
+        primary=True
     )
     def event_types(self) -> list[EventType]:
         return self._event_types

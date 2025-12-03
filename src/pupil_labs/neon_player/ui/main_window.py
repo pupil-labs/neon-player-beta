@@ -98,6 +98,11 @@ class MainWindow(QMainWindow):
             QWidget {
                 font-family: arial;
                 font-size: 11pt;
+                color: #a09fa6;
+            }
+
+            QPushButton {
+                color: #d0cfd6;
             }
 
             Expander {
@@ -109,11 +114,14 @@ class MainWindow(QMainWindow):
                 border-bottom: none;
             }
 
-            Expander>QLabel {
+            Expander QLabel#ExpanderName {
+                color: #fff;
+                font-size: 13pt;
                 font-weight: bold;
             }
 
-            Expander Expander>QLabel {
+            Expander Expander QLabel#ExpanderName {
+                font-size: 12pt;
                 font-weight: normal;
             }
 
@@ -121,6 +129,7 @@ class MainWindow(QMainWindow):
                 background-color: #6d7be0;
                 border: none;
                 border-radius: 4px;
+                color: #fff;
             }
 
             ConsoleWindow>QTextEdit {
@@ -130,6 +139,7 @@ class MainWindow(QMainWindow):
             TimestampLabel {
                 font-weight: bold;
                 font-size: 16pt;
+                color: #fff;
             }
 
             BoolWidget>QToolButton {
@@ -138,6 +148,7 @@ class MainWindow(QMainWindow):
                 border-radius: 5px;
                 border: 1px solid #555;
                 background-color: #111;
+                color: #fff;
             }
 
             BoolWidget>QToolButton:checked {
@@ -164,6 +175,10 @@ class MainWindow(QMainWindow):
             QStatusBar > QPushButton {
                 text-align: left;
                 padding: 5px 10px;
+            }
+
+            #DeleteButton {
+                border: none;
             }
         """)
 

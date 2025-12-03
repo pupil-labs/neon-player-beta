@@ -59,6 +59,8 @@ class RecordingInfoWidget(QWidget):
 class SettingsPanel(QScrollArea):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent=parent)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+
         app = neon_player.instance()
         app.recording_loaded.connect(self.on_recording_loaded)
         app.recording_unloaded.connect(self.on_recording_unloaded)
@@ -121,16 +123,14 @@ class SettingsPanel(QScrollArea):
             tb.setText(instance.header_action.name)
             tb.setCursor(Qt.CursorShape.PointingHandCursor)
             if isinstance(instance.header_action, ListPropertyAppenderAction):
-                for row_idx in range(settings_form.form_layout.rowCount()):
-                    widget = settings_form.form_layout.itemAt(
-                        row_idx,
-                        QFormLayout.ItemRole.FieldRole
-                    ).widget()
-                    widget_prop_name = widget.source_property.fget.__name__
-                    if widget_prop_name == instance.header_action.property_name:
-                        instance.header_action.callback = widget.on_add_button_clicked
+                def do_add():
+                    widget = settings_form.property_widgets.get(
+                        instance.header_action.property_name, None
+                    )
+                    if widget and hasattr(widget, "on_add_button_clicked"):
+                        widget.on_add_button_clicked()
 
-            tb.clicked.connect(lambda _: instance.header_action.callback())
+            tb.clicked.connect(lambda _: do_add())
             tb.setObjectName("HeaderAction")
             expander.controls_layout.addWidget(tb)
 

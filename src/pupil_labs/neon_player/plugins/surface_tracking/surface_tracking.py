@@ -518,7 +518,8 @@ class SurfaceTrackingPlugin(Plugin):
     @property
     @property_params(
         prevent_add=True,
-        item_params={"label_field": "name"}
+        item_params={"label_field": "name"},
+        primary=True,
     )
     def surfaces(self) -> list["TrackedSurface"]:
         return self._surfaces

@@ -208,7 +208,8 @@ class FixationsPlugin(neon_player.Plugin):
     @property_params(
         use_subclass_selector=True,
         prevent_add=True,
-        item_params={ "label_field": "label" }
+        item_params={ "label_field": "label" },
+        primary=True,
     )
     def visualizations(self) -> list["FixationVisualization"]:
         return self._visualizations

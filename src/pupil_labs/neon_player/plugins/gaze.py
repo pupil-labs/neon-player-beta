@@ -243,6 +243,7 @@ class GazeDataPlugin(neon_player.Plugin):
         use_subclass_selector=True,
         prevent_add=True,
         item_params={"label_field": "label"},
+        primary=True,
     )
     def visualizations(self) -> list["GazeVisualization"]:
         return self._visualizations
