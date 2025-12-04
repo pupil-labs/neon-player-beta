@@ -15,6 +15,8 @@ nuitka \
     --include-module=unittest.mock \
     --include-module=cmath \
     --include-module=http.cookies \
+    --include-module=PySide6.QtOpenGL \
+    --include-package-data=qt_property_widgets \
     --include-data-dir=./src/pupil_labs/neon_player/assets=pupil_labs/neon_player/assets \
     --macos-create-app-bundle \
     --macos-signed-app-name=com.pupil-labs.neon_player \
