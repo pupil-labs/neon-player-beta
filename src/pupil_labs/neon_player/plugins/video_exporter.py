@@ -6,8 +6,9 @@ import av
 import numpy as np
 import pupil_labs.video as plv
 from PySide6.QtCore import QSize
-from PySide6.QtGui import QColorConstants, QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtGui import QColorConstants, QIcon, QImage, QPainter, QPixmap
+from PySide6.QtWidgets import QFileDialog
+from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import ProgressUpdate, action
@@ -25,6 +26,10 @@ class VideoExporter(neon_player.Plugin):
         self.is_exporting = False
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("document-save")
+    )
     def export(self, destination: Path = Path()) -> BackgroundJob | T.Generator:
         app = neon_player.instance()
         if not app.headless:
@@ -116,6 +121,10 @@ class VideoExporter(neon_player.Plugin):
         self.is_exporting = False
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("document-save")
+    )
     def export_current_frame(self) -> None:
         file_path_str, type_selection = QFileDialog.getSaveFileName(
             None, "Export frame", "", "PNG Images (*.png)"
@@ -137,6 +146,10 @@ class VideoExporter(neon_player.Plugin):
         frame.save(str(file_path_str))
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("edit-copy")
+    )
     def copy_frame_to_clipboard(self) -> None:
         frame_size = QSize(
             self.recording.scene.width or 1, self.recording.scene.height or 1

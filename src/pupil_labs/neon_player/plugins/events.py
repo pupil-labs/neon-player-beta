@@ -6,10 +6,11 @@ import numpy as np
 import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtGui import QIcon, QKeyEvent
 from qt_property_widgets.utilities import (
     FilePath,
     PersistentPropertiesMixin,
+    action_params,
     property_params,
 )
 
@@ -305,6 +306,10 @@ class EventsPlugin(neon_player.Plugin):
                 return event_type
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("window-new"),
+    )
     def import_csv(self, source: FilePath):
         events_df = pd.read_csv(source)
         for _, row in events_df.iterrows():
@@ -318,6 +323,10 @@ class EventsPlugin(neon_player.Plugin):
             self.add_event(event_type, row["timestamp [ns]"])
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("document-save")
+    )
     def export(self, destination: Path = Path()):
         start_time, stop_time = neon_player.instance().recording_settings.export_window
         event_names = []

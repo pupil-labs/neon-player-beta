@@ -12,9 +12,9 @@ import pupil_apriltags
 import pupil_labs.video as plv
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPointF, Qt, QTimer
-from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QMessageBox
-from qt_property_widgets.utilities import property_params
+from qt_property_widgets.utilities import action_params, property_params
 from surface_tracker import (
     Camera,
     CornerId,
@@ -742,6 +742,10 @@ class SurfaceTrackingPlugin(Plugin):
         )
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("document-save")
+    )
     def export(self, destination: Path = Path()) -> None:
         start_time, stop_time = neon_player.instance().recording_settings.export_window
         start_mask = self.recording.gaze.time >= start_time

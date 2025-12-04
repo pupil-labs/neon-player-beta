@@ -20,7 +20,7 @@ class ProgressActionForm(ActionForm):
         super()._setup_form()
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 0)
-        self.form_layout.addRow("", self.progress_bar)
+        self.form_layout.addWidget(self.progress_bar, self.form_layout.rowCount(), 1)
         self.progress_bar.hide()
 
     def _on_action_button_pressed(self) -> None:

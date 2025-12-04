@@ -9,8 +9,12 @@ import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
 from pupil_labs.neon_recording.timeseries import FixationTimeseries
 from PySide6.QtCore import QKeyCombination, QObject, QPointF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter
-from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
+from PySide6.QtGui import QColor, QIcon, QPainter
+from qt_property_widgets.utilities import (
+    PersistentPropertiesMixin,
+    action_params,
+    property_params,
+)
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
@@ -197,6 +201,10 @@ class FixationsPlugin(neon_player.Plugin):
         return export_data
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("document-save")
+    )
     def export(self, destination: Path = Path()) -> None:
         export_data = self.get_export_data()
 

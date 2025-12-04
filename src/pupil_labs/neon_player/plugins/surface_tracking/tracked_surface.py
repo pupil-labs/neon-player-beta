@@ -7,9 +7,13 @@ import cv2
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import QObject, QPointF, QSize, Signal
-from PySide6.QtGui import QImage, QPainter, QPixmap
+from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog
-from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
+from qt_property_widgets.utilities import (
+    PersistentPropertiesMixin,
+    action_params,
+    property_params,
+)
 from surface_tracker import (
     CornerId,
     SurfaceLocation,
@@ -95,6 +99,10 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
             viz.changed.connect(self.changed.emit)
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("document-save")
+    )
     def export_video(self, destination: Path = Path()):
         tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
         self.export_job = tracker_plugin.job_manager.run_background_action(
@@ -107,6 +115,10 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         return self.export_job
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("document-save")
+    )
     def export_current_frame(self):
         file_path_str, _ = QFileDialog.getSaveFileName(
             None, "Export surface frame", "", "PNG Images (*.png)"
@@ -374,15 +386,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def uid(self, value: str):
         self._uid = value
 
-    @action
-    def view_surface(self) -> None:
-        self.preview_window = SurfaceViewWindow(self)
-        self.preview_window.show()
-
-        width = min(1024, max(self.preview_options.width, 400))
-        aspect = self.preview_options.width / self.preview_options.height
-        self.preview_window.resize(width + 300, width / aspect)
-
     @property
     @property_params(widget=None, dont_encode=True)
     def tracker_plugin(self) -> "SurfaceTrackingPlugin":
@@ -564,6 +567,23 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             )
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("window-new"),
+    )
+    def view_surface(self) -> None:
+        self.preview_window = SurfaceViewWindow(self)
+        self.preview_window.show()
+
+        width = min(1024, max(self.preview_options.width, 400))
+        aspect = self.preview_options.width / self.preview_options.height
+        self.preview_window.resize(width + 300, width / aspect)
+
+    @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("object-rotate-right"),
+    )
     def rotate(self) -> None:
         markers = self.tracker_surface._registered_markers_by_uid_undistorted.values()
         for marker in markers:

@@ -4,7 +4,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QIcon
+from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
@@ -223,6 +224,10 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
                 timeline.remove_timeline_series(group_display_title, legend_label)
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("document-save")
+    )
     def export(self, destination: Path = Path()) -> None:
         if self.eyestate_data is None:
             return

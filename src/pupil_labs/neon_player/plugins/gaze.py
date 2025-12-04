@@ -8,8 +8,12 @@ import numpy.typing as npt
 import pandas as pd
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, QPointF, Signal
-from PySide6.QtGui import QColor, QPainter
-from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
+from PySide6.QtGui import QColor, QIcon, QPainter
+from qt_property_widgets.utilities import (
+    PersistentPropertiesMixin,
+    action_params,
+    property_params,
+)
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
@@ -159,6 +163,10 @@ class GazeDataPlugin(neon_player.Plugin):
         return self.recording.gaze[time_mask]
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("document-save")
+    )
     def export(self, destination: Path = Path()) -> None:
         if self.recording is None:
             return
