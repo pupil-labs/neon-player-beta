@@ -93,10 +93,10 @@ class EyeOverlayPlugin(neon_player.Plugin):
             self.offset_x = rect.left() / self.recording.scene.width
             self.offset_y = rect.top() / self.recording.scene.height
 
+        self.changed.emit()
         self.video_widget.update()
 
     def on_hover(self, event) -> None:
-
         edge_margin = 20
 
         pos = self.video_widget.map_point(event.pos())
@@ -180,9 +180,8 @@ class EyeOverlayPlugin(neon_player.Plugin):
 
         if self._mouse_mode != ModifyDirection(0):
             pen = painter.pen()
-            pen.setStyle(Qt.PenStyle.DashLine)
-            pen.setWidth(5)
-            pen.setColor(Qt.GlobalColor.white)
+            pen.setWidth(7)
+            pen.setColor("#6D7BE0")
             painter.setPen(pen)
             painter.setBrush(Qt.GlobalColor.transparent)
             painter.drawRect(self.get_rect().adjusted(0, 0, -1, -1))
