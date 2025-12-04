@@ -1,8 +1,16 @@
 import av
 import numpy as np
 from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+from PySide6.QtWidgets import (
+    QFrame,
+    QPushButton,
+    QSizePolicy,
+    QSlider,
+    QStyle,
+    QVBoxLayout,
+)
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import ProgressUpdate
@@ -24,9 +32,14 @@ class AudioPlugin(neon_player.Plugin):
 
         self.cache_file = self.get_cache_path() / "audio.wav"
 
+        self.volume_button = VolumeButton(self.audio_output)
+        self.volume_button.setIconSize(QSize(32, 32))
+        self.get_timeline().toolbar_layout.insertWidget(1, self.volume_button)
+
     def on_disabled(self) -> None:
         self.player.stop()
         self.player.setSource(QUrl())
+        self.get_timeline().toolbar_layout.removeWidget(self.volume_button)
 
     def on_media_status_changed(self, status: QMediaPlayer.MediaStatus):
         if status == QMediaPlayer.MediaStatus.LoadedMedia:
@@ -125,3 +138,42 @@ class AudioPlugin(neon_player.Plugin):
             container.mux(packet)
 
         container.close()
+
+
+class VolumeButton(QPushButton):
+    def __init__(self, audio_output):
+        super().__init__()
+        self.audio_output = audio_output
+
+        self.setIcon(self.style().standardIcon(QStyle.SP_MediaVolume))
+        self.setFixedSize(36, 36)
+        self.popup = None
+        self.clicked.connect(self.toggle_popup)
+
+    def toggle_popup(self):
+        if self.popup and self.popup.isVisible():
+            self.popup.close()
+            return
+
+        self.popup = QFrame(self, f=Qt.WindowType.Popup)
+
+        layout = QVBoxLayout(self.popup)
+        layout.setContentsMargins(11, 5, 11, 5)
+
+        slider = QSlider(Qt.Vertical)
+        slider.sliderMoved.connect(self.on_slider_moved)
+        slider.setValue(int(self.audio_output.volume() * 100))
+        slider.setMinimumHeight(140)
+        slider.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        layout.addWidget(slider, alignment=Qt.AlignCenter)
+
+        def set_position():
+            pos = self.mapToGlobal(self.rect().topLeft())
+            pos.setY(pos.y() - self.popup.height())
+            self.popup.move(pos)
+
+        self.popup.show()
+        QTimer.singleShot(1, set_position)
+
+    def on_slider_moved(self, value):
+        self.audio_output.setVolume(value / 100)

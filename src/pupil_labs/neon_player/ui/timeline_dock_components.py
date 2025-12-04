@@ -302,7 +302,7 @@ class PlayHead(PlotOverlay):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.color = QColor(255, 0, 0, 128)
+        self.color = QColor("#6D7BE0")
         self.t = 0
 
     def set_time(self, t: int) -> None:
@@ -416,4 +416,3 @@ class TrimDurationMarker(QGraphicsRectItem):
             self._end_marker.time - self._start_marker.time, 2
         )
         self.update()
-

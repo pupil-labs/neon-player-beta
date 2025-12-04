@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QScrollArea,
     QSizePolicy,
+    QStyle,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -66,7 +67,7 @@ class TimeLineDock(QWidget):
         self.play_button = QToolButton()
         self.play_button.setToolTip("Play/Pause")
         self.play_button.setIconSize(QSize(32, 32))
-        self.play_button.setIcon(QIcon(str(neon_player.asset_path("play.svg"))))
+        self.play_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
         self.play_button.clicked.connect(
             lambda: app.get_action("Playback/Play\\Pause").trigger()
         )
@@ -92,10 +93,10 @@ class TimeLineDock(QWidget):
             lambda t: app.set_playback_speed(float(t[:-1]))
         )
 
-        self.toolbar_layout.addWidget(self.speed_control)
 
         self.timestamp_label = TimestampLabel()
         self.toolbar_layout.addWidget(self.timestamp_label, 1)
+        self.toolbar_layout.addWidget(self.speed_control)
 
         self.main_layout.addLayout(self.toolbar_layout)
 
@@ -168,8 +169,8 @@ class TimeLineDock(QWidget):
             trim_plot.addItem(tm)
 
     def on_playback_state_changed(self, is_playing: bool):
-        icon_name = "pause.svg" if is_playing else "play.svg"
-        self.play_button.setIcon(QIcon(str(neon_player.asset_path(icon_name))))
+        icon = QStyle.SP_MediaPause if is_playing else QStyle.SP_MediaPlay
+        self.play_button.setIcon(self.style().standardIcon(icon))
 
     def on_position_changed(self, t: int):
         app = neon_player.instance()
@@ -328,7 +329,7 @@ class TimeLineDock(QWidget):
         legend_container = pg.GraphicsLayout()
         legend_container.setSpacing(0)
         legend_container.setContentsMargins(0, 0, 0, 0)
-        legend_label = pg.LabelItem(f"<b>{timeline_row_name}</b>")
+        legend_label = pg.LabelItem(f"<b>{timeline_row_name}</b>", justify="left")
 
         legend_container.addItem(legend_label)
         legend_container.addItem(legend, row=1, col=0)
@@ -485,7 +486,7 @@ class TimeLineDock(QWidget):
             data,
             item_name,
             pen=None,
-            symbol="o",
+            symbol="d",
             symbolBrush=pg.mkColor("white"),
         )
 
