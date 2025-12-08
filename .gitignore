@@ -342,3 +342,5 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,macos,windows,linux,pycharm
 *.dist/
+
+src/pupil_labs/neon_player/ui/splash.py

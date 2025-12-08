@@ -1,6 +1,10 @@
 #!/bin/bash
 
-nuitka \
+pyside6-uic src/pupil_labs/neon_player/assets/splash.ui \
+    -o src/pupil_labs/neon_player/ui/splash.py
+
+
+uv run -m nuitka \
     --user-package-configuration-file=package-configs.yml \
     --standalone \
     --output-dir=dist \

@@ -46,7 +46,13 @@ from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
 
-Ui_Class, QtBaseClass = loadUiType(str(asset_path("splash.ui")))
+try:
+    from pupil_labs.neon_player.ui.splash import Ui_Splash
+    Ui_Class, QtBaseClass = Ui_Splash, QWidget
+except:
+    logging.warning("splash.ui is not compiled.")
+    Ui_Class, QtBaseClass = loadUiType(str(asset_path("splash.ui")))
+
 
 class SplashWidget(Ui_Class, QtBaseClass):
     def __init__(self) -> None:
