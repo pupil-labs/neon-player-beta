@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QMenu,
     QScrollArea,
     QSizePolicy,
-    QStyle,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -67,7 +66,7 @@ class TimeLineDock(QWidget):
         self.play_button = QToolButton()
         self.play_button.setToolTip("Play/Pause")
         self.play_button.setIconSize(QSize(32, 32))
-        self.play_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+        self.play_button.setIcon(QIcon(str(neon_player.asset_path("play.svg"))))
         self.play_button.clicked.connect(
             lambda: app.get_action("Playback/Play\\Pause").trigger()
         )
@@ -169,8 +168,8 @@ class TimeLineDock(QWidget):
             trim_plot.addItem(tm)
 
     def on_playback_state_changed(self, is_playing: bool):
-        icon = QStyle.SP_MediaPause if is_playing else QStyle.SP_MediaPlay
-        self.play_button.setIcon(self.style().standardIcon(icon))
+        icon_name = "pause.svg" if is_playing else "play.svg"
+        self.play_button.setIcon(QIcon(str(neon_player.asset_path(icon_name))))
 
     def on_position_changed(self, t: int):
         app = neon_player.instance()
