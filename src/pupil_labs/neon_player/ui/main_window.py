@@ -205,6 +205,7 @@ class MainWindow(QMainWindow):
             QStatusBar > QPushButton {
                 text-align: left;
                 padding: 5px 10px;
+                font-size: 10pt;
             }
 
             #DeleteButton {
