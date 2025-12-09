@@ -59,34 +59,17 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
     def __init__(self) -> None:
         super().__init__()
         self._tracked_surface = None
-        self._render_size = QSize(400, 400)
         self._visualizations: list[GazeVisualization] = [
             CrosshairViz(),
         ]
-
-    @property
-    @property_params(min=1, max=2560)
-    def width(self) -> int:
-        return self._render_size.width()
-
-    @width.setter
-    def width(self, value: int) -> None:
-        self._render_size.setWidth(value)
-
-    @property
-    @property_params(min=1, max=2560)
-    def height(self) -> int:
-        return self._render_size.height()
-
-    @height.setter
-    def height(self, value: int) -> None:
-        self._render_size.setHeight(value)
+        self.render_size = [512, 512]
 
     @property
     @property_params(
         use_subclass_selector=True,
         add_button_text="Add visualization",
-        item_params={ "label_field": "label" }
+        item_params={ "label_field": "label" },
+        primary=True,
     )
     def visualizations(self) -> list["GazeVisualization"]:
         return self._visualizations
@@ -133,12 +116,16 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         image.save(file_path_str)
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("edit-copy")
+    )
     def copy_frame_to_clipboard(self) -> None:
         clipboard = neon_player.instance().clipboard()
         clipboard.setPixmap(QPixmap.fromImage(self._frame_image()))
 
     def _frame_image(self) -> QImage:
-        frame = QImage(self._render_size, QImage.Format.Format_RGB32)
+        frame = QImage(QSize(*self.render_size), QImage.Format.Format_RGB32)
         painter = QPainter(frame)
         self._tracked_surface.render(painter)
         painter.end()
@@ -169,6 +156,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._heatmap_alpha = .75
         self._heatmap = None
         self._heatmap_color = ColorMap.Jet
+        self._defining_frame_index = -1
 
         self.tracker_surface = None
 
@@ -236,6 +224,15 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             [marker_uid],
         )
         self.locations_invalidated.emit()
+
+    @property
+    @property_params(widget=None)
+    def defining_frame_index(self) -> int:
+        return self._defining_frame_index
+
+    @defining_frame_index.setter
+    def defining_frame_index(self, value: int) -> None:
+        self._defining_frame_index = value
 
     @property
     @property_params(dont_encode=True, widget=None)
@@ -520,7 +517,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         scene_frame = app.recording.scene[scene_idx]
         undistorted_image = camera.undistort_image(scene_frame.bgr)
 
-        dst_size = (self.preview_options.width, self.preview_options.height)
+        dst_size = np.array(self.preview_options.render_size).astype(int)
         S = np.float64([
             [dst_size[0], 0.0,   0.0],
             [0.0,   dst_size[1], 0.0],
@@ -535,8 +532,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         gazes = gaze_plugin.get_gazes_for_scene(scene_idx).point
 
         mapped_gazes = self.image_points_to_surface(gazes)
-        mapped_gazes[:, 0] *= self.preview_options.width
-        mapped_gazes[:, 1] *= self.preview_options.height
+        mapped_gazes[:, 0] *= self.preview_options.render_size[0]
+        mapped_gazes[:, 1] *= self.preview_options.render_size[1]
         offset_gazes = None
 
         aggregations = {}
@@ -549,8 +546,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
                         gaze_plugin.offset_y * scene_frame.height
                     ])
                     mapped_offset_gazes = self.image_points_to_surface(offset_gazes)
-                    mapped_offset_gazes[:, 0] *= self.preview_options.width
-                    mapped_offset_gazes[:, 1] *= self.preview_options.height
+                    mapped_offset_gazes[:, 0] *= self.preview_options.render_size[0]
+                    mapped_offset_gazes[:, 1] *= self.preview_options.render_size[1]
 
                 if viz._aggregation not in offset_aggregations:
                     offset_aggregations[viz._aggregation] = viz._aggregation.apply(
@@ -575,8 +572,9 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.preview_window = SurfaceViewWindow(self)
         self.preview_window.show()
 
-        width = min(1024, max(self.preview_options.width, 400))
-        aspect = self.preview_options.width / self.preview_options.height
+        render_size = self.preview_options.render_size
+        width = min(1024, max(render_size[0], 400))
+        aspect = render_size[0] / render_size[1]
         self.preview_window.resize(width + 300, width / aspect)
 
     @action

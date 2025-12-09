@@ -378,6 +378,28 @@ class SurfaceTrackingPlugin(Plugin):
             data = np.load(locations_path, allow_pickle=True)
             self.surface_locations[surface_uid] = data
 
+            # set surface size
+            location = data[surface.defining_frame_index]
+
+            undistorted_corners = np.array(self.tracker.surface_points_in_image_space(
+                surface.tracker_surface,
+                location,
+                np.array([c.value for c in CornerId.all_corners()], dtype=np.float32),
+            ))
+
+            tl, tr, br, bl = undistorted_corners
+
+            width_a = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+            width_b = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+            max_width = max(width_a, width_b)
+
+            height_a = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+            height_b = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+            max_height = max(height_a, height_b)
+
+            surface.preview_options.render_size = [max_width, max_height]
+
+            # refresh
             self.trigger_scene_update()
 
         self.attempt_load_surface_heatmap(surface_uid)
@@ -449,7 +471,8 @@ class SurfaceTrackingPlugin(Plugin):
         res_exponent = max(val, 0.35)
         resolution = int(10**res_exponent)
 
-        aspect_ratio = surface.preview_options.width / surface.preview_options.height
+        w, h = surface.preview_options.render_size
+        aspect_ratio = w / h
 
         grid = (
             int(resolution),
@@ -574,7 +597,8 @@ class SurfaceTrackingPlugin(Plugin):
                 self._load_surface_locations_cache(surface.uid)
 
             elif not self.app.headless:
-                self._start_bg_surface_locator(surface, frame_idx)
+                surface.defining_frame_index = int(frame_idx)
+                self._start_bg_surface_locator(surface)
 
         for surface in removed_surfaces:
             if surface.edit:
@@ -664,8 +688,9 @@ class SurfaceTrackingPlugin(Plugin):
     def bg_detect_surface_locations(
         self,
         uid: str,
-        starting_frame_idx: int = -1,
     ) -> T.Generator[ProgressUpdate, None, None]:
+        starting_frame_idx = self.get_surface(uid).defining_frame_index
+
         if starting_frame_idx >= len(self.markers_by_frame):
             logging.error("Marker detection not yet complete")
             return
