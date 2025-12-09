@@ -3,14 +3,13 @@ import cv2
 import numpy as np
 from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QMouseEvent, QPainter, QPaintEvent, QPixmap
-from PySide6.QtWidgets import QPushButton, QSplitter, QWidget
+from PySide6.QtWidgets import QPushButton, QSplitter, QVBoxLayout, QWidget
 from qt_property_widgets.widgets import PropertyForm
 from surface_tracker import CornerId
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
-from pupil_labs.neon_player.utilities import qimage_from_frame
 
 
 class MarkerEditWidget(QPushButton):
@@ -146,10 +145,7 @@ class SurfaceViewWidget(VideoRenderWidget):
         self.refit_rect()
 
     def refit_rect(self) -> None:
-        self.fit_rect(QSize(
-            self.surface.preview_options.width,
-            self.surface.preview_options.height
-        ))
+        self.fit_rect(QSize(*self.surface.preview_options.render_size))
         self.update()
 
     def paintEvent(self, event: QPaintEvent) -> None:
@@ -173,7 +169,13 @@ class SurfaceViewWindow(QSplitter):
 
         self.options_widget = PropertyForm(surface.preview_options)
         self.options_widget.layout().setContentsMargins(5, 5, 5, 5)
-        self.addWidget(self.options_widget)
+        self.options_container = QWidget()
+        self.options_container_layout = QVBoxLayout()
+        self.options_container.setLayout(self.options_container_layout)
+        self.options_container_layout.addWidget(self.options_widget)
+        self.options_container_layout.addStretch()
+
+        self.addWidget(self.options_container)
 
         surface.preview_options.changed.connect(surface.changed.emit)
         surface.changed.connect(self.view_widget.refit_rect)
