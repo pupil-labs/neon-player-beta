@@ -4,7 +4,9 @@
         relative_path: 'lib64'
         prefixes:
           - 'libapriltag'
+          - 'apriltag'
     - from_filenames:
         relative_path: 'lib'
         prefixes:
           - 'libapriltag'
+          - 'apriltag'
