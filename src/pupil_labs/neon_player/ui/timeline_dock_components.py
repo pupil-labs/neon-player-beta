@@ -11,14 +11,18 @@ from PySide6.QtWidgets import (
     QLabel,
     QSizePolicy,
     QStyleOptionGraphicsItem,
+    QVBoxLayout,
     QWidget,
 )
+
+from pupil_labs.neon_player.ui import GUIEventNotifier
 
 
 class ScrubbableViewBox(pg.ViewBox):
     scrub_start = Signal(MouseDragEvent)
     scrub_end = Signal(MouseDragEvent)
     scrubbed = Signal(object)
+    zoomed = Signal()
 
     def __init__(self, *args, **kwargs):
         super().__init__()
@@ -65,7 +69,8 @@ class ScrubbableViewBox(pg.ViewBox):
 
         if any(mouse_enabled.values()):
             self.setMouseEnabled(**mouse_enabled)
-            return super().wheelEvent(ev, axis)
+            self.zoomed.emit()
+            super().wheelEvent(ev, axis)
 
         ev.ignore()
 
@@ -294,7 +299,7 @@ class PlotOverlay(QWidget):
         plot_rect = vb.mapToScene(vb.geometry()).boundingRect()
         self.setGeometry(
             plot_rect.x(), 20,
-            plot_rect.width(), self.parent().centralWidget.height() - 20
+            plot_rect.width(), self.parent().height() - 20
         )
 
 
@@ -416,3 +421,15 @@ class TrimDurationMarker(QGraphicsRectItem):
             self._end_marker.time - self._start_marker.time, 2
         )
         self.update()
+
+
+class TimelineTableContainer(GUIEventNotifier, QWidget):
+    def __init__(self, table):
+        super().__init__()
+        self.setMouseTracking(True)
+
+        layout = QVBoxLayout(self)
+
+        layout.addWidget(table)
+        layout.addStretch()
+        layout.setContentsMargins(0, 0, 0, 0)

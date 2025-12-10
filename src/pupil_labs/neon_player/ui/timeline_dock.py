@@ -29,6 +29,7 @@ from pupil_labs.neon_player.ui.timeline_dock_components import (
     ScrubbableViewBox,
     SmartSizePlotItem,
     TimeAxisItem,
+    TimelineTableContainer,
     TimestampLabel,
     TrimDurationMarker,
     TrimEndMarker,
@@ -108,10 +109,16 @@ class TimeLineDock(QWidget):
 
         self.graphics_view.scene().sigMouseClicked.connect(self.on_chart_area_clicked)
         self.graphics_view.scene().sigMouseMoved.connect(self.on_chart_area_mouse_moved)
+
         self.scroll_area = QScrollArea()
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.scroll_area.setWidget(self.graphics_view)
+
+        self.graphics_view_container = TimelineTableContainer(self.graphics_view)
+        self.graphics_view_container.mouse_pressed.connect(self.on_whitespace_mouse_clicked)
+        self.graphics_view_container.mouse_moved.connect(self.on_whitespace_mouse_moved)
+        self.scroll_area.setWidget(self.graphics_view_container)
+        self.scroll_area.setWidgetResizable(True)
         self.main_layout.addWidget(self.scroll_area)
 
         self.setMouseTracking(True)
@@ -126,7 +133,7 @@ class TimeLineDock(QWidget):
             QSizePolicy.Policy.Fixed
         )
 
-        self.playhead = PlayHead(self.timestamps_plot, parent=self.graphics_view)
+        self.playhead = PlayHead(self.timestamps_plot, parent=self.graphics_view_container)
         self.playhead.hide()
 
         app.playback_state_changed.connect(self.on_playback_state_changed)
@@ -191,6 +198,17 @@ class TimeLineDock(QWidget):
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
 
+    def on_whitespace_mouse_moved(self, event):
+        if event.buttons() == Qt.LeftButton:
+            self.on_chart_area_clicked(event)
+
+    def on_whitespace_mouse_clicked(self, event):
+        if event.button() == Qt.LeftButton:
+            self.on_chart_area_clicked(event)
+
+        elif event.button() == Qt.RightButton:
+            self.show_context_menu(event.globalPos())
+
     def on_trim_area_drag_start(self, event: MouseDragEvent):
         app = neon_player.instance()
         if app.recording is None:
@@ -238,10 +256,14 @@ class TimeLineDock(QWidget):
                 if tm.nearby(data_pos, 0.5):
                     return
 
-        if event.button() == Qt.LeftButton:
+        if event.buttons() == Qt.LeftButton or event.button() == Qt.LeftButton:
             first_plot_item = next(iter(self.timeline_plots.values()))
 
-            mouse_point = first_plot_item.getViewBox().mapSceneToView(event.scenePos())
+            if hasattr(event, "scenePos"):
+                mouse_point = first_plot_item.getViewBox().mapSceneToView(event.scenePos())
+            else:
+                mouse_point = first_plot_item.getViewBox().mapSceneToView(event.pos())
+
             time_ns = int(mouse_point.x())
 
             time_ns = max(app.recording.start_time, time_ns)
@@ -259,29 +281,32 @@ class TimeLineDock(QWidget):
             self.check_for_data_item_click(event)
 
     def check_for_data_item_click(self, event: MouseClickEvent):
-            nearby_items = self.graphics_layout.scene().itemsNearEvent(event)
-            clicked_plot_item = None
-            clicked_data_point = None
-            for item in nearby_items:
-                if isinstance(item, pg.PlotItem):
-                    clicked_plot_item = item
-                elif isinstance(item, pg.ScatterPlotItem):
-                    p = item.mapFromScene(event.scenePos())
-                    points_at = item.pointsAt(p)
-                    if len(points_at) == 0:
-                        continue
+        if event.isAccepted():
+            return
+        nearby_items = self.graphics_layout.scene().itemsNearEvent(event)
+        clicked_plot_item = None
+        clicked_data_point = None
+        for item in nearby_items:
+            if isinstance(item, pg.PlotItem):
+                clicked_plot_item = item
+            elif isinstance(item, pg.ScatterPlotItem):
+                p = item.mapFromScene(event.scenePos())
+                points_at = item.pointsAt(p)
+                if len(points_at) == 0:
+                    continue
 
-                    spot_item = points_at[0].pos()
-                    clicked_data_point = (spot_item.x(), spot_item.y())
+                spot_item = points_at[0].pos()
+                clicked_data_point = (spot_item.x(), spot_item.y())
 
-            if clicked_plot_item is None or clicked_data_point is None:
-                self.show_context_menu(event.screenPos().toPoint())
-                return
+        if clicked_plot_item is None or clicked_data_point is None:
+            self.show_context_menu(event.screenPos().toPoint())
+            event.accept()
+            return
 
-            for k, v in self.timeline_plots.items():
-                if v == clicked_plot_item:
-                    self.on_data_point_clicked(k, clicked_data_point, event)
-                    break
+        for k, v in self.timeline_plots.items():
+            if v == clicked_plot_item:
+                self.on_data_point_clicked(k, clicked_data_point, event)
+                break
 
     def get_timeline_plot(
         self, timeline_row_name: str, create_if_missing: bool = False, **kwargs
@@ -318,6 +343,8 @@ class TimeLineDock(QWidget):
             vb.scrub_end.connect(self.on_trim_area_drag_end)
         else:
             vb.scrubbed.connect(self.on_chart_area_clicked)
+
+        vb.zoomed.connect(self.graphics_view_container.repaint)
 
         legend = FixedLegend()
         legend.layout.setContentsMargins(0, 0, 0, 50)
