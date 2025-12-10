@@ -162,6 +162,11 @@ class TimeLineDock(QWidget):
             plot_item.setXRange(
                 recording.start_time, recording.stop_time, padding=0
             )
+            duration = recording.stop_time - recording.start_time
+            plot_item.getViewBox().setLimits(
+                xMin=recording.start_time - duration * 0.05,
+                xMax=recording.stop_time + duration * 0.05,
+            )
             axis = plot_item.getAxis("top")
             axis.set_time_frame(recording.start_time, recording.stop_time)
 
