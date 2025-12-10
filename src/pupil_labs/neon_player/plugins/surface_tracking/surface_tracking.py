@@ -12,7 +12,15 @@ import pupil_apriltags
 import pupil_labs.video as plv
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPointF, Qt, QTimer
-from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPainterPath, QPen
+from PySide6.QtGui import (
+    QColor,
+    QColorConstants,
+    QIcon,
+    QImage,
+    QPainter,
+    QPainterPath,
+    QPen,
+)
 from PySide6.QtWidgets import QMessageBox
 from qt_property_widgets.utilities import action_params, property_params
 from surface_tracker import (
@@ -744,7 +752,11 @@ class SurfaceTrackingPlugin(Plugin):
                     )
                     painter = QPainter(frame)
                     surface.location = self.surface_locations[uid][scene_frame.index]
-                    surface.render(painter, scene_frame.time)
+                    if not surface.location:
+                        painter.fillRect(0, 0, frame.width(), frame.height(), QColorConstants.Gray)
+                    else:
+                        surface.render(painter, scene_frame.time)
+
                     painter.end()
 
                     frame_pixels = ndarray_from_qimage(frame)
