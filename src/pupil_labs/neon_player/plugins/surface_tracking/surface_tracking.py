@@ -747,8 +747,8 @@ class SurfaceTrackingPlugin(Plugin):
                 if scene_frame.index < len(self.surface_locations[uid]):
                     rel_ts = (scene_frame.time - self.recording.scene.time[0]) / 1e9
                     frame = QImage(
-                        surface.preview_options._render_size,
-                        QImage.Format.Format_BGR888
+                        *surface.preview_options.render_size,
+                        QImage.Format.Format_BGR888,
                     )
                     painter = QPainter(frame)
                     surface.location = self.surface_locations[uid][scene_frame.index]
