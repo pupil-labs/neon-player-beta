@@ -1,6 +1,5 @@
 import av
 import numpy as np
-from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
@@ -14,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import ProgressUpdate
+from pupil_labs.neon_recording import NeonRecording
 
 
 class AudioPlugin(neon_player.Plugin):
@@ -101,7 +101,9 @@ class AudioPlugin(neon_player.Plugin):
                 gap = (frame.time - next_expected_frame_time) / 1e9
                 if gap > frame_duration:
                     samples_to_gen = int(gap * frame.av_frame.sample_rate)
-                    silence = np.zeros([raw_audio.shape[0], samples_to_gen]).astype(np.float32)
+                    silence = np.zeros([raw_audio.shape[0], samples_to_gen]).astype(
+                        np.float32
+                    )
 
                     silence_frame = av.AudioFrame.from_ndarray(
                         silence,
@@ -110,7 +112,9 @@ class AudioPlugin(neon_player.Plugin):
                     )
                     silence_frame.sample_rate = frame.av_frame.sample_rate
                     silence_frame.time_base = frame.av_frame.time_base
-                    silence_rel_time = (next_expected_frame_time - self.recording.audio.time[0]) / 1e9
+                    silence_rel_time = (
+                        next_expected_frame_time - self.recording.audio.time[0]
+                    ) / 1e9
                     silence_frame.pts = silence_rel_time / silence_frame.time_base
                     silence_frame.dts = silence_frame.pts
                     for packet in stream.encode(silence_frame):

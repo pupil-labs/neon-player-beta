@@ -34,13 +34,10 @@ class SceneRendererPlugin(Plugin):
             return
 
         scene_frame = self.recording.scene.sample(
-            [time_in_recording],
-            method="backward"
+            [time_in_recording], method="backward"
         )[0]
         frame_img = cv2.convertScaleAbs(
-            scene_frame.bgr,
-            alpha=self._contrast,
-            beta=self._brightness
+            scene_frame.bgr, alpha=self._contrast, beta=self._brightness
         )
 
         painter.drawImage(0, 0, qimage_from_frame(frame_img))

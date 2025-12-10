@@ -10,10 +10,7 @@ class ExportAllPlugin(neon_player.Plugin):
     label = "Export All"
 
     @neon_player.action
-    @action_params(
-        compact=True,
-        icon=QIcon.fromTheme("document-save")
-    )
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export_all_enabled_plugins(self, path: Path = Path(".")):
         if self.recording is None:
             return

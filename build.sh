@@ -3,11 +3,14 @@
 pyside6-uic src/pupil_labs/neon_player/assets/splash.ui \
     -o src/pupil_labs/neon_player/ui/splash.py
 
+VERSION=$(python -c "from importlib.metadata import version; print(version('pupil_labs.neon_player'))")
+VERSION_SIMPLE=$(echo "$VERSION" | awk -F. '{print $1"."$2"."$3}')
+
 uv run -m nuitka \
     --user-package-configuration-file=package-configs.yml \
     --standalone \
     --output-dir=dist \
-    --output-filename=neon-player-6 \
+    --output-filename=neon-player \
     --remove-output \
     --python-flag=isolated \
     --plugin-enable=pyside6 \
@@ -25,10 +28,10 @@ uv run -m nuitka \
     --macos-signed-app-name=com.pupil-labs.neon_player \
     --company-name="Pupil Labs" \
     --product-name="Neon Player" \
-    --product-version="6.0.0.0" \
+    --product-version="$VERSION_SIMPLE.0" \
     --linux-icon=./src/pupil_labs/neon_player/assets/neon-player.svg \
     --macos-app-name="Neon Player" \
     --macos-app-icon=./src/pupil_labs/neon_player/assets/icon.icns \
-    --macos-app-version=6.0 \
+    --macos-app-version="$VERSION_SIMPLE" \
     --windows-icon-from-ico=./src/pupil_labs/neon_player/assets/neon-player.ico \
     src/pupil_labs/neon_player/

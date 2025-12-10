@@ -77,11 +77,7 @@ class ScrubbableViewBox(pg.ViewBox):
 
 class TimeAxisItem(pg.AxisItem):
     def __init__(self, *args, **kwargs):
-        super().__init__(
-            *args,
-            tickPen=pg.mkPen({'color': '#aaaaaa'}),
-            **kwargs
-        )
+        super().__init__(*args, tickPen=pg.mkPen({"color": "#aaaaaa"}), **kwargs)
         self.recording_start_time_ns = 0
         self.recording_stop_time_ns = 0
 
@@ -122,14 +118,17 @@ class TimeAxisItem(pg.AxisItem):
 
         # Find the largest interval where ticks won't be too close together
         for int_sec, minor_count in intervals:
-            if pixels_per_second * int_sec >= 120:  # At least 120 pixels between major ticks
+            if (
+                pixels_per_second * int_sec >= 120
+            ):  # At least 120 pixels between major ticks
                 interval_sec = int_sec
                 minor_ticks = minor_count
                 break
 
         self.interval = interval_sec
 
-        # Calculate the first major tick at or after minVal that aligns with the interval from recording start
+        # Calculate the first major tick at or after minVal that aligns with the
+        # interval from recording start
         interval_ns = int(interval_sec * 1e9)
         minor_interval_ns = interval_ns // minor_ticks
         offset_from_start = (minVal - self.recording_start_time_ns) % interval_ns
@@ -143,28 +142,33 @@ class TimeAxisItem(pg.AxisItem):
         minor_tick_list = []
 
         current_major_tick_ns = first_major_tick_ns
-        while current_major_tick_ns <= maxVal + interval_ns:  # Add one extra interval to ensure coverage
+        while (
+            current_major_tick_ns <= maxVal + interval_ns
+        ):  # Add one extra interval to ensure coverage
             if minVal <= current_major_tick_ns <= maxVal:
                 major_ticks.append(current_major_tick_ns)
 
             # Add minor ticks between this major tick and the next
             for i in range(1, minor_ticks):
                 minor_tick_ns = current_major_tick_ns + i * minor_interval_ns
-                if minVal <= minor_tick_ns <= maxVal and minor_tick_ns < current_major_tick_ns + interval_ns:
+                if (
+                    minVal <= minor_tick_ns <= maxVal
+                    and minor_tick_ns < current_major_tick_ns + interval_ns
+                ):
                     minor_tick_list.append(minor_tick_ns)
 
             current_major_tick_ns += interval_ns
 
         # Always include the start time if it's in the visible range
-        if minVal <= self.recording_start_time_ns <= maxVal:
-            if not major_ticks or major_ticks[0] != self.recording_start_time_ns:
-                major_ticks.insert(0, self.recording_start_time_ns)
+        start_time_in_range = minVal <= self.recording_start_time_ns <= maxVal
+        start_tick_is_missing = (
+            not major_ticks or major_ticks[0] != self.recording_start_time_ns
+        )
+        if start_time_in_range and start_tick_is_missing:
+            major_ticks.insert(0, self.recording_start_time_ns)
 
         # Return in the format expected by PyQtGraph: [(tick_scale, [ticks]), ...]
-        return [
-            (1.0, major_ticks),
-            (0.5, minor_tick_list)
-        ]
+        return [(1.0, major_ticks), (0.5, minor_tick_list)]
 
     def tickStrings(self, values, scale, spacing):
         if self.recording_start_time_ns == 0:
@@ -232,10 +236,7 @@ class SmartSizePlotItem(pg.PlotItem):
         super().__init__(*args, **kwargs)
         self.legend_handle = legend
 
-        self.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Preferred
-        )
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         self.preferred_height_1d = 25
         self.preferred_height_2d = 150
@@ -257,7 +258,12 @@ class SmartSizePlotItem(pg.PlotItem):
         self.legend_handle.setFixedHeight(height)
         self.legend_handle.parentItem().setFixedHeight(height)
 
-    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionGraphicsItem,
+        widget: QWidget | None = None,
+    ) -> None:
         pen = painter.pen()
         pen.setColor("#444")
         pen.setWidth(1)
@@ -283,7 +289,7 @@ class SmartSizePlotItem(pg.PlotItem):
 
 
 class PlotOverlay(QWidget):
-    def __init__(self, linked_plot: pg.PlotItem,*args, **kwargs) -> None:
+    def __init__(self, linked_plot: pg.PlotItem, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.linked_plot = linked_plot
 
@@ -298,8 +304,7 @@ class PlotOverlay(QWidget):
         vb = self.linked_plot.vb
         plot_rect = vb.mapToScene(vb.geometry()).boundingRect()
         self.setGeometry(
-            plot_rect.x(), 20,
-            plot_rect.width(), self.parent().height() - 20
+            plot_rect.x(), 20, plot_rect.width(), self.parent().height() - 20
         )
 
 
@@ -340,7 +345,7 @@ class PlayHead(PlotOverlay):
             )
 
         else:
-            painter.fillRect(QRect(x-1, 0, 3, self.height()), self.color)
+            painter.fillRect(QRect(x - 1, 0, 3, self.height()), self.color)
 
 
 class TrimEndMarker(QGraphicsEllipseItem):
@@ -392,7 +397,7 @@ class TrimEndMarker(QGraphicsEllipseItem):
 
         super().paint(painter, option, widget)
 
-    def nearby(self, pos: QPoint | QPointF, buffer = 0.25):
+    def nearby(self, pos: QPoint | QPointF, buffer=0.25):
         rect = self.rect()
         dx = rect.width() * buffer
         dy = rect.height() * buffer
@@ -417,8 +422,10 @@ class TrimDurationMarker(QGraphicsRectItem):
 
     def _update_ends(self) -> None:
         self.setRect(
-            self._start_marker.time, -1,
-            self._end_marker.time - self._start_marker.time, 2
+            self._start_marker.time,
+            -1,
+            self._end_marker.time - self._start_marker.time,
+            2,
         )
         self.update()
 

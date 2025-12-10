@@ -9,8 +9,6 @@ import cv2
 import numpy as np
 import numpy.typing as npt
 import pupil_apriltags
-import pupil_labs.video as plv
-from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
@@ -31,6 +29,7 @@ from surface_tracker import (
     SurfaceTracker,
 )
 
+import pupil_labs.video as plv
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
@@ -39,6 +38,7 @@ from pupil_labs.neon_player.utilities import (
     ndarray_from_qimage,
     qimage_from_frame,
 )
+from pupil_labs.neon_recording import NeonRecording
 
 from .tracked_surface import TrackedSurface
 from .ui import MarkerEditWidget
@@ -60,7 +60,7 @@ class SurfaceTrackingPlugin(Plugin):
         self.surface_locations: dict[str, list[SurfaceLocation]] = {}
         self.tracker = SurfaceTracker()
 
-        self._surfaces: list["TrackedSurface"] = []
+        self._surfaces: list[TrackedSurface] = []
 
         self.timer = QTimer()
         self.timer.setInterval(33)
@@ -117,14 +117,10 @@ class SurfaceTrackingPlugin(Plugin):
                 marker_widget.show()
                 marker = present_markers[marker_uid]
                 undistorted_center = np.mean(marker.vertices(), axis=0)
-                distorted_center = self.camera.distort_points(
-                    [undistorted_center]
-                )[0]
+                distorted_center = self.camera.distort_points([undistorted_center])[0]
 
                 vrw.set_child_scaled_center(
-                    marker_widget,
-                    distorted_center[0],
-                    distorted_center[1]
+                    marker_widget, distorted_center[0], distorted_center[1]
                 )
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
@@ -152,7 +148,7 @@ class SurfaceTrackingPlugin(Plugin):
                 )
                 self.marker_detection_job.finished.connect(self._load_marker_cache)
 
-    def render(self, painter: QPainter, time_in_recording: int) -> None:
+    def render(self, painter: QPainter, time_in_recording: int) -> None:  # noqa: C901
         if not self._export_overlays:
             exporter = Plugin.get_instance_by_name("VideoExporter")
             if exporter is not None and exporter.is_exporting:
@@ -193,15 +189,20 @@ class SurfaceTrackingPlugin(Plugin):
                 export_window = self.app.recording_settings.export_window
                 if export_window[0] <= time_in_recording <= export_window[1]:
                     scalar = np.float64([
-                        [1 / surface._heatmap.shape[1], 0.0,   0.0],
-                        [0.0,   1 / surface._heatmap.shape[0], 0.0],
-                        [0.0,   0.0,   1.0]
+                        [1 / surface._heatmap.shape[1], 0.0, 0.0],
+                        [0.0, 1 / surface._heatmap.shape[0], 0.0],
+                        [0.0, 0.0, 1.0],
                     ])
 
-                    h_scaled = location.transform_matrix_from_surface_to_image_undistorted @ scalar
+                    h_scaled = (
+                        location.transform_matrix_from_surface_to_image_undistorted
+                        @ scalar
+                    )
                     scene_size = self.recording.scene.width, self.recording.scene.height
 
-                    rgb_heatmap = cv2.applyColorMap(surface._heatmap, surface.heatmap_color.value)
+                    rgb_heatmap = cv2.applyColorMap(
+                        surface._heatmap, surface.heatmap_color.value
+                    )
                     rgb_heatmap = cv2.cvtColor(rgb_heatmap, cv2.COLOR_BGR2RGB)
                     undistorted_heatmap = cv2.warpPerspective(
                         rgb_heatmap,
@@ -209,7 +210,11 @@ class SurfaceTrackingPlugin(Plugin):
                         scene_size,
                     )
                     undistorted_mask = cv2.warpPerspective(
-                        255 * np.ones((surface._heatmap.shape[0], surface._heatmap.shape[1]), dtype='uint8'),
+                        255
+                        * np.ones(
+                            (surface._heatmap.shape[0], surface._heatmap.shape[1]),
+                            dtype="uint8",
+                        ),
                         h_scaled,
                         scene_size,
                     )
@@ -217,13 +222,13 @@ class SurfaceTrackingPlugin(Plugin):
                     distorted_heatmap = self.camera.distort_image(undistorted_heatmap)
 
                     distorted_mask = self.camera.distort_image(undistorted_mask)
-                    distorted_heatmap_rgba = np.dstack((distorted_heatmap, distorted_mask))
+                    distorted_heatmap_rgba = np.dstack((
+                        distorted_heatmap,
+                        distorted_mask,
+                    ))
 
                     painter.setOpacity(surface.heatmap_alpha)
-                    painter.drawImage(
-                        0, 0,
-                        qimage_from_frame(distorted_heatmap_rgba)
-                    )
+                    painter.drawImage(0, 0, qimage_from_frame(distorted_heatmap_rgba))
                     painter.setOpacity(1.0)
 
             if surface.edit:
@@ -232,13 +237,11 @@ class SurfaceTrackingPlugin(Plugin):
                     vrw.scaled_children_positions[w]
                     for w in surface.handle_widgets.values()
                 ]
-                anchors = np.array([ (p[0], p[1]) for p in points ])
+                anchors = np.array([(p[0], p[1]) for p in points])
                 anchors = self.camera.undistort_points(anchors)
             else:
                 anchors = self.tracker.surface_corner_positions_in_image_space(
-                    surface.tracker_surface,
-                    location,
-                    CornerId.all_corners()
+                    surface.tracker_surface, location, CornerId.all_corners()
                 )
                 anchors = np.array(list(anchors.values()))
 
@@ -261,7 +264,7 @@ class SurfaceTrackingPlugin(Plugin):
                     int(center[0] - text_rect.width() / 2),
                     int(center[1] + text_rect.height() / 2) - 8,
                     painter.font(),
-                    surface.name
+                    surface.name,
                 )
 
                 painter.drawPath(path)
@@ -339,7 +342,7 @@ class SurfaceTrackingPlugin(Plugin):
                 int(center[0] - text_rect.width() / 2),
                 int(center[1] + text_rect.height() / 2) - 8,
                 painter.font(),
-                marker_id
+                marker_id,
             )
             painter.drawPath(path)
             painter.setPen(Qt.NoPen)
@@ -360,8 +363,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         # marker visibility plot
         marker_count_by_frame = np.array(
-            [0] + [len(v) > 0 for v in self.markers_by_frame],
-            dtype=np.int8
+            [0] + [len(v) > 0 for v in self.markers_by_frame], dtype=np.int8
         )
         state_diff = np.diff(marker_count_by_frame.astype(int))
         start_times = self.recording.scene.time[state_diff == 1].tolist()
@@ -379,7 +381,7 @@ class SurfaceTrackingPlugin(Plugin):
         surf_path = self.get_cache_path() / f"{surface_uid}_surface.pkl"
         if surf_path.exists():
             with surf_path.open("rb") as f:
-                surface.tracker_surface = pickle.load(f)
+                surface.tracker_surface = pickle.load(f)  # noqa: S301
 
         locations_path = self.get_cache_path() / f"{surface_uid}_locations.npy"
         if locations_path.exists():
@@ -389,11 +391,15 @@ class SurfaceTrackingPlugin(Plugin):
             # set surface size
             location = data[surface.defining_frame_index]
 
-            undistorted_corners = np.array(self.tracker.surface_points_in_image_space(
-                surface.tracker_surface,
-                location,
-                np.array([c.value for c in CornerId.all_corners()], dtype=np.float32),
-            ))
+            undistorted_corners = np.array(
+                self.tracker.surface_points_in_image_space(
+                    surface.tracker_surface,
+                    location,
+                    np.array(
+                        [c.value for c in CornerId.all_corners()], dtype=np.float32
+                    ),
+                )
+            )
 
             tl, tr, br, bl = undistorted_corners
 
@@ -428,14 +434,16 @@ class SurfaceTrackingPlugin(Plugin):
                 heatmap_job = self.job_manager.run_background_action(
                     f"Build Surface Heatmap [{surface.name}]",
                     "SurfaceTrackingPlugin.bg_build_heatmap",
-                    surface_uid
+                    surface_uid,
                 )
                 surface.add_bg_job(heatmap_job)
                 heatmap_job.finished.connect(
                     lambda: self._load_surface_heatmap(surface_uid)
                 )
 
-    def bg_build_heatmap(self, surface_uid: str) -> T.Generator[ProgressUpdate, None, None]:
+    def bg_build_heatmap(
+        self, surface_uid: str
+    ) -> T.Generator[ProgressUpdate, None, None]:
         surface = self.get_surface(surface_uid)
 
         start_time, stop_time = neon_player.instance().recording_settings.export_window
@@ -463,9 +471,7 @@ class SurfaceTrackingPlugin(Plugin):
             gazes = self.recording.gaze[start_mask & stop_mask]
             if len(gazes) > 0:
                 mapped_gazes = np.append(
-                    mapped_gazes,
-                    surface.apply_offset_and_map_gazes(gazes),
-                    axis=0
+                    mapped_gazes, surface.apply_offset_and_map_gazes(gazes), axis=0
                 )
 
             yield ProgressUpdate((1 + idx) / len(scene_frames))
@@ -529,7 +535,6 @@ class SurfaceTrackingPlugin(Plugin):
     def draw_marker_ids(self, value: bool) -> None:
         self._draw_marker_ids = value
 
-
     @property
     def draw_names(self) -> bool:
         return self._draw_names
@@ -556,11 +561,9 @@ class SurfaceTrackingPlugin(Plugin):
         return self._surfaces
 
     @surfaces.setter
-    def surfaces(self, value: list["TrackedSurface"]):
+    def surfaces(self, value: list["TrackedSurface"]):  # noqa: C901
         frame_idx = self.get_scene_idx_for_time()
-        new_surfaces = [
-            surface for surface in value if surface not in self._surfaces
-        ]
+        new_surfaces = [surface for surface in value if surface not in self._surfaces]
         removed_surfaces = [
             surface for surface in self._surfaces if surface not in value
         ]
@@ -569,7 +572,11 @@ class SurfaceTrackingPlugin(Plugin):
         if len(fresh_surfaces) > 0:
             frame_detect_done = frame_idx < len(self.markers_by_frame)
             if not frame_detect_done or len(self.markers_by_frame[frame_idx]) < 1:
-                QMessageBox.warning(self.app.main_window, "No markers detected", "Markers must be visible and detected on the current frame to add a new surface.")
+                QMessageBox.warning(
+                    self.app.main_window,
+                    "No markers detected",
+                    "Markers must be detected on the current frame to add a surface.",
+                )
                 for surface in new_surfaces:
                     value.remove(surface)
 
@@ -597,7 +604,7 @@ class SurfaceTrackingPlugin(Plugin):
                 lambda s=surface: self.on_marker_edit_changed(s)
             )
             surface.locations_invalidated.connect(
-                lambda s=surface:self.on_locations_invalidated(s)
+                lambda s=surface: self.on_locations_invalidated(s)
             )
 
             locations_path = self.get_cache_path() / f"{surface.uid}_locations.npy"
@@ -659,12 +666,10 @@ class SurfaceTrackingPlugin(Plugin):
             "SurfaceTrackingPlugin.bg_detect_surface_locations",
             surface.uid,
             *args,
-            **kwargs
+            **kwargs,
         )
         surface.add_bg_job(job)
-        job.finished.connect(
-            lambda: self._load_surface_locations_cache(surface.uid)
-        )
+        job.finished.connect(lambda: self._load_surface_locations_cache(surface.uid))
 
     def get_surface(self, uid: str):
         for s in self._surfaces:
@@ -679,7 +684,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         markers_by_frame = []
         for frame_idx, frame in enumerate(self.recording.scene):
-            #@TODO: apply brightness/contrast adjustments
+            # @TODO: apply brightness/contrast adjustments
             scene_image = self.camera.undistort_image(frame.gray)
 
             markers = [
@@ -708,7 +713,7 @@ class SurfaceTrackingPlugin(Plugin):
             surf_path = self.get_cache_path() / f"{uid}_surface.pkl"
             if surf_path.exists():
                 with surf_path.open("rb") as f:
-                    tracker_surf = pickle.load(f)
+                    tracker_surf = pickle.load(f)  # noqa: S301
 
         else:
             markers = self.markers_by_frame[starting_frame_idx]
@@ -731,9 +736,7 @@ class SurfaceTrackingPlugin(Plugin):
             pickle.dump(tracker_surf, f)
 
     def bg_export_surface_video(
-        self,
-        destination: Path,
-        uid: str
+        self, destination: Path, uid: str
     ) -> T.Generator[ProgressUpdate, None, None]:
         surface = self.get_surface(uid)
 
@@ -753,7 +756,9 @@ class SurfaceTrackingPlugin(Plugin):
                     painter = QPainter(frame)
                     surface.location = self.surface_locations[uid][scene_frame.index]
                     if not surface.location:
-                        painter.fillRect(0, 0, frame.width(), frame.height(), QColorConstants.Gray)
+                        painter.fillRect(
+                            0, 0, frame.width(), frame.height(), QColorConstants.Gray
+                        )
                     else:
                         surface.render(painter, scene_frame.time)
 
@@ -768,8 +773,7 @@ class SurfaceTrackingPlugin(Plugin):
                 yield ProgressUpdate((output_idx + 1) / len(scene_frames))
 
     def apriltag_to_surface_marker(
-        self,
-        apriltag_marker: pupil_apriltags.Detection
+        self, apriltag_marker: pupil_apriltags.Detection
     ) -> Marker:
         return Marker.from_vertices(
             uid=apriltag_marker.tag_id,
@@ -779,10 +783,7 @@ class SurfaceTrackingPlugin(Plugin):
         )
 
     @action
-    @action_params(
-        compact=True,
-        icon=QIcon.fromTheme("document-save")
-    )
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export(self, destination: Path = Path()) -> None:
         start_time, stop_time = neon_player.instance().recording_settings.export_window
         start_mask = self.recording.gaze.time >= start_time
@@ -794,8 +795,10 @@ class SurfaceTrackingPlugin(Plugin):
             surface.export_gazes(gazes_in_window, destination)
             try:
                 surface.export_fixations(gazes_in_window, destination)
-            except:
-                logging.warning("Failed to export surface fixations. Is the fixation plugin enabled?")
+            except Exception:
+                logging.warning(
+                    "Failed to export surface fixations. Is fixation plugin enabled?"
+                )
 
 
 class OptimalCamera(Camera):
@@ -813,7 +816,7 @@ class OptimalCamera(Camera):
             self.distortion_coefficients,
             self.resolution,
             alpha=0.0,
-            newImgSize=self.resolution
+            newImgSize=self.resolution,
         )
 
         self.undistortion_maps = cv2.initUndistortRectifyMap(
@@ -822,7 +825,7 @@ class OptimalCamera(Camera):
             None,
             self.optimal_matrix,
             self.resolution,
-            cv2.CV_32FC1
+            cv2.CV_32FC1,
         )
 
         self.distortion_maps = self._build_distort_maps()
@@ -836,13 +839,17 @@ class OptimalCamera(Camera):
         xv, yv = np.meshgrid(xs, ys)
         pix = np.stack((xv, yv), axis=-1).astype(np.float32)  # (h_dst, w_dst, 2)
 
-        # Convert pixel coords (u_d, v_d) in distorted image to normalized camera coords x_d = K^{-1} * [u;v;1]
+        # Convert pixel coords (u_d, v_d) in distorted image to normalized camera
+        # coords x_d = K^{-1} * [u;v;1]
         K = np.asarray(self.camera_matrix, dtype=np.float64)
         pts = pix.reshape(-1, 1, 2).astype(np.float64)
 
-        undistorted_pts = cv2.undistortPoints(pts, K, self.distortion_coefficients, R=None, P=self.optimal_matrix)  # returns (N,1,2) in pixel coords of undistorted image when P provided
+        undistorted_pts = cv2.undistortPoints(
+            pts, K, self.distortion_coefficients, R=None, P=self.optimal_matrix
+        )  # returns (N,1,2) in pixel coords of undistorted image when P provided
 
-        # undistorted_pts are pixel coordinates in the undistorted image corresponding to each distorted pixel.
+        # undistorted_pts are pixel coordinates in the undistorted image corresponding
+        # to each distorted pixel.
         map_xy = undistorted_pts.reshape(h_dst, w_dst, 2).astype(np.float32)
 
         return map_xy[..., 0], map_xy[..., 1]
@@ -867,7 +874,12 @@ class OptimalCamera(Camera):
         return cv2.remap(img, *self.undistortion_maps, interpolation=cv2.INTER_LINEAR)
 
     def distort_image(self, img):
-        distorted_img = cv2.remap(img, *self.distortion_maps, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+        distorted_img = cv2.remap(
+            img,
+            *self.distortion_maps,
+            interpolation=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_CONSTANT,
+        )
 
         return distorted_img
 
@@ -889,7 +901,7 @@ def insert_interpolated_points(points: npt.NDArray, n_between: int = 10) -> npt.
     for i in range(n_pts - 1):
         p0, p1 = points[i], points[i + 1]
         segment = (1 - t) * p0 + t * p1
-        out[idx:idx + n_between + 1] = segment[:-1]
+        out[idx : idx + n_between + 1] = segment[:-1]
         idx += n_between + 1
 
     # Append the final original point

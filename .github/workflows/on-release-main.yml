@@ -21,3 +21,37 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           uv run mike deploy ${{ github.ref_name }} --push
+
+  bundle:
+    name: Bundle ${{ matrix.platform }}
+    strategy:
+      fail-fast: False
+      matrix:
+        platform:
+          - windows-latest
+          - macOS-14
+          - ubuntu-22.04
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: "Set up Python"
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: "pyproject.toml"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Install dependencies
+        run: uv sync --locked --all-extras --dev
+      - name: Bundle
+        run: ./reproducible_build.sh
+      - name: Upload build as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bundle-${{ matrix.platform }}
+          path: |
+            deployment/*.msi
+            deployment/*.dmg
+            deployment/*.deb

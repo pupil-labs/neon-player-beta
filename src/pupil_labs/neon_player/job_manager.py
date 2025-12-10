@@ -48,25 +48,22 @@ class BackgroundJob(QObject):
 
         self.server.newConnection.connect(self._handle_connection)
 
-        args = (
-            [
-                str(recording_path),
-                "--progress-ipc-name",
-                server_name,
-                "--job",
-                action_name,
-            ]
-            + [str(arg) for arg in args]
-        )
+        args = [
+            str(recording_path),
+            "--progress-ipc-name",
+            server_name,
+            "--job",
+            action_name,
+        ] + [str(arg) for arg in args]
 
         if neon_player.is_frozen():
-            cmd = [sys.executable] + args
+            cmd = [sys.executable, *args]
         else:
-            cmd = [sys.executable, "-m", "pupil_labs.neon_player"] + args
+            cmd = [sys.executable, "-m", "pupil_labs.neon_player", *args]
 
         logging.debug(f"Executing bg job {' '.join(cmd)}")
 
-        self.proc = subprocess.Popen(cmd)
+        self.proc = subprocess.Popen(cmd)  # noqa: S603
 
         logging.info(f"Background job started: {self.name}")
 
@@ -92,7 +89,7 @@ class BackgroundJob(QObject):
             # Read and unpickle the data
             data = stream.readRawData(expected_len)
             try:
-                obj = pickle.loads(data)
+                obj = pickle.loads(data)  # noqa: S301
                 self.progress_changed.emit(obj.progress)
                 self.progress = obj.progress
             except Exception:
@@ -126,7 +123,7 @@ class JobManager(QObject):
                 return
 
             if not hasattr(job, "__iter__"):
-                logging.warning(f"A background job did not generate progress updates")
+                logging.warning("A background job did not generate progress updates")
             else:
                 outstream = QDataStream(socket)
                 for update in job:
@@ -143,7 +140,9 @@ class JobManager(QObject):
                     pbar.n = update.progress
                     pbar.refresh()
 
-    def run_background_action(self, name: str, action_name: str, *args: T.Any) -> BackgroundJob:
+    def run_background_action(
+        self, name: str, action_name: str, *args: T.Any
+    ) -> BackgroundJob:
         if neon_player.instance().headless:
             logging.warning("Not starting background job in headless mode")
             return
@@ -155,7 +154,7 @@ class JobManager(QObject):
             self.job_counter,
             neon_player.instance().recording._rec_dir,
             action_name,
-            *args
+            *args,
         )
         self.job_counter += 1
 
@@ -174,8 +173,7 @@ class JobManager(QObject):
     def on_job_finished(self, job: BackgroundJob) -> None:
         logging.info(f"{job.name} finished")
         neon_player.instance().show_notification(
-            "Job finished",
-            f"Job '{job.name}' has completed"
+            "Job finished", f"Job '{job.name}' has completed"
         )
         self.remove_job(job)
         self.updated.emit()

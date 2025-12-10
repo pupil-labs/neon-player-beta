@@ -4,12 +4,12 @@ from pathlib import Path
 
 import av
 import numpy as np
-import pupil_labs.video as plv
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QColorConstants, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog
 from qt_property_widgets.utilities import action_params
 
+import pupil_labs.video as plv
 from pupil_labs import neon_player
 from pupil_labs.neon_player import ProgressUpdate, action
 from pupil_labs.neon_player.job_manager import BackgroundJob
@@ -26,10 +26,7 @@ class VideoExporter(neon_player.Plugin):
         self.is_exporting = False
 
     @action
-    @action_params(
-        compact=True,
-        icon=QIcon.fromTheme("document-save")
-    )
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export(self, destination: Path = Path()) -> BackgroundJob | T.Generator:
         app = neon_player.instance()
         if not app.headless:
@@ -45,7 +42,9 @@ class VideoExporter(neon_player.Plugin):
         self.is_exporting = True
         recording = self.app.recording
 
-        gray_preamble = np.arange(recording.start_time, recording.scene.time[0], 1e9 // 30)
+        gray_preamble = np.arange(
+            recording.start_time, recording.scene.time[0], 1e9 // 30
+        )
         gray_prologue = np.arange(
             recording.scene.time[-1] + 1e9 // 30, recording.stop_time, 1e9 // 30
         )
@@ -66,9 +65,15 @@ class VideoExporter(neon_player.Plugin):
             gap_start = combined_timestamps[gap]
             gap_end = combined_timestamps[gap + 1] - 1e9 // 60
             gap_timestamps = np.arange(gap_start, gap_end, 1e9 // 30)
-            combined_timestamps = np.concatenate((combined_timestamps[:gap], gap_timestamps, combined_timestamps[gap + 1:]))
+            combined_timestamps = np.concatenate((
+                combined_timestamps[:gap],
+                gap_timestamps,
+                combined_timestamps[gap + 1 :],
+            ))
 
-        frame_size = QSize(recording.scene.width or 1600, recording.scene.height or 1200)
+        frame_size = QSize(
+            recording.scene.width or 1600, recording.scene.height or 1200
+        )
 
         audio_frame_timestamps = recording.audio.time[
             (recording.audio.time >= start_time) & (recording.audio.time <= stop_time)
@@ -78,15 +83,13 @@ class VideoExporter(neon_player.Plugin):
         audio_frame_idx = 0
 
         with plv.Writer(destination / "world.mp4") as writer:
+
             def write_audio_frame():
                 nonlocal audio_frame, audio_frame_idx
 
                 audio_rel_ts = (audio_frame.time - start_time) / 1e9
                 plv_audio_frame = plv.AudioFrame(
-                    audio_frame.av_frame,
-                    audio_rel_ts,
-                    audio_frame_idx,
-                    ""
+                    audio_frame.av_frame, audio_rel_ts, audio_frame_idx, ""
                 )
                 writer.write_frame(plv_audio_frame)
                 try:
@@ -121,10 +124,7 @@ class VideoExporter(neon_player.Plugin):
         self.is_exporting = False
 
     @action
-    @action_params(
-        compact=True,
-        icon=QIcon.fromTheme("document-save")
-    )
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export_current_frame(self) -> None:
         file_path_str, type_selection = QFileDialog.getSaveFileName(
             None, "Export frame", "", "PNG Images (*.png)"
@@ -146,10 +146,7 @@ class VideoExporter(neon_player.Plugin):
         frame.save(str(file_path_str))
 
     @action
-    @action_params(
-        compact=True,
-        icon=QIcon.fromTheme("edit-copy")
-    )
+    @action_params(compact=True, icon=QIcon.fromTheme("edit-copy"))
     def copy_frame_to_clipboard(self) -> None:
         frame_size = QSize(
             self.recording.scene.width or 1, self.recording.scene.height or 1

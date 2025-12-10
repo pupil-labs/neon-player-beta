@@ -59,12 +59,11 @@ class EyeOverlayPlugin(neon_player.Plugin):
         eye = self.recording.eye
 
         if self._mouse_mode == ModifyDirection.MOVE:
-
             proposed_x = self.offset_x + offset.x() / scene.width
             proposed_y = self.offset_y + offset.y() / scene.height
 
-            max_x = 1 - (self._scale *  eye.width) / scene.width
-            max_y = 1 - (self._scale *  eye.height) / scene.height
+            max_x = 1 - (self._scale * eye.width) / scene.width
+            max_y = 1 - (self._scale * eye.height) / scene.height
 
             proposed_x = max(0, min(max_x, proposed_x))
             proposed_y = max(0, min(max_y, proposed_y))
@@ -97,11 +96,11 @@ class EyeOverlayPlugin(neon_player.Plugin):
             if fix_y:
                 max_scale = (scene.height - rect.top()) / eye.height
                 self.scale = min(max_scale, max(0.2, rect.width() / eye.width))
-                rect.setHeight(self.scale *  eye.height)
+                rect.setHeight(self.scale * eye.height)
             else:
                 max_scale = (scene.width - rect.left()) / eye.width
                 self.scale = min(max_scale, max(0.2, rect.height() / eye.height))
-                rect.setWidth(self.scale *  eye.width)
+                rect.setWidth(self.scale * eye.width)
 
             for a in aligns:
                 self.align(rect, a)
@@ -151,9 +150,9 @@ class EyeOverlayPlugin(neon_player.Plugin):
                 self.video_widget.setCursor(Qt.SizeFDiagCursor)
             elif tr or bl:
                 self.video_widget.setCursor(Qt.SizeBDiagCursor)
-            elif self._mouse_mode in (ModifyDirection.LEFT,  ModifyDirection.RIGHT):
+            elif self._mouse_mode in (ModifyDirection.LEFT, ModifyDirection.RIGHT):
                 self.video_widget.setCursor(Qt.SizeHorCursor)
-            elif self._mouse_mode in (ModifyDirection.TOP,  ModifyDirection.BOTTOM):
+            elif self._mouse_mode in (ModifyDirection.TOP, ModifyDirection.BOTTOM):
                 self.video_widget.setCursor(Qt.SizeVerCursor)
             else:
                 self.video_widget.setCursor(Qt.SizeAllCursor)
@@ -169,8 +168,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
             return
 
         image = qimage_from_frame(eye_frame.gray).scaled(
-            int(eye_frame.width * self._scale),
-            int(eye_frame.height * self._scale)
+            int(eye_frame.width * self._scale), int(eye_frame.height * self._scale)
         )
         painter.setOpacity(self._opacity)
 
@@ -179,17 +177,19 @@ class EyeOverlayPlugin(neon_player.Plugin):
             pen.setWidth(self._border_width)
             pen.setColor(self._border_color)
             painter.setPen(pen)
-            painter.drawRect(self.get_rect().adjusted(
-                -self._border_width / 2,
-                -self._border_width / 2,
-                self._border_width / 2,
-                self._border_width / 2,
-            ))
+            painter.drawRect(
+                self.get_rect().adjusted(
+                    -self._border_width / 2,
+                    -self._border_width / 2,
+                    self._border_width / 2,
+                    self._border_width / 2,
+                )
+            )
 
         painter.drawImage(
             QPointF(
                 self._offset_x * self.recording.scene.width,
-                self._offset_y * self.recording.scene.height
+                self._offset_y * self.recording.scene.height,
             ),
             image,
         )
@@ -209,7 +209,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
             self._offset_x * self.recording.scene.width,
             self._offset_y * self.recording.scene.height,
             int(self._scale * self.recording.eye.width),
-            int(self._scale * self.recording.eye.height)
+            int(self._scale * self.recording.eye.height),
         )
 
     @property
