@@ -67,12 +67,12 @@ class AudioPlugin(neon_player.Plugin):
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         if not self.cache_file.exists():
             if self.app.headless:
-                self.generate_audio()
+                self.extract_audio()
                 self.load_audio()
 
             else:
                 job = self.job_manager.run_background_action(
-                    "Generate audio", "AudioPlugin.generate_audio"
+                    "Extract audio", "AudioPlugin.extract_audio"
                 )
                 job.finished.connect(self.load_audio)
 
@@ -83,7 +83,7 @@ class AudioPlugin(neon_player.Plugin):
         self.player.setSource(QUrl.fromLocalFile(str(self.cache_file)))
         self.on_playback_state_changed(self.app.is_playing)
 
-    def generate_audio(self):
+    def extract_audio(self):
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         container = av.open(str(self.cache_file), "w")
