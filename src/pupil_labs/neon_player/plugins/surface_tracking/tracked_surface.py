@@ -22,7 +22,7 @@ from surface_tracker import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action
-from pupil_labs.neon_player.plugins.gaze import CrosshairViz, GazeVisualization
+from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 from .ui import SurfaceHandle, SurfaceViewWindow
@@ -60,7 +60,7 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         super().__init__()
         self._tracked_surface = None
         self._visualizations: list[GazeVisualization] = [
-            CrosshairViz(),
+            CircleViz(),
         ]
         self.render_size = [512, 512]
 
@@ -151,6 +151,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._can_edit = False
         self._preview_options = SurfaceViewDisplayOptions()
         self._preview_options._tracked_surface = self
+        self._preview_options.changed.connect(self.changed.emit)
         self._show_heatmap = False
         self._heatmap_smoothness = 0.35
         self._heatmap_alpha = .75
