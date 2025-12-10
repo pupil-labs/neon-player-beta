@@ -201,4 +201,5 @@ class ConsoleWindow(QWidget):
 
     def show(self) -> None:
         super().show()
+        self.raise_()
         self.log_handler.scroll_to_bottom()
