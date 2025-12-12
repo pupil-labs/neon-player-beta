@@ -1,0 +1,7 @@
+Package: neon-player
+Version: {{VERSION}}
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Pupil Labs <info@pupil-labs.com>
+Description: Neon Player - Find more information on https://docs.pupil-labs.com/neon/

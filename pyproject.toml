@@ -37,10 +37,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-examples = [
-    "mediapipe",
-    "ultralytics",
-]
+examples = []
 
 [project.urls]
 Homepage = "https://pupil-labs.github.io/pl-neon-player"

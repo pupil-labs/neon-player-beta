@@ -1,9 +1,9 @@
 name: release-main
 
 on:
-  release:
-    types: [published]
-    branches: [main]
+  push:
+    tags:
+      - "**"
 
 jobs:
   deploy-docs:
@@ -42,16 +42,38 @@ jobs:
           python-version-file: "pyproject.toml"
       - name: Install uv
         uses: astral-sh/setup-uv@v7
-      - name: Install dependencies
+      - name: Install python dependencies
         run: uv sync --locked --all-extras --dev
-      - name: Bundle
-        run: ./reproducible_build.sh
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        run: choco install innosetup -y
+      - name: Build
+        run: ./build.sh
+        shell: bash
       - name: Upload build as artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: bundle-${{ matrix.platform }}
           path: |
-            deployment/*.msi
+            deployment/*.exe
             deployment/*.dmg
             deployment/*.deb
+
+  draft_release:
+    name: draft-release
+    needs: bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+      - run: ls -lR
+      - name: Create Github release draft
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bundle-*/*.exe
+            bundle-*/*.dmg
+            bundle-*/*.deb
+          draft: true
+          name: Neon Player Release

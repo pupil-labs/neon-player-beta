@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /opt/neon-player/neon-player "$@"
