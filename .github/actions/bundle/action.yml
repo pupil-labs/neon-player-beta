@@ -1,0 +1,28 @@
+runs:
+  using: "composite"
+  steps:
+    - name: "Set up Python"
+      uses: actions/setup-python@v6
+      with:
+        python-version-file: "pyproject.toml"
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+    - name: Install python dependencies
+      run: uv sync --locked --all-extras --dev
+      shell: bash
+    - name: Install Windows dependencies
+      if: runner.os == 'Windows'
+      run: choco install innosetup -y
+      shell: bash
+    - name: Build
+      run: ./build.sh
+      shell: bash
+    - name: Upload build as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: bundle-${{ runner.os }}
+        path: |
+          dist/*.exe
+          dist/*.dmg
+          dist/*.deb
+        if-no-files-found: ignore

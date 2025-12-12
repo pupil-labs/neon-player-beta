@@ -3,7 +3,9 @@
 set -e
 
 VERSION=$(uv run python -c "from importlib.metadata import version; print(version('pupil_labs.neon_player'))")
-VERSION_SIMPLE=$(echo "$VERSION" | awk -F. '{print $1"."$2"."$3}')
+VERSION_SIMPLE=$(echo "$VERSION" | awk -F. '{print $1"."$2"."$3}' | grep -Eo '^[0-9\.]*')
+
+echo "Build $VERSION ($VERSION_SIMPLE)"
 
 uv run pyside6-uic src/pupil_labs/neon_player/assets/splash.ui \
     -o src/pupil_labs/neon_player/ui/splash.py

@@ -1,0 +1,99 @@
+name: Build Release
+
+on:
+  push:
+    tags:
+      - "**"
+  workflow_dispatch:
+    inputs:
+      Windows:
+        description: 'Build for Windows'
+        required: true
+        type: boolean
+        default: true
+      macOS:
+        description: 'Build for macOS'
+        required: true
+        type: boolean
+        default: true
+      Linux:
+        description: 'Build for Linux'
+        required: true
+        type: boolean
+        default: true
+      draft_release:
+        description: 'Create a release draft'
+        required: true
+        type: boolean
+        default: true
+      deploy_docs:
+        description: 'Build and deploy documentation'
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  deploy-docs:
+    if: github.event_name == 'push' || github.event.inputs.deploy_docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up the environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Deploy documentation
+        run: |
+          git fetch origin gh-pages --depth=1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          uv run mike deploy ${{ github.ref_name }} --push
+
+  bundle:
+    name: Bundle ${{ matrix.platform }}
+    strategy:
+      fail-fast: False
+      matrix:
+        platform:
+          - windows-latest
+          - macOS-14
+          - ubuntu-22.04
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/bundle
+        if: ${{ (github.event_name == 'push')
+          || (runner.os == 'Windows' && github.event.inputs.Windows == 'true')
+          || (runner.os == 'macOS'   && github.event.inputs.macOS   == 'true')
+          || (runner.os == 'Linux'   && github.event.inputs.Linux   == 'true') }}
+
+  draft_release:
+    name: draft-release
+    needs: bundle
+    if: github.event_name == 'push' || github.event.inputs.draft_release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+      - run: ls -lR
+      - name: Determine release version
+        id: release_ver
+        run: |
+          if [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            echo "ver=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ver=" >> "$GITHUB_OUTPUT"
+          fi
+        shell: bash
+      - name: Create Github release draft
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bundle-*/*.exe
+            bundle-*/*.dmg
+            bundle-*/*.deb
+          draft: true
+          name: Neon Player Release ${{ steps.release_ver.outputs.ver }}
