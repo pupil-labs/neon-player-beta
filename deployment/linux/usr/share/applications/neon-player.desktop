@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version={{VERSION}}
+Type=Application
+Name=Neon Player
+Comment=Neon Player - Find more information on https://docs.pupil-labs.com/neon/
+Exec=/opt/neon-player/neon-player
+Icon=/opt/neon-player/pupil_labs/neon_player/assets/neon-player.svg
+Terminal=false
+Categories=Science;

@@ -19,7 +19,7 @@ class OptimalCamera(Camera):
             self.distortion_coefficients,
             self.resolution,
             alpha=1.0,
-            newImgSize=self.resolution
+            newImgSize=self.resolution,
         )
 
         self.undistortion_maps = cv2.initUndistortRectifyMap(
@@ -28,7 +28,7 @@ class OptimalCamera(Camera):
             None,
             self.optimal_matrix,
             self.resolution,
-            cv2.CV_32FC1
+            cv2.CV_32FC1,
         )
 
         self.distortion_maps = self._build_distort_maps()
@@ -42,7 +42,8 @@ class OptimalCamera(Camera):
         xv, yv = np.meshgrid(xs, ys)
         pix = np.stack((xv, yv), axis=-1).astype(np.float32)  # (h_dst, w_dst, 2)
 
-        # Convert pixel coords (u_d, v_d) in distorted image to normalized camera coords x_d = K^{-1} * [u;v;1]
+        # Convert pixel coords (u_d, v_d) in distorted image to normalized camera
+        # coords x_d = K^{-1} * [u;v;1]
         pts = pix.reshape(-1, 1, 2).astype(np.float64)
 
         undistorted_pts = cv2.undistortPoints(
@@ -50,10 +51,11 @@ class OptimalCamera(Camera):
             self.camera_matrix,
             self.distortion_coefficients,
             R=None,
-            P=self.optimal_matrix
+            P=self.optimal_matrix,
         )
 
-        # undistorted_pts are pixel coordinates in the undistorted image corresponding to each distorted pixel.
+        # undistorted_pts are pixel coordinates in the undistorted image corresponding
+        # to each distorted pixel.
         map_xy = undistorted_pts.reshape(h_dst, w_dst, 2).astype(np.float32)
 
         return map_xy[..., 0], map_xy[..., 1]
@@ -78,6 +80,11 @@ class OptimalCamera(Camera):
         return cv2.remap(img, *self.undistortion_maps, interpolation=cv2.INTER_LINEAR)
 
     def distort_image(self, img):
-        distorted_img = cv2.remap(img, *self.distortion_maps, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+        distorted_img = cv2.remap(
+            img,
+            *self.distortion_maps,
+            interpolation=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_CONSTANT,
+        )
 
         return distorted_img

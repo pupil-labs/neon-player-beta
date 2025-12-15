@@ -4,18 +4,19 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtGui import QIcon, QKeyEvent
 from qt_property_widgets.utilities import (
     FilePath,
     PersistentPropertiesMixin,
+    action_params,
     property_params,
 )
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
+from pupil_labs.neon_recording import NeonRecording
 
 IMMUTABLE_EVENTS = ["recording.begin", "recording.end"]
 
@@ -81,7 +82,9 @@ class EventsPlugin(neon_player.Plugin):
         super().__init__()
         self._event_types: list[EventType] = []
         self.get_timeline().key_pressed.connect(self._on_key_pressed)
-        self.header_action = ListPropertyAppenderAction("event_types", "+ Add event type")
+        self.header_action = ListPropertyAppenderAction(
+            "event_types", "+ Add event type"
+        )
 
     def _on_key_pressed(self, event: QKeyEvent) -> None:
         key_text = event.text().lower()
@@ -92,11 +95,11 @@ class EventsPlugin(neon_player.Plugin):
             if event_type.shortcut.lower() == key_text:
                 self.add_event(event_type)
 
-    def on_recording_loaded(self, recording: NeonRecording) -> None:
+    def on_recording_loaded(self, recording: NeonRecording) -> None:  # noqa: C901
         self.events = {}
 
         try:
-            cached_events = self.load_cached_json('events.json')
+            cached_events = self.load_cached_json("events.json")
         except Exception:
             logging.exception("Failed to load events json")
             cached_events = None
@@ -124,7 +127,6 @@ class EventsPlugin(neon_player.Plugin):
 
                 self._setup_gui_for_event_type(et)
                 self._update_timeline_data(et)
-
 
         for event_uid in self.events:
             if event_uid in IMMUTABLE_EVENTS:
@@ -165,9 +167,7 @@ class EventsPlugin(neon_player.Plugin):
 
         if event_type.name not in IMMUTABLE_EVENTS:
             action = self.register_timeline_action(
-                f"Add Event/{event_type.name}",
-                None,
-                lambda: self.add_event(event_type)
+                f"Add Event/{event_type.name}", None, lambda: self.add_event(event_type)
             )
             self.app.main_window.sort_action_menu("Timeline/Add Event")
             event_type.name_changed.connect(lambda old, new: action.setText(new))
@@ -179,19 +179,19 @@ class EventsPlugin(neon_player.Plugin):
                     f"Delete {event_type.name} instance",
                     lambda data_point, et=event_type: self.delete_event_instance(
                         f"Events - {event_type.name}", data_point, et
-                    )
+                    ),
                 )
 
             self.register_data_point_action(
                 f"Events - {event_type.name}",
                 f"Seek to this {event_type.name}",
-                self.seek_to_event_instance
+                self.seek_to_event_instance,
             )
 
         register_data_actions()
         event_type.name_changed.connect(lambda _, _2: register_data_actions())
 
-    def add_event(self, event_type: EventType, ts: int|None = None) -> None:
+    def add_event(self, event_type: EventType, ts: int | None = None) -> None:
         if self.recording is None:
             return
 
@@ -202,13 +202,13 @@ class EventsPlugin(neon_player.Plugin):
             self.events[event_type.uid] = []
 
         self.events[event_type.uid].append(ts)
-        self.save_cached_json('events.json', self.events)
+        self.save_cached_json("events.json", self.events)
         self._update_timeline_data(event_type)
 
     def delete_event_instance(self, timeline_name, data_point, event_type) -> None:
         self.events[event_type.uid].remove(data_point[0])
 
-        self.save_cached_json('events.json', self.events)
+        self.save_cached_json("events.json", self.events)
         self._update_timeline_data(event_type)
 
     def seek_to_event_instance(self, data_point) -> None:
@@ -227,16 +227,14 @@ class EventsPlugin(neon_player.Plugin):
                 np.array([[t, 0] for t in events]),
             )
         else:
-            plot_item.items[0].setData(
-                np.array([[t, 0] for t in events])
-            )
+            plot_item.items[0].setData(np.array([[t, 0] for t in events]))
 
     @property
     @property_params(
         add_button_text="Create new event type",
-        item_params={ "label_field": "name" },
+        item_params={"label_field": "name"},
         prevent_add=True,
-        primary=True
+        primary=True,
     )
     def event_types(self) -> list[EventType]:
         return self._event_types
@@ -276,7 +274,7 @@ class EventsPlugin(neon_player.Plugin):
             self.get_timeline().remove_timeline_plot(
                 f"Events - {removed_event_type.name}"
             )
-            self.save_cached_json('events.json', self.events)
+            self.save_cached_json("events.json", self.events)
             self.app.main_window.unregister_action(
                 f"Timeline/Add Event/{removed_event_type.name}"
             )
@@ -299,12 +297,16 @@ class EventsPlugin(neon_player.Plugin):
 
         return event_type
 
-    def get_event_type_by_name(self, name: str) -> EventType|None:
+    def get_event_type_by_name(self, name: str) -> EventType | None:
         for event_type in self._event_types:
             if event_type.name == name:
                 return event_type
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("window-new"),
+    )
     def import_csv(self, source: FilePath):
         events_df = pd.read_csv(source)
         for _, row in events_df.iterrows():
@@ -318,6 +320,7 @@ class EventsPlugin(neon_player.Plugin):
             self.add_event(event_type, row["timestamp [ns]"])
 
     @action
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export(self, destination: Path = Path()):
         start_time, stop_time = neon_player.instance().recording_settings.export_window
         event_names = []
@@ -335,8 +338,8 @@ class EventsPlugin(neon_player.Plugin):
         events_df["timestamp [ns]"] = events_df["timestamp [ns]"].astype(
             self.recording.events.time.dtype
         )
-        start_mask = (events_df["timestamp [ns]"] >= start_time)
-        stop_mask = (events_df["timestamp [ns]"] <= stop_time)
+        start_mask = events_df["timestamp [ns]"] >= start_time
+        stop_mask = events_df["timestamp [ns]"] <= stop_time
         events_df = events_df[start_mask & stop_mask]
 
         destination_file = destination / "events.csv"

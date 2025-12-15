@@ -2,14 +2,19 @@ import logging
 import typing as T
 from enum import Enum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import QObject, QPointF, QSize, Signal
-from PySide6.QtGui import QImage, QPainter, QPixmap
+from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog
-from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
+from qt_property_widgets.utilities import (
+    PersistentPropertiesMixin,
+    action_params,
+    property_params,
+)
 from surface_tracker import (
     CornerId,
     SurfaceLocation,
@@ -18,10 +23,15 @@ from surface_tracker import (
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, action
-from pupil_labs.neon_player.plugins.gaze import CrosshairViz, GazeVisualization
+from pupil_labs.neon_player.plugins.gaze import CircleViz, GazeVisualization
 from pupil_labs.neon_player.utilities import qimage_from_frame
 
 from .ui import SurfaceHandle, SurfaceViewWindow
+
+if TYPE_CHECKING:
+    from pupil_labs.neon_player.plugins.sufrace_tracking.surface_tracking import (
+        SurfaceTrackingPlugin,
+    )
 
 
 class ColorMap(Enum):
@@ -55,34 +65,17 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
     def __init__(self) -> None:
         super().__init__()
         self._tracked_surface = None
-        self._render_size = QSize(400, 400)
         self._visualizations: list[GazeVisualization] = [
-            CrosshairViz(),
+            CircleViz(),
         ]
-
-    @property
-    @property_params(min=1, max=2560)
-    def width(self) -> int:
-        return self._render_size.width()
-
-    @width.setter
-    def width(self, value: int) -> None:
-        self._render_size.setWidth(value)
-
-    @property
-    @property_params(min=1, max=2560)
-    def height(self) -> int:
-        return self._render_size.height()
-
-    @height.setter
-    def height(self, value: int) -> None:
-        self._render_size.setHeight(value)
+        self.render_size = [512, 512]
 
     @property
     @property_params(
         use_subclass_selector=True,
         add_button_text="Add visualization",
-        item_params={ "label_field": "label" }
+        item_params={"label_field": "label"},
+        primary=True,
     )
     def visualizations(self) -> list["GazeVisualization"]:
         return self._visualizations
@@ -95,18 +88,20 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
             viz.changed.connect(self.changed.emit)
 
     @action
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export_video(self, destination: Path = Path()):
         tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
         self.export_job = tracker_plugin.job_manager.run_background_action(
             f"{self._tracked_surface.name} Surface Video Export",
             "SurfaceTrackingPlugin.bg_export_surface_video",
             destination,
-            self._tracked_surface.uid
+            self._tracked_surface.uid,
         )
 
         return self.export_job
 
     @action
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export_current_frame(self):
         file_path_str, _ = QFileDialog.getSaveFileName(
             None, "Export surface frame", "", "PNG Images (*.png)"
@@ -121,12 +116,13 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         image.save(file_path_str)
 
     @action
+    @action_params(compact=True, icon=QIcon.fromTheme("edit-copy"))
     def copy_frame_to_clipboard(self) -> None:
         clipboard = neon_player.instance().clipboard()
         clipboard.setPixmap(QPixmap.fromImage(self._frame_image()))
 
     def _frame_image(self) -> QImage:
-        frame = QImage(self._render_size, QImage.Format.Format_RGB32)
+        frame = QImage(QSize(*self.render_size), QImage.Format.Format_RGB32)
         painter = QPainter(frame)
         self._tracked_surface.render(painter)
         painter.end()
@@ -152,11 +148,13 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._can_edit = False
         self._preview_options = SurfaceViewDisplayOptions()
         self._preview_options._tracked_surface = self
+        self._preview_options.changed.connect(self.changed.emit)
         self._show_heatmap = False
         self._heatmap_smoothness = 0.35
-        self._heatmap_alpha = .75
+        self._heatmap_alpha = 0.75
         self._heatmap = None
         self._heatmap_color = ColorMap.Jet
+        self._defining_frame_index = -1
 
         self.tracker_surface = None
 
@@ -191,9 +189,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         return state
 
     @classmethod
-    def from_dict(
-        cls: type["TrackedSurface"], state: dict[str, T.Any]
-    ) -> T.Any:
+    def from_dict(cls: type["TrackedSurface"], state: dict[str, T.Any]) -> T.Any:
         item = super().from_dict(state)
         item._preview_options._tracked_surface = item
         return item
@@ -226,12 +222,21 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self.locations_invalidated.emit()
 
     @property
+    @property_params(widget=None)
+    def defining_frame_index(self) -> int:
+        return self._defining_frame_index
+
+    @defining_frame_index.setter
+    def defining_frame_index(self, value: int) -> None:
+        self._defining_frame_index = value
+
+    @property
     @property_params(dont_encode=True, widget=None)
-    def location(self) -> SurfaceLocation|None:
+    def location(self) -> SurfaceLocation | None:
         return self._location
 
     @location.setter
-    def location(self, value: SurfaceLocation|None) -> None:
+    def location(self, value: SurfaceLocation | None) -> None:
         if self._location is not None and value is not None:
             t1 = value.transform_matrix_from_image_to_surface_undistorted
             t2 = self._location.transform_matrix_from_image_to_surface_undistorted
@@ -255,11 +260,13 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         camera = tracker_plugin.camera
         tracker = tracker_plugin.tracker
 
-        undistorted_corners = np.array(tracker.surface_points_in_image_space(
-            self.tracker_surface,
-            self._location,
-            np.array([c.value for c in CornerId.all_corners()], dtype=np.float32),
-        ))
+        undistorted_corners = np.array(
+            tracker.surface_points_in_image_space(
+                self.tracker_surface,
+                self._location,
+                np.array([c.value for c in CornerId.all_corners()], dtype=np.float32),
+            )
+        )
 
         distorted_corners = camera.distort_points(undistorted_corners)
 
@@ -268,13 +275,15 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             undistorted_corners,
             distorted_corners,
             CornerId.all_corners(),
-            strict=False
+            strict=False,
         ):
             self.corner_positions[corner_id] = undistorted_corner
             w.set_scene_pos(distorted_corner)
 
     def recalculate_heatmap(self):
-        Plugin.get_instance_by_name("SurfaceTrackingPlugin").recalculate_heatmap(self.uid)
+        Plugin.get_instance_by_name("SurfaceTrackingPlugin").recalculate_heatmap(
+            self.uid
+        )
 
     @property
     def name(self) -> str:
@@ -294,9 +303,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         tracker = tracker_plugin.tracker
 
         tracker.move_surface_corner_positions_in_image_space(
-            self.tracker_surface,
-            self.location,
-            self.corner_positions
+            self.tracker_surface, self.location, self.corner_positions
         )
         self.locations_invalidated.emit()
 
@@ -317,8 +324,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             vrw = app.main_window.video_widget
 
             self.handle_widgets = {
-                corner: SurfaceHandle(self, corner)
-                for corner in CornerId.all_corners()
+                corner: SurfaceHandle(self, corner) for corner in CornerId.all_corners()
             }
 
             for corner_id, w in self.handle_widgets.items():
@@ -374,15 +380,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def uid(self, value: str):
         self._uid = value
 
-    @action
-    def view_surface(self) -> None:
-        self.preview_window = SurfaceViewWindow(self)
-        self.preview_window.show()
-
-        width = min(1024, max(self.preview_options.width, 400))
-        aspect = self.preview_options.width / self.preview_options.height
-        self.preview_window.resize(width + 300, width / aspect)
-
     @property
     @property_params(widget=None, dont_encode=True)
     def tracker_plugin(self) -> "SurfaceTrackingPlugin":
@@ -406,7 +403,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         undistorted_points = self.tracker_plugin.camera.undistort_points(points)
         return cv2.perspectiveTransform(
             undistorted_points.reshape(-1, 1, 2),
-            self.location.transform_matrix_from_image_to_surface_undistorted
+            self.location.transform_matrix_from_image_to_surface_undistorted,
         ).reshape(-1, 2)
 
     def apply_offset_and_map_gazes(self, gazes):
@@ -414,13 +411,13 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
         except KeyError:
             logging.warning(
-                "Surface fixations export requires gaze and fixations plugins to be enabled."
+                "Surface fixations export requires gaze and fixations plugins."
             )
             return
 
         offset_gazes = gazes.point + np.array([
             gaze_plugin.offset_x * gaze_plugin.recording.scene.width,
-            gaze_plugin.offset_y * gaze_plugin.recording.scene.height
+            gaze_plugin.offset_y * gaze_plugin.recording.scene.height,
         ])
         return self.image_points_to_surface(offset_gazes)
 
@@ -439,13 +436,12 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         })
 
         gazes.to_csv(
-            destination / f"gaze_positions_on_surface_{self.name}.csv",
-            index=False
+            destination / f"gaze_positions_on_surface_{self.name}.csv", index=False
         )
 
         cv2.imwrite(
             destination / f"{self.name}_heatmap.png",
-            cv2.applyColorMap(self._heatmap, self.heatmap_color.value)
+            cv2.applyColorMap(self._heatmap, self.heatmap_color.value),
         )
 
     def export_fixations(self, gazes, destination: Path = Path()):
@@ -454,7 +450,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             fixations_plugin = Plugin.get_instance_by_name("FixationsPlugin")
         except KeyError:
             logging.warning(
-                "Surface fixations export requires gaze and fixations plugins to be enabled."
+                "Surface fixations export requires gaze and fixations plugins."
             )
             return
 
@@ -469,7 +465,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         gaze_offset = np.array([
             gaze_plugin.offset_x * gaze_plugin.recording.scene.width,
-            gaze_plugin.offset_y * gaze_plugin.recording.scene.height
+            gaze_plugin.offset_y * gaze_plugin.recording.scene.height,
         ])
 
         fixations_on_surfs = []
@@ -489,17 +485,18 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         fixation_data["fixation detected on surface"] = fixations_on_surfs
 
         # drop unused columns
-        fixation_data = fixation_data.drop(columns=[
-            "recording id",
-            "fixation x [px]",
-            "fixation y [px]",
-            "azimuth [deg]",
-            "elevation [deg]",
-        ])
+        fixation_data = fixation_data.drop(
+            columns=[
+                "recording id",
+                "fixation x [px]",
+                "fixation y [px]",
+                "azimuth [deg]",
+                "elevation [deg]",
+            ]
+        )
 
         fixation_data.to_csv(
-            destination / f"fixations_on_surface_{self.name}.csv",
-            index=False
+            destination / f"fixations_on_surface_{self.name}.csv", index=False
         )
 
     def render(self, painter: QPainter, time_in_recording: int = -1) -> None:
@@ -517,11 +514,11 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         scene_frame = app.recording.scene[scene_idx]
         undistorted_image = camera.undistort_image(scene_frame.bgr)
 
-        dst_size = (self.preview_options.width, self.preview_options.height)
+        dst_size = np.array(self.preview_options.render_size).astype(int)
         S = np.float64([
-            [dst_size[0], 0.0,   0.0],
-            [0.0,   dst_size[1], 0.0],
-            [0.0,   0.0,   1.0]
+            [dst_size[0], 0.0, 0.0],
+            [0.0, dst_size[1], 0.0],
+            [0.0, 0.0, 1.0],
         ])
         h_scaled = S @ self.location.transform_matrix_from_image_to_surface_undistorted
 
@@ -532,8 +529,8 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         gazes = gaze_plugin.get_gazes_for_scene(scene_idx).point
 
         mapped_gazes = self.image_points_to_surface(gazes)
-        mapped_gazes[:, 0] *= self.preview_options.width
-        mapped_gazes[:, 1] *= self.preview_options.height
+        mapped_gazes[:, 0] *= self.preview_options.render_size[0]
+        mapped_gazes[:, 1] *= self.preview_options.render_size[1]
         offset_gazes = None
 
         aggregations = {}
@@ -543,11 +540,11 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
                 if offset_gazes is None:
                     offset_gazes = gazes + np.array([
                         gaze_plugin.offset_x * scene_frame.width,
-                        gaze_plugin.offset_y * scene_frame.height
+                        gaze_plugin.offset_y * scene_frame.height,
                     ])
                     mapped_offset_gazes = self.image_points_to_surface(offset_gazes)
-                    mapped_offset_gazes[:, 0] *= self.preview_options.width
-                    mapped_offset_gazes[:, 1] *= self.preview_options.height
+                    mapped_offset_gazes[:, 0] *= self.preview_options.render_size[0]
+                    mapped_offset_gazes[:, 1] *= self.preview_options.render_size[1]
 
                 if viz._aggregation not in offset_aggregations:
                     offset_aggregations[viz._aggregation] = viz._aggregation.apply(
@@ -558,12 +555,27 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
                 aggregations[viz._aggregation] = viz._aggregation.apply(mapped_gazes)
 
             aggregation_dict = offset_aggregations if viz.use_offset else aggregations
-            viz.render(
-                painter,
-                aggregation_dict[viz._aggregation]
-            )
+            viz.render(painter, aggregation_dict[viz._aggregation])
 
     @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("window-new"),
+    )
+    def view_surface(self) -> None:
+        self.preview_window = SurfaceViewWindow(self)
+        self.preview_window.show()
+
+        render_size = self.preview_options.render_size
+        width = min(1024, max(render_size[0], 400))
+        aspect = render_size[0] / render_size[1]
+        self.preview_window.resize(width + 300, width / aspect)
+
+    @action
+    @action_params(
+        compact=True,
+        icon=QIcon.fromTheme("object-rotate-right"),
+    )
     def rotate(self) -> None:
         markers = self.tracker_surface._registered_markers_by_uid_undistorted.values()
         for marker in markers:

@@ -6,10 +6,13 @@ from pathlib import Path
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, QPointF, Signal
-from PySide6.QtGui import QColor, QPainter
-from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
+from PySide6.QtGui import QColor, QIcon, QPainter
+from qt_property_widgets.utilities import (
+    PersistentPropertiesMixin,
+    action_params,
+    property_params,
+)
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
@@ -20,6 +23,7 @@ from pupil_labs.neon_player.utilities import (
     get_scene_intrinsics,
     unproject_points,
 )
+from pupil_labs.neon_recording import NeonRecording
 
 
 class Aggregation(enum.Enum):
@@ -78,8 +82,7 @@ class GazeDataPlugin(neon_player.Plugin):
         except Exception:
             logging.warning("Failed to load worn data")
             self.worn_data = np.ndarray(
-                shape=(len(self.recording.eye.time), 2),
-                dtype=np.int64
+                shape=(len(self.recording.eye.time), 2), dtype=np.int64
             )
             self.worn_data[:, 0] = self.recording.eye.time
             self.worn_data[:, 1] = 255
@@ -121,14 +124,18 @@ class GazeDataPlugin(neon_player.Plugin):
         for viz in self._visualizations:
             if viz._aggregation not in aggregations:
                 aggregations[viz._aggregation] = viz._aggregation.apply(gazes)
-                offset_aggregations[viz._aggregation] = viz._aggregation.apply(offset_gazes)
+                offset_aggregations[viz._aggregation] = viz._aggregation.apply(
+                    offset_gazes
+                )
                 worn_aggregations[viz._aggregation] = viz._aggregation.apply(worns)
 
             aggregation_dict = offset_aggregations if viz.use_offset else aggregations
             if len(aggregation_dict[viz._aggregation]) == 0:
                 continue
 
-            renderable_mask = np.array([False] * len(aggregation_dict[viz._aggregation]))
+            renderable_mask = np.array(
+                [False] * len(aggregation_dict[viz._aggregation])
+            )
             if viz.show_when_worn:
                 mask = worn_aggregations[viz._aggregation] >= 128
                 renderable_mask = renderable_mask | mask
@@ -159,6 +166,7 @@ class GazeDataPlugin(neon_player.Plugin):
         return self.recording.gaze[time_mask]
 
     @action
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export(self, destination: Path = Path()) -> None:
         if self.recording is None:
             return
@@ -178,16 +186,18 @@ class GazeDataPlugin(neon_player.Plugin):
             find_ranged_index(
                 export_gazes.time,
                 self.recording.fixations.start_time,
-                self.recording.fixations.stop_time
-            ) + 1
+                self.recording.fixations.stop_time,
+            )
+            + 1
         )
 
         matched_blink_ids = (
             find_ranged_index(
                 export_gazes.time,
                 self.recording.blinks.start_time,
-                self.recording.blinks.stop_time
-            ) + 1
+                self.recording.blinks.stop_time,
+            )
+            + 1
         )
 
         spherical_coords = cart_to_spherical(
@@ -330,11 +340,7 @@ class CircleViz(GazeVisualization):
         self._radius = 30
         self._stroke_width = 10
 
-    def render(
-        self,
-        painter: QPainter,
-        gazes: npt.NDArray[np.float64]
-    ) -> None:
+    def render(self, painter: QPainter, gazes: npt.NDArray[np.float64]) -> None:
         pen = painter.pen()
         pen.setWidth(self._stroke_width)
         pen.setColor(self._color)
@@ -397,7 +403,9 @@ class CrosshairViz(GazeVisualization):
             for gaze in gazes:
                 center = QPointF(gaze[0], gaze[1])
 
-                painter.drawEllipse(center, self._stroke_width / 2, self._stroke_width / 2)
+                painter.drawEllipse(
+                    center, self._stroke_width / 2, self._stroke_width / 2
+                )
 
         pen.setWidth(self._stroke_width)
         pen.setColor(self._color)

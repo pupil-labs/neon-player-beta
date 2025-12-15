@@ -2,7 +2,6 @@ import logging
 import typing as T
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
@@ -25,6 +24,7 @@ LOG_COLORS = {
     "ERROR": Qt.GlobalColor.red,
     "CRITICAL": Qt.GlobalColor.magenta,
 }
+
 
 class QTextEditLogger(logging.Handler):
     """Custom logging handler that writes to a QTextEdit.
@@ -201,4 +201,5 @@ class ConsoleWindow(QWidget):
 
     def show(self) -> None:
         super().show()
+        self.raise_()
         self.log_handler.scroll_to_bottom()

@@ -3,7 +3,6 @@ import typing as T
 from pathlib import Path
 
 from numpyencoder import NumpyEncoder
-from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QPainter
 from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
@@ -11,9 +10,11 @@ from qt_property_widgets.utilities import PersistentPropertiesMixin, property_pa
 from pupil_labs import neon_player
 from pupil_labs.neon_player.ui import QtShortcutType
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
+from pupil_labs.neon_recording import NeonRecording
 
 if T.TYPE_CHECKING:
     from pupil_labs.neon_player.app import NeonPlayerApp
+    from pupil_labs.neon_player.job_manager import JobManager
 
 
 class GlobalPluginProperties(PersistentPropertiesMixin):
@@ -30,7 +31,7 @@ class GlobalPluginProperties(PersistentPropertiesMixin):
 class Plugin(PersistentPropertiesMixin, QObject):
     changed = Signal()
     known_classes: T.ClassVar[list] = []
-    global_properties: T.ClassVar[GlobalPluginProperties|None] = None
+    global_properties: T.ClassVar[GlobalPluginProperties | None] = None
 
     def __init__(self) -> None:
         super().__init__()
@@ -39,27 +40,33 @@ class Plugin(PersistentPropertiesMixin, QObject):
 
         neon_player.instance().aboutToQuit.connect(self.on_disabled)
 
-    def register_action(self, name: str, shortcut: QtShortcutType, func: T.Callable) -> None:
+    def register_action(
+        self, name: str, shortcut: QtShortcutType, func: T.Callable
+    ) -> None:
         return self.app.main_window.register_action(name, shortcut, func)
 
     def unregister_action(self, name: str) -> None:
         return self.app.main_window.unregister_action(name)
 
-    def register_timeline_action(self, name: str, shortcut: QtShortcutType, func: T.Callable) -> None:
+    def register_timeline_action(
+        self, name: str, shortcut: QtShortcutType, func: T.Callable
+    ) -> None:
         return self.app.main_window.register_action(f"Timeline/{name}", shortcut, func)
 
     def unregister_timeline_action(self, name: str) -> None:
         return self.app.main_window.unregister_action(f"Timeline/{name}")
 
-    def register_data_point_action(self, event_name: str, action_name: str, callback: T.Callable) -> None:
+    def register_data_point_action(
+        self, event_name: str, action_name: str, callback: T.Callable
+    ) -> None:
         self.app.main_window.timeline.register_data_point_action(
-            event_name,
-            action_name,
-            callback
+            event_name, action_name, callback
         )
 
     def add_dynamic_action(self, name: str, func: T.Callable) -> None:
-        my_prop_form = self.app.main_window.settings_panel.plugin_class_expanders[self.__class__.__name__].content_widget
+        my_prop_form = self.app.main_window.settings_panel.plugin_class_expanders[
+            self.__class__.__name__
+        ].content_widget
         my_prop_form.add_action(name, func)
 
     @classmethod
@@ -116,7 +123,7 @@ class Plugin(PersistentPropertiesMixin, QObject):
         self,
         t: int = -1,
         method: T.Literal["nearest", "backward", "forward"] = "backward",
-        tolerance: int | None = None
+        tolerance: int | None = None,
     ) -> int:
         return self.app.get_scene_idx_for_time(t, method, tolerance)
 

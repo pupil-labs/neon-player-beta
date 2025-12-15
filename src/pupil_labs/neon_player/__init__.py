@@ -32,12 +32,14 @@ def action(func: T.Callable) -> T.Any:
 
 
 def asset_path(resource: str) -> Path:
-    with resources.as_file(resources.files(__package__).joinpath("assets")) as assets_path:
+    with resources.as_file(
+        resources.files(__package__).joinpath("assets")
+    ) as assets_path:
         return assets_path / resource
 
 
 def is_frozen() -> bool:
-    return getattr(sys, 'frozen', False) or "__compiled__" in globals()
+    return getattr(sys, "frozen", False) or "__compiled__" in globals()
 
 
 __all__ = [

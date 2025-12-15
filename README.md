@@ -8,6 +8,7 @@
 [![pypi version](https://img.shields.io/pypi/v/pupil-labs-neon-player.svg)](https://pypi.org/project/pupil-labs-neon-player/)
 
 # Run from source
+
 ```bash
 uv venv .venv --python=3.11
 uv sync
@@ -15,14 +16,17 @@ python -m pupil_labs.neon_player [path/to/my/recording]
 ```
 
 # Paths
-* Global settings are saved in `$HOME/Pupil Labs/Neon Player/settings.json`
-* Per-recording settings are saved in `recording/path/.neon_player/settings.json`
-* Plugin cache data is saved in `recording/path/.neon_player/cache/PluginName/`
+
+- Global settings are saved in `$HOME/Pupil Labs/Neon Player/settings.json`
+- Per-recording settings are saved in `recording/path/.neon_player/settings.json`
+- Plugin cache data is saved in `recording/path/.neon_player/cache/PluginName/`
 
 # Plugin development
-* Drop your plugin python file into `$HOME/Pupil Labs/Neon Player/plugins` (you may need to create the directory)
-* If your plugin has multiple files, put them in a folder that as a `__init__.py` file that either defines your `Plugin` class or imports a module which does
-* If your plugin needs python dependencies, they can be installed to `plugins/site-packages`. E.g.,
+
+- Drop your plugin python file into `$HOME/Pupil Labs/Neon Player/plugins` (you may need to create the directory)
+- If your plugin has multiple files, put them in a folder that as a `__init__.py` file that either defines your `Plugin` class or imports a module which does
+- If your plugin needs python dependencies, they can be installed to `plugins/site-packages`. E.g.,
+
 ```bash
 pip install --target "$HOME/Pupil Labs/Neon Player/plugins/site-packages" my-python-package
 ```
@@ -30,6 +34,7 @@ pip install --target "$HOME/Pupil Labs/Neon Player/plugins/site-packages" my-pyt
 To expose a variable from a plugin to the GUI, define a property with getter/setter functions and appropriate type hints. You can control some options of the parameter GUI widget using the`@property_params` decorator.
 
 You can also expose a function to the GUI by using the `@action` decorator. It will appear as a button, with each of its arguments as an input field
+
 ```python
 from pupil_labs.neon_player import Plugin, action
 from PySide6.QtWidgets import QMessageBox
@@ -55,6 +60,7 @@ class MyPlugin(Plugin):
 ```
 
 Long-running actions should be ran as a background job so you don't lock-up the GUI. You can report progress back to the GUI by `yield`ing a `ProgressUpdate`
+
 ```python
 import logging
 import time
@@ -85,7 +91,9 @@ class MyPlugin(Plugin):
 ```
 
 # Scripting
+
 Every function defined in a plugin can be scripted from the command line without using the GUI. Please use type hints in your function signature so that arguments can be typcast/coerced for you.
+
 ```python
 from pupil_labs.neon_player import Plugin
 
@@ -93,14 +101,17 @@ class MyPlugin(Plugin):
     def my_function(self, arg1: int, arg2: str) -> None:
         print(f"arg1 = {arg1}, arg2 = {arg2}")
 ```
+
 ```bash
 $EXECUTABLE path/to/my/recording --job MyPlugin.my_function 123 "Hello, World!"
 ```
+
 Where `$EXECUTABLE` is either `python -m pupil_labs.neon_player` (if running from source) or the path to the compiled binary.
 
 # Mouse control in plots
-* Left click and/or drag to scrub
-* Drag with the middle mouse to pan
-* Shift + scroll zooms the Y axis
-* Control + scroll wheel zooms the X axis
-* Control + left click+drag zooms to a box you draw
+
+- Left click and/or drag to scrub
+- Drag with the middle mouse to pan
+- Shift + scroll zooms the Y axis
+- Control + scroll wheel zooms the X axis
+- Control + left click+drag zooms to a box you draw

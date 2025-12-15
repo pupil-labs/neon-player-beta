@@ -2,10 +2,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from pupil_labs.neon_recording import NeonRecording
+from PySide6.QtGui import QIcon
+from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
+from pupil_labs.neon_recording import NeonRecording
 
 
 class BlinksPlugin(neon_player.Plugin):
@@ -16,14 +18,14 @@ class BlinksPlugin(neon_player.Plugin):
             return
 
         self.get_timeline().add_timeline_broken_bar(
-            "Blinks",
-            self.recording.blinks[["start_time", "stop_time"]]
+            "Blinks", self.recording.blinks[["start_time", "stop_time"]]
         )
 
     def on_disabled(self) -> None:
         self.get_timeline().remove_timeline_plot("Blinks")
 
     @action
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export(self, destination: Path = Path()) -> None:
         blink_ids = 1 + np.arange(len(self.recording.blinks))
         blinks = self.recording.blinks

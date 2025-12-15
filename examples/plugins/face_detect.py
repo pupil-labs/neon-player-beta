@@ -12,8 +12,8 @@ import mediapipe as mp
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import QPointF
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPolygonF
-from qt_property_widgets.utilities import property_params
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPolygonF
+from qt_property_widgets.utilities import action_params, property_params
 
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action, utilities
 from pupil_labs.neon_recording import NeonRecording
@@ -37,9 +37,65 @@ class FaceDetection(Plugin):
         self._render_meshes = True
 
         self.aoi_indices = {
-            "left_eye": [263, 466, 388, 387, 386, 385, 384, 398, 362, 382, 381, 380, 374, 477, 373, 390, 249],
-            "right_eye": [33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7],
-            "mouth": [0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146, 61, 185, 40, 39, 37],
+            "left_eye": [
+                263,
+                466,
+                388,
+                387,
+                386,
+                385,
+                384,
+                398,
+                362,
+                382,
+                381,
+                380,
+                374,
+                477,
+                373,
+                390,
+                249,
+            ],
+            "right_eye": [
+                33,
+                246,
+                161,
+                160,
+                159,
+                158,
+                157,
+                173,
+                133,
+                155,
+                154,
+                153,
+                145,
+                144,
+                163,
+                7,
+            ],
+            "mouth": [
+                0,
+                267,
+                269,
+                270,
+                409,
+                291,
+                375,
+                321,
+                405,
+                314,
+                17,
+                84,
+                181,
+                91,
+                146,
+                61,
+                185,
+                40,
+                39,
+                37,
+            ],
         }
         self._intersection_radius = 64
 
@@ -84,11 +140,9 @@ class FaceDetection(Plugin):
         mp_drawing = mp.solutions.drawing_utils
         mp_face_mesh = mp.solutions.face_mesh
 
-        overlay = np.zeros((
-            self.recording.scene.height,
-            self.recording.scene.width,
-            3
-        ), dtype=np.uint8)
+        overlay = np.zeros(
+            (self.recording.scene.height, self.recording.scene.width, 3), dtype=np.uint8
+        )
 
         for face in frame_faces:
             mp_drawing.draw_landmarks(
@@ -96,7 +150,7 @@ class FaceDetection(Plugin):
                 landmark_list=face,
                 connections=mp_face_mesh.FACEMESH_CONTOURS,
                 landmark_drawing_spec=self.drawing_spec,
-                connection_drawing_spec=self.drawing_spec
+                connection_drawing_spec=self.drawing_spec,
             )
 
         alpha = np.zeros_like(overlay[:, :, 0], dtype=np.uint8)
@@ -123,7 +177,7 @@ class FaceDetection(Plugin):
                 circle_path.addEllipse(
                     QPointF(gaze.point[0], gaze.point[1]),
                     self._intersection_radius,
-                    self._intersection_radius
+                    self._intersection_radius,
                 )
                 if circle_path.intersects(aoi_path):
                     pen.setColor(QColor(255, 0, 0))
@@ -134,7 +188,7 @@ class FaceDetection(Plugin):
             painter.setPen(pen)
             painter.drawPath(aoi_path)
 
-    def get_aoi(self, scene_idx: int, aoi_name: str) -> T.List[T.Tuple[float, float]]:
+    def get_aoi(self, scene_idx: int, aoi_name: str) -> list[tuple[float, float]]:
         frame_faces = self.faces[scene_idx]
         if frame_faces is None:
             return None
@@ -144,7 +198,9 @@ class FaceDetection(Plugin):
             (
                 face.landmark[idx].x * self.recording.scene.width,
                 face.landmark[idx].y * self.recording.scene.height,
-            ) for face in frame_faces for idx in indices
+            )
+            for face in frame_faces
+            for idx in indices
         ]
 
     def _load_object_cache(self) -> None:
@@ -157,7 +213,7 @@ class FaceDetection(Plugin):
         face_mesh = mp_face_mesh.FaceMesh(
             static_image_mode=False,
             refine_landmarks=True,
-            min_detection_confidence=0.15
+            min_detection_confidence=0.15,
         )
 
         results_by_frame = []
@@ -177,6 +233,7 @@ class FaceDetection(Plugin):
         np.save(destination, np.array(results_by_frame, dtype=object))
 
     @action
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export(self, destination: Path = Path()) -> None:
         gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
 
@@ -206,7 +263,7 @@ class FaceDetection(Plugin):
                     circle_path.addEllipse(
                         QPointF(gaze.point[0], gaze.point[1]),
                         self._intersection_radius,
-                        self._intersection_radius
+                        self._intersection_radius,
                     )
                     if circle_path.intersects(aoi_path):
                         data[aoi_name].append(True)
@@ -215,12 +272,13 @@ class FaceDetection(Plugin):
                     data[aoi_name].append(False)
 
         destination_path = destination / "face_aois.csv"
-        df = pd.DataFrame(data)
-        df.to_csv(destination_path, index=False)
+        export_data_frame = pd.DataFrame(data)
+        export_data_frame.to_csv(destination_path, index=False)
         logging.info(f"Exported {destination_path}")
 
-
-    def create_path_from_landmarks(self, landmarks: list[tuple[float, float]]) -> QPainterPath:
+    def create_path_from_landmarks(
+        self, landmarks: list[tuple[float, float]]
+    ) -> QPainterPath:
         polygon = QPolygonF()
         for landmark in landmarks:
             polygon.append(QPointF(*landmark))

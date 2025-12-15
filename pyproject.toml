@@ -4,14 +4,13 @@ description = ""
 authors = [{ name = "Pupil Labs GmbH", email = "info@pupil-labs.com" }]
 license = { text = "MIT" }
 readme = "README.md"
-requires-python = ">=3.10, <4.0"
+requires-python = ">=3.11, <4.0"
 keywords = []
 dynamic = ["version"]
 classifiers = [
     "Intended Audience :: Developers",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -38,11 +37,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-examples = [
-    # "opencv-python",
-    # "pandas",
-    # "tqdm",
-]
+examples = []
 
 [project.urls]
 Homepage = "https://pupil-labs.github.io/pl-neon-player"

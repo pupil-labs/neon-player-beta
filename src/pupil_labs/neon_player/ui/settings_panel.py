@@ -1,6 +1,5 @@
 from datetime import datetime
 
-from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -16,6 +15,7 @@ from qt_property_widgets.widgets import PropertyForm, PropertyWidget
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ui import ListPropertyAppenderAction
+from pupil_labs.neon_recording import NeonRecording
 
 
 class RecordingInfoWidget(QWidget):
@@ -113,12 +113,9 @@ class SettingsPanel(QScrollArea):
         self.plugin_class_expanders: dict[str, Expander] = {}
 
         self.recording_info_widget = RecordingInfoWidget()
-        self.content_layout.addWidget(Expander(
-            self,
-            "Recording Information",
-            self.recording_info_widget,
-            True
-        ))
+        self.content_layout.addWidget(
+            Expander(self, "Recording Information", self.recording_info_widget, True)
+        )
 
         self.content_layout.addWidget(self.plugin_list_widget)
 
@@ -143,15 +140,14 @@ class SettingsPanel(QScrollArea):
 
         settings_form = PropertyForm(instance)
         expander = self.plugin_list_widget.add_expander(
-            cls.get_label(),
-            settings_form,
-            not app.loading_recording
+            cls.get_label(), settings_form, not app.loading_recording
         )
         if hasattr(instance, "header_action"):
             tb = QToolButton()
             tb.setText(instance.header_action.name)
             tb.setCursor(Qt.CursorShape.PointingHandCursor)
             if isinstance(instance.header_action, ListPropertyAppenderAction):
+
                 def do_add():
                     widget = settings_form.property_widgets.get(
                         instance.header_action.property_name, None
@@ -169,4 +165,3 @@ class SettingsPanel(QScrollArea):
         expander = self.plugin_class_expanders[class_name]
         self.plugin_list_widget.remove_expander(expander)
         del self.plugin_class_expanders[class_name]
-

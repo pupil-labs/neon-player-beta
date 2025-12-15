@@ -3,11 +3,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QIcon
+from qt_property_widgets.utilities import action_params
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import GlobalPluginProperties, action
+from pupil_labs.neon_recording import NeonRecording
 
 
 class PlotProps:
@@ -160,10 +161,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
                 "eyelid angle bottom right [rad]": eyelid.angle_right[:, 1],
                 "eyelid aperture right [mm]": eyelid.aperture_right,
             }
-            eyestate_data_dict = {
-                **eyestate_data_dict,
-                **eyelid_data
-            }
+            eyestate_data_dict = {**eyestate_data_dict, **eyelid_data}
 
         except KeyError:
             logging.warning("Eyelid data not found in recording")
@@ -188,9 +186,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         return self._update_plot_visibilities(name, value)
 
     def _update_plot_visibilities(
-        self,
-        group_name: str,
-        plot_flags: dict[str, bool]
+        self, group_name: str, plot_flags: dict[str, bool]
     ) -> None:
         if self.eyestate_data is None:
             return
@@ -200,7 +196,9 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
 
         for plot_name, enabled in plot_flags.items():
             legend_label = plot_name.replace("Bottom ", "Bot ")
-            existing_plot = timeline.get_timeline_series(group_display_title, legend_label)
+            existing_plot = timeline.get_timeline_series(
+                group_display_title, legend_label
+            )
             if enabled and existing_plot is None:
                 # add plot
                 key = f"{group_name.lower()} {plot_name.lower()}"
@@ -215,14 +213,16 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
                     logging.warning(f"{key} data not found for this recording")
                     data = np.empty((0, 2))
 
-
-                timeline.add_timeline_line(group_display_title, data, legend_label, color=color)
+                timeline.add_timeline_line(
+                    group_display_title, data, legend_label, color=color
+                )
 
             elif not enabled and existing_plot is not None:
                 # remove plot
                 timeline.remove_timeline_series(group_display_title, legend_label)
 
     @action
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export(self, destination: Path = Path()) -> None:
         if self.eyestate_data is None:
             return

@@ -11,7 +11,6 @@ IPC_APP_NAME = "neon-player-log-ipc"
 
 
 class IPCLogger(logging.Handler):
-
     def __init__(self) -> None:
         super().__init__()
 
@@ -33,7 +32,7 @@ class IPCLogger(logging.Handler):
 
         self.server = QLocalServer()
         if not self.server.listen(IPC_APP_NAME):
-            raise Exception("Failed to start log server")
+            raise OSError("Failed to start log server")
 
         """Configure logging to both console and file."""
         log_dir = Path.home() / "Pupil Labs" / "Neon Player" / "logs"

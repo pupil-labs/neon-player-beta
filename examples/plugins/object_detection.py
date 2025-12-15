@@ -94,7 +94,7 @@ class ObjectDetection(neon_player.Plugin):
             painter.fillPath(path, QBrush(self.segment_color))
 
             # Prepare text
-            label = f'{result["class"]} ({result["confidence"]:.2f})'
+            label = f"{result['class']} ({result['confidence']:.2f})"
             top_left_point = polygon[0]
             painter.drawText(top_left_point[0], top_left_point[1] - 10, label)
 
@@ -107,15 +107,12 @@ class ObjectDetection(neon_player.Plugin):
         results_by_frame = []
         for frame_idx, frame in enumerate(self.recording.scene):
             pixels = frame.bgr
-            results = detect_objects(pixels, show=False, verbose=False)[0]  # get first result
-
+            # get first result
+            results = detect_objects(pixels, show=False, verbose=False)[0]
             serializable_results = []
             if results.masks is not None:
                 for xy_polygon, conf, cls in zip(
-                    results.masks.xy,
-                    results.boxes.conf,
-                    results.boxes.cls,
-                    strict=True
+                    results.masks.xy, results.boxes.conf, results.boxes.cls, strict=True
                 ):
                     serializable_results.append({
                         "polygon": xy_polygon.tolist(),

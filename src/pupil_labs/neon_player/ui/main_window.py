@@ -3,7 +3,6 @@ import typing
 import webbrowser
 from pathlib import Path
 
-from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import (
     QKeyCombination,
     Qt,
@@ -45,8 +44,16 @@ from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
 from pupil_labs.neon_player.utilities import SlotDebouncer
+from pupil_labs.neon_recording import NeonRecording
 
-Ui_Class, QtBaseClass = loadUiType(str(asset_path("splash.ui")))
+try:
+    from pupil_labs.neon_player.ui.splash import Ui_Splash
+
+    Ui_Class, QtBaseClass = Ui_Splash, QWidget
+except Exception:
+    logging.warning("splash.ui is not compiled.")
+    Ui_Class, QtBaseClass = loadUiType(str(asset_path("splash.ui")))
+
 
 class SplashWidget(Ui_Class, QtBaseClass):
     def __init__(self) -> None:
@@ -157,7 +164,8 @@ class MainWindow(QMainWindow):
             }
 
             ConsoleWindow>QTextEdit {
-                font-family: 'Menlo', 'Monico', 'Consolas', 'Lucida Console', 'monospace', 'Courier New', 'Courier';
+                font-family: 'Menlo', 'Monico', 'Consolas', 'Lucida Console',
+                    'monospace', 'Courier New', 'Courier';
             }
 
             TimestampLabel {
@@ -199,6 +207,7 @@ class MainWindow(QMainWindow):
             QStatusBar > QPushButton {
                 text-align: left;
                 padding: 5px 10px;
+                font-size: 10pt;
             }
 
             #DeleteButton {
@@ -264,7 +273,7 @@ class MainWindow(QMainWindow):
         self.register_action(
             "&Tools/Browse recording &settings and cache folder",
             None,
-            self.on_show_recording_cache
+            self.on_show_recording_cache,
         )
 
         self.playback_actions = [
@@ -275,23 +284,23 @@ class MainWindow(QMainWindow):
                 "&Playback/Skip forward 5s", Qt.Key.Key_Right, lambda: app.seek_by(5e9)
             ),
             self.register_action(
-                "&Playback/Skip backwards 5s", Qt.Key.Key_Left, lambda: app.seek_by(-5e9)
+                "&Playback/Skip backwards 5s",
+                Qt.Key.Key_Left,
+                lambda: app.seek_by(-5e9),
             ),
             self.register_action(
                 "&Playback/Next scene frame",
                 QKeyCombination(Qt.KeyboardModifier.ShiftModifier, Qt.Key.Key_Right),
-                lambda: app.seek_by_frame(1)
+                lambda: app.seek_by_frame(1),
             ),
             self.register_action(
                 "&Playback/Previous scene frame",
                 QKeyCombination(Qt.KeyboardModifier.ShiftModifier, Qt.Key.Key_Left),
-                lambda: app.seek_by_frame(-1)
+                lambda: app.seek_by_frame(-1),
             ),
         ]
 
-        self.register_action(
-            "&Timeline/&Reset view", None, self.timeline.reset_view
-        )
+        self.register_action("&Timeline/&Reset view", None, self.timeline.reset_view)
 
         self.setCorner(
             Qt.Corner.BottomRightCorner, Qt.DockWidgetArea.RightDockWidgetArea
@@ -304,7 +313,7 @@ class MainWindow(QMainWindow):
     def reset_docks(self):
         docks_and_areas = {
             self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
-            self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea
+            self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea,
         }
 
         for dock, area in docks_and_areas.items():
@@ -525,8 +534,7 @@ class GlobalSettingsDialog(QDialog):
 
         global_settings_form = PropertyForm(app.settings)
         SlotDebouncer.debounce(
-            app.settings.changed,
-            neon_player.instance().save_settings
+            app.settings.changed, neon_player.instance().save_settings
         )
 
         expander_list.add_expander("General", global_settings_form)
@@ -535,12 +543,10 @@ class GlobalSettingsDialog(QDialog):
             if cls.global_properties is not None:
                 plugin_props_form = PropertyForm(cls.global_properties)
                 SlotDebouncer.debounce(
-                    plugin_props_form.changed,
-                    neon_player.instance().save_settings
+                    plugin_props_form.changed, neon_player.instance().save_settings
                 )
                 expander_list.add_expander(
-                    f"Plugin: {cls.get_label()}",
-                    plugin_props_form
+                    f"Plugin: {cls.get_label()}", plugin_props_form
                 )
 
 

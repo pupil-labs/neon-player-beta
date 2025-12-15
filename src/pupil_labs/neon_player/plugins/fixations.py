@@ -6,11 +6,13 @@ import cv2
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from pupil_labs.neon_recording import NeonRecording
-from pupil_labs.neon_recording.timeseries import FixationTimeseries
 from PySide6.QtCore import QKeyCombination, QObject, QPointF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter
-from qt_property_widgets.utilities import PersistentPropertiesMixin, property_params
+from PySide6.QtGui import QColor, QIcon, QPainter
+from qt_property_widgets.utilities import (
+    PersistentPropertiesMixin,
+    action_params,
+    property_params,
+)
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
@@ -22,6 +24,8 @@ from pupil_labs.neon_player.utilities import (
     get_scene_intrinsics,
     unproject_points,
 )
+from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.neon_recording.timeseries import FixationTimeseries
 
 
 class FixationsPlugin(neon_player.Plugin):
@@ -65,19 +69,18 @@ class FixationsPlugin(neon_player.Plugin):
         self.fixations = recording.fixations
 
         self.get_timeline().add_timeline_broken_bar(
-            "Fixations",
-            self.fixations[["start_time", "stop_time"]]
+            "Fixations", self.fixations[["start_time", "stop_time"]]
         )
 
         self.register_action(
             "Playback/Next Fixation",
             QKeyCombination(Qt.Key.Key_S),
-            lambda: self.seek_by_fixation(1)
+            lambda: self.seek_by_fixation(1),
         )
         self.register_action(
             "Playback/Previous Fixation",
             QKeyCombination(Qt.Key.Key_A),
-            lambda: self.seek_by_fixation(-1)
+            lambda: self.seek_by_fixation(-1),
         )
 
     def _load_optic_flow(self) -> None:
@@ -197,6 +200,7 @@ class FixationsPlugin(neon_player.Plugin):
         return export_data
 
     @action
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export(self, destination: Path = Path()) -> None:
         export_data = self.get_export_data()
 
@@ -208,7 +212,7 @@ class FixationsPlugin(neon_player.Plugin):
     @property_params(
         use_subclass_selector=True,
         prevent_add=True,
-        item_params={ "label_field": "label" },
+        item_params={"label_field": "label"},
         primary=True,
     )
     def visualizations(self) -> list["FixationVisualization"]:
@@ -237,8 +241,7 @@ class FixationsPlugin(neon_player.Plugin):
             if previous_frame is not None:
                 # get optic flow vectors on a grid
                 delta_vec, _, _ = calc_grid_optic_flow_LK(
-                    previous_frame.gray,
-                    frame.gray
+                    previous_frame.gray, frame.gray
                 )
 
                 # average optic flow vectors over the whole image

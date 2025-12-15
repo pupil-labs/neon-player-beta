@@ -10,7 +10,6 @@ from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
-from pupil_labs.neon_recording.sample import match_ts
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QAction, QIcon, QPainter
 from PySide6.QtWidgets import (
@@ -44,6 +43,7 @@ from pupil_labs.neon_player.plugins import (
 from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 from pupil_labs.neon_player.ui.main_window import MainWindow
 from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
+from pupil_labs.neon_recording.sample import match_ts
 
 
 class NeonPlayerApp(QApplication):
@@ -507,7 +507,7 @@ class NeonPlayerApp(QApplication):
             painter.setFont(font)
             painter.setOpacity(1.0)
 
-    def export_all(self, export_path: Path) -> None:
+    def export_all(self, export_path: Path) -> None:  # noqa: F811
         timestamp_str = time.strftime("%Y-%m-%d_%H-%M-%S")
         export_path /= f"{timestamp_str}_export"
         export_path.mkdir(parents=True, exist_ok=True)

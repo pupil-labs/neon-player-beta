@@ -1,11 +1,13 @@
 from pathlib import Path
 
 import pandas as pd
-from pupil_labs.neon_recording import NeonRecording
+from PySide6.QtGui import QIcon
+from qt_property_widgets.utilities import action_params
 from scipy.spatial.transform import Rotation
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import action
+from pupil_labs.neon_recording import NeonRecording
 
 
 class IMUPlugin(neon_player.Plugin):
@@ -54,8 +56,7 @@ class IMUPlugin(neon_player.Plugin):
         for name in ["IMU - Orientation", "IMU - Gyroscope", "IMU - Acceleration"]:
             timeline.remove_timeline_plot(name)
 
-
-    def update_plots(self) -> None:
+    def update_plots(self) -> None:  # noqa: C901
         if self.imu_data is None:
             return
 
@@ -81,7 +82,7 @@ class IMUPlugin(neon_player.Plugin):
                     "IMU - Gyroscope",
                     data.to_numpy(),
                     gyro_axis,
-            )
+                )
         elif not self._show_gyro and gyro_plot is not None:
             timeline.remove_timeline_plot("IMU - Gyroscope")
 
@@ -93,11 +94,12 @@ class IMUPlugin(neon_player.Plugin):
                     "IMU - Acceleration",
                     data.to_numpy(),
                     acc_axis,
-            )
+                )
         elif not self._show_acceleration and acc_plot is not None:
             timeline.remove_timeline_plot("IMU - Acceleration")
 
     @action
+    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
     def export(self, destination: Path = Path()) -> None:
         if self.imu_data is None:
             return

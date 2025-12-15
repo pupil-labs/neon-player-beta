@@ -54,9 +54,22 @@ class EyeOverlayPlugin(neon_player.Plugin):
     def on_drag(self, event) -> None:
         mapped_pos = self.video_widget.map_point(event.pos())
         offset = mapped_pos - self._drag_position
+
+        scene = self.recording.scene
+        eye = self.recording.eye
+
         if self._mouse_mode == ModifyDirection.MOVE:
-            self.offset_x += offset.x() / self.recording.scene.width
-            self.offset_y += offset.y() / self.recording.scene.height
+            proposed_x = self.offset_x + offset.x() / scene.width
+            proposed_y = self.offset_y + offset.y() / scene.height
+
+            max_x = 1 - (self._scale * eye.width) / scene.width
+            max_y = 1 - (self._scale * eye.height) / scene.height
+
+            proposed_x = max(0, min(max_x, proposed_x))
+            proposed_y = max(0, min(max_y, proposed_y))
+
+            self.offset_x = proposed_x
+            self.offset_y = proposed_y
             self._drag_position = mapped_pos
 
         else:
@@ -66,37 +79,39 @@ class EyeOverlayPlugin(neon_player.Plugin):
             aligns = []
             if self._mouse_mode & ModifyDirection.LEFT:
                 aligns.append("right")
-                rect.setLeft(rect.left() + offset.x())
+                rect.setLeft(max(0, rect.left() + offset.x()))
                 fix_y = True
             elif self._mouse_mode & ModifyDirection.RIGHT:
                 aligns.append("left")
                 fix_y = True
-                rect.setRight(rect.right() + offset.x())
+                rect.setRight(min(scene.width, rect.right() + offset.x()))
 
             if self._mouse_mode & ModifyDirection.TOP:
                 aligns.append("bottom")
-                rect.setTop(rect.top() + offset.y())
+                rect.setTop(max(0, rect.top() + offset.y()))
             elif self._mouse_mode & ModifyDirection.BOTTOM:
                 aligns.append("top")
-                rect.setBottom(rect.bottom() + offset.y())
+                rect.setBottom(min(scene.height, rect.bottom() + offset.y()))
 
             if fix_y:
-                self.scale = max(0.2, rect.width() / self.recording.eye.width)
-                rect.setHeight(self.scale *  self.recording.eye.height)
+                max_scale = (scene.height - rect.top()) / eye.height
+                self.scale = min(max_scale, max(0.2, rect.width() / eye.width))
+                rect.setHeight(self.scale * eye.height)
             else:
-                self.scale = max(0.2, rect.height() / self.recording.eye.height)
-                rect.setWidth(self.scale *  self.recording.eye.width)
+                max_scale = (scene.width - rect.left()) / eye.width
+                self.scale = min(max_scale, max(0.2, rect.height() / eye.height))
+                rect.setWidth(self.scale * eye.width)
 
             for a in aligns:
                 self.align(rect, a)
 
-            self.offset_x = rect.left() / self.recording.scene.width
-            self.offset_y = rect.top() / self.recording.scene.height
+            self.offset_x = rect.left() / scene.width
+            self.offset_y = rect.top() / scene.height
 
+        self.changed.emit()
         self.video_widget.update()
 
     def on_hover(self, event) -> None:
-
         edge_margin = 20
 
         pos = self.video_widget.map_point(event.pos())
@@ -135,9 +150,9 @@ class EyeOverlayPlugin(neon_player.Plugin):
                 self.video_widget.setCursor(Qt.SizeFDiagCursor)
             elif tr or bl:
                 self.video_widget.setCursor(Qt.SizeBDiagCursor)
-            elif self._mouse_mode in (ModifyDirection.LEFT,  ModifyDirection.RIGHT):
+            elif self._mouse_mode in (ModifyDirection.LEFT, ModifyDirection.RIGHT):
                 self.video_widget.setCursor(Qt.SizeHorCursor)
-            elif self._mouse_mode in (ModifyDirection.TOP,  ModifyDirection.BOTTOM):
+            elif self._mouse_mode in (ModifyDirection.TOP, ModifyDirection.BOTTOM):
                 self.video_widget.setCursor(Qt.SizeVerCursor)
             else:
                 self.video_widget.setCursor(Qt.SizeAllCursor)
@@ -153,8 +168,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
             return
 
         image = qimage_from_frame(eye_frame.gray).scaled(
-            int(eye_frame.width * self._scale),
-            int(eye_frame.height * self._scale)
+            int(eye_frame.width * self._scale), int(eye_frame.height * self._scale)
         )
         painter.setOpacity(self._opacity)
 
@@ -163,26 +177,27 @@ class EyeOverlayPlugin(neon_player.Plugin):
             pen.setWidth(self._border_width)
             pen.setColor(self._border_color)
             painter.setPen(pen)
-            painter.drawRect(self.get_rect().adjusted(
-                -self._border_width / 2,
-                -self._border_width / 2,
-                self._border_width / 2,
-                self._border_width / 2,
-            ))
+            painter.drawRect(
+                self.get_rect().adjusted(
+                    -self._border_width / 2,
+                    -self._border_width / 2,
+                    self._border_width / 2,
+                    self._border_width / 2,
+                )
+            )
 
         painter.drawImage(
             QPointF(
                 self._offset_x * self.recording.scene.width,
-                self._offset_y * self.recording.scene.height
+                self._offset_y * self.recording.scene.height,
             ),
             image,
         )
 
         if self._mouse_mode != ModifyDirection(0):
             pen = painter.pen()
-            pen.setStyle(Qt.PenStyle.DashLine)
-            pen.setWidth(5)
-            pen.setColor(Qt.GlobalColor.white)
+            pen.setWidth(7)
+            pen.setColor("#6D7BE0")
             painter.setPen(pen)
             painter.setBrush(Qt.GlobalColor.transparent)
             painter.drawRect(self.get_rect().adjusted(0, 0, -1, -1))
@@ -194,7 +209,7 @@ class EyeOverlayPlugin(neon_player.Plugin):
             self._offset_x * self.recording.scene.width,
             self._offset_y * self.recording.scene.height,
             int(self._scale * self.recording.eye.width),
-            int(self._scale * self.recording.eye.height)
+            int(self._scale * self.recording.eye.height),
         )
 
     @property

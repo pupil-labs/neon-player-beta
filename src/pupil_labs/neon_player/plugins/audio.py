@@ -1,11 +1,19 @@
 import av
 import numpy as np
-from pupil_labs.neon_recording import NeonRecording
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+from PySide6.QtWidgets import (
+    QFrame,
+    QPushButton,
+    QSizePolicy,
+    QSlider,
+    QStyle,
+    QVBoxLayout,
+)
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import ProgressUpdate
+from pupil_labs.neon_recording import NeonRecording
 
 
 class AudioPlugin(neon_player.Plugin):
@@ -24,9 +32,14 @@ class AudioPlugin(neon_player.Plugin):
 
         self.cache_file = self.get_cache_path() / "audio.wav"
 
+        self.volume_button = VolumeButton(self.audio_output)
+        self.volume_button.setIconSize(QSize(32, 32))
+        self.get_timeline().toolbar_layout.insertWidget(1, self.volume_button)
+
     def on_disabled(self) -> None:
         self.player.stop()
         self.player.setSource(QUrl())
+        self.get_timeline().toolbar_layout.removeWidget(self.volume_button)
 
     def on_media_status_changed(self, status: QMediaPlayer.MediaStatus):
         if status == QMediaPlayer.MediaStatus.LoadedMedia:
@@ -54,12 +67,12 @@ class AudioPlugin(neon_player.Plugin):
     def on_recording_loaded(self, recording: NeonRecording) -> None:
         if not self.cache_file.exists():
             if self.app.headless:
-                self.generate_audio()
+                self.extract_audio()
                 self.load_audio()
 
             else:
                 job = self.job_manager.run_background_action(
-                    "Generate audio", "AudioPlugin.generate_audio"
+                    "Extract audio", "AudioPlugin.extract_audio"
                 )
                 job.finished.connect(self.load_audio)
 
@@ -70,7 +83,7 @@ class AudioPlugin(neon_player.Plugin):
         self.player.setSource(QUrl.fromLocalFile(str(self.cache_file)))
         self.on_playback_state_changed(self.app.is_playing)
 
-    def generate_audio(self):
+    def extract_audio(self):
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         container = av.open(str(self.cache_file), "w")
@@ -88,7 +101,9 @@ class AudioPlugin(neon_player.Plugin):
                 gap = (frame.time - next_expected_frame_time) / 1e9
                 if gap > frame_duration:
                     samples_to_gen = int(gap * frame.av_frame.sample_rate)
-                    silence = np.zeros([raw_audio.shape[0], samples_to_gen]).astype(np.float32)
+                    silence = np.zeros([raw_audio.shape[0], samples_to_gen]).astype(
+                        np.float32
+                    )
 
                     silence_frame = av.AudioFrame.from_ndarray(
                         silence,
@@ -97,7 +112,9 @@ class AudioPlugin(neon_player.Plugin):
                     )
                     silence_frame.sample_rate = frame.av_frame.sample_rate
                     silence_frame.time_base = frame.av_frame.time_base
-                    silence_rel_time = (next_expected_frame_time - self.recording.audio.time[0]) / 1e9
+                    silence_rel_time = (
+                        next_expected_frame_time - self.recording.audio.time[0]
+                    ) / 1e9
                     silence_frame.pts = silence_rel_time / silence_frame.time_base
                     silence_frame.dts = silence_frame.pts
                     for packet in stream.encode(silence_frame):
@@ -125,3 +142,42 @@ class AudioPlugin(neon_player.Plugin):
             container.mux(packet)
 
         container.close()
+
+
+class VolumeButton(QPushButton):
+    def __init__(self, audio_output):
+        super().__init__()
+        self.audio_output = audio_output
+
+        self.setIcon(self.style().standardIcon(QStyle.SP_MediaVolume))
+        self.setFixedSize(36, 36)
+        self.popup = None
+        self.clicked.connect(self.toggle_popup)
+
+    def toggle_popup(self):
+        if self.popup and self.popup.isVisible():
+            self.popup.close()
+            return
+
+        self.popup = QFrame(self, f=Qt.WindowType.Popup)
+
+        layout = QVBoxLayout(self.popup)
+        layout.setContentsMargins(11, 5, 11, 5)
+
+        slider = QSlider(Qt.Vertical)
+        slider.sliderMoved.connect(self.on_slider_moved)
+        slider.setValue(int(self.audio_output.volume() * 100))
+        slider.setMinimumHeight(140)
+        slider.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        layout.addWidget(slider, alignment=Qt.AlignCenter)
+
+        def set_position():
+            pos = self.mapToGlobal(self.rect().topLeft())
+            pos.setY(pos.y() - self.popup.height())
+            self.popup.move(pos)
+
+        self.popup.show()
+        QTimer.singleShot(1, set_position)
+
+    def on_slider_moved(self, value):
+        self.audio_output.setVolume(value / 100)

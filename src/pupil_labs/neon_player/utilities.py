@@ -2,10 +2,12 @@ import typing as T
 
 import cv2
 import numpy as np
-from pupil_labs.neon_recording import NeonRecording
+from pyqtgraph.functions import imageToArray
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QMenu
+
+from pupil_labs.neon_recording import NeonRecording
 
 
 def qimage_from_frame(frame: np.ndarray | None) -> QImage:
@@ -29,16 +31,7 @@ def qimage_from_frame(frame: np.ndarray | None) -> QImage:
 
 
 def ndarray_from_qimage(image: QImage) -> np.ndarray:
-    if image.isNull():
-        return np.zeros((0, 0), dtype=int)
-
-    if image.format() == QImage.Format.Format_Grayscale8:
-        return np.array(image.bits()).reshape((image.height(), image.width()))
-
-    elif image.format() == QImage.Format.Format_BGR888:
-        return np.array(image.bits()).reshape((image.height(), image.width(), 3))
-
-    return np.zeros((0, 0), dtype=int)
+    return imageToArray(image)
 
 
 def clone_menu(menu: QMenu) -> QMenu:
@@ -147,7 +140,7 @@ def get_scene_intrinsics(recording: NeonRecording) -> tuple[np.ndarray, np.ndarr
 
 
 class SignalDebouncer:
-    _signal_debouncer_map = {}
+    _signal_debouncer_map: T.ClassVar[dict[Signal, "SignalDebouncer"]] = {}
 
     @staticmethod
     def debounce(signal: Signal, delay: float = 1.5, *args):
@@ -171,7 +164,7 @@ class SignalDebouncer:
 
 
 class SlotDebouncer:
-    _connections = {}
+    _connections: T.ClassVar[dict[T.Callable, "SlotDebouncer"]] = {}
 
     @staticmethod
     def debounce(signal: Signal, slot: T.Callable, delay: float = 3.5):

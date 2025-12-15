@@ -1,7 +1,5 @@
-
 import time
 
-from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPoint, QPointF, QPropertyAnimation, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColorConstants,
@@ -18,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from pupil_labs import neon_player
+from pupil_labs.neon_recording import NeonRecording
 
 
 class ScalingWidget(QOpenGLWidget):
@@ -76,12 +75,9 @@ class ScalingWidget(QOpenGLWidget):
     def on_fade_finished(self):
         self._last_frame_time = None
 
-    def map_point(self, point: QPoint|QPointF) -> QPointF:
+    def map_point(self, point: QPoint | QPointF) -> QPointF:
         point = QPointF(point) - self.offset
-        return QPointF(
-            point.x() / self.scale,
-            point.y() / self.scale
-        )
+        return QPointF(point.x() / self.scale, point.y() / self.scale)
 
     def transform_painter(self, painter: QPainter) -> None:
         painter.translate(self.offset)
@@ -121,7 +117,7 @@ class ScalingWidget(QOpenGLWidget):
         self.fit_rect()
         self.repaint()
 
-    def fit_rect(self, source_size: QSize|None = None) -> None:
+    def fit_rect(self, source_size: QSize | None = None) -> None:
         if source_size is not None:
             self.source_size = source_size
 
@@ -164,10 +160,7 @@ class ScalingWidget(QOpenGLWidget):
             x -= child.width() / 2
             y -= child.height() / 2
 
-        child.move(QPoint(
-            int(x + self.offset.x()),
-            int(y + self.offset.y())
-        ))
+        child.move(QPoint(int(x + self.offset.x()), int(y + self.offset.y())))
 
 
 class VideoRenderWidget(ScalingWidget):
@@ -176,10 +169,7 @@ class VideoRenderWidget(ScalingWidget):
         self.ts = None
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
-        self.source_size = QSize(
-            recording.scene.width,
-            recording.scene.height
-        )
+        self.source_size = QSize(recording.scene.width, recording.scene.height)
         self.adjust_size()
         self.repaint()
 
