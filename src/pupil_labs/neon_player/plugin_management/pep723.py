@@ -49,14 +49,3 @@ def parse_pep723_dependencies(script: str) -> Pep723Dependencies | None:
         requires_python=data.get("requires-python"),
         dependencies=data.get("dependencies", []),
     )
-
-
-if __name__ == "__main__":
-    from pathlib import Path
-
-    example_script = (
-        Path.home() / "Pupil Labs" / "Neon Player" / "plugins" / "face_detect.py"
-    )
-    script_content = Path(example_script).read_text()
-    deps = parse_pep723_dependencies(script_content)
-    print(deps)

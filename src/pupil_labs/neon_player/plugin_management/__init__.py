@@ -1,7 +1,6 @@
 import importlib.metadata
 import logging
 import re
-import typing as T
 from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QDialog
@@ -9,9 +8,8 @@ from PySide6.QtWidgets import QApplication, QDialog
 from ..ui.plugin_installation_dialog import PluginInstallationDialog
 from .pep723 import parse_pep723_dependencies
 
-SITE_PACKAGES_DIR = (
-    Path.home() / "Pupil Labs" / "Neon Player" / "plugins" / "site-packages"
-)
+PLUGINS_PACKAGES_DIR = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"
+SITE_PACKAGES_DIR = PLUGINS_PACKAGES_DIR / "site-packages"
 
 
 def get_installed_packages() -> set[str]:
