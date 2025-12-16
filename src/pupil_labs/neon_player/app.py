@@ -62,8 +62,6 @@ class NeonPlayerApp(QApplication):
         self._initializing = True
         super().__init__(argv)
 
-        os.chdir(Path.home())
-
         try:
             app_version = version("pupil_labs.neon_player")
         except Exception:
@@ -139,6 +137,7 @@ class NeonPlayerApp(QApplication):
             QTimer.singleShot(1, lambda: self.load(Path(self.args.recording)))
         else:
             self._initializing = False
+            os.chdir(Path.home())
 
     def run_jobs(self, job):
         plugin_name, action_name = job[0].split(".")
