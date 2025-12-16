@@ -2,6 +2,7 @@ from datetime import datetime
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QDialog,
     QHBoxLayout,
     QLabel,
     QScrollArea,
@@ -80,21 +81,20 @@ class PluginManagerWidget(QWidget):
         app = neon_player.instance()
         form = PropertyWidget.from_property("enabled_plugins", app.recording_settings)
 
-        if self.dialog is not None:
-            self.dialog.close()
-            self.dialog.deleteLater()
+        dialog = QDialog()
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        dialog.setContentsMargins(10, 10, 10, 10)
+        dialog.setWindowTitle("Plugin Manager")
 
-        self.dialog = QWidget(self, Qt.WindowType.Dialog)
-        self.dialog.setContentsMargins(10, 10, 10, 10)
-        self.dialog.setWindowTitle("Plugin Manager")
-        dialog_layout = QVBoxLayout(self.dialog)
-        self.dialog.setLayout(dialog_layout)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(form)
+        layout.activate()
 
-        dialog_layout.addWidget(form)
+        dialog.adjustSize()
+        dialog.setFixedSize(dialog.size())
+        dialog.setMinimumWidth(300)
 
-        self.dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        self.dialog.resize(300, 300)
-        self.dialog.show()
+        dialog.exec()
 
 
 class SettingsPanel(QScrollArea):
