@@ -31,7 +31,7 @@ def qimage_from_frame(frame: np.ndarray | None) -> QImage:
 
 
 def ndarray_from_qimage(image: QImage) -> np.ndarray:
-    return imageToArray(image)
+    return imageToArray(image, transpose=False)
 
 
 def clone_menu(menu: QMenu) -> QMenu:
