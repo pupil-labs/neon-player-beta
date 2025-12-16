@@ -10,6 +10,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
+from pupil_labs.neon_recording.sample import match_ts
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QAction, QIcon, QPainter
 from PySide6.QtWidgets import (
@@ -23,6 +24,10 @@ from pupil_labs import neon_recording as nr
 from pupil_labs.neon_player import Plugin
 from pupil_labs.neon_player.ipc_logger import IPCLogger
 from pupil_labs.neon_player.job_manager import JobManager
+from pupil_labs.neon_player.plugin_management import (
+    check_dependencies_for_plugin,
+    install_dependencies,
+)
 from pupil_labs.neon_player.plugins import (
     audio,  # noqa: F401
     blinks,  # noqa: F401
@@ -39,8 +44,10 @@ from pupil_labs.neon_player.plugins import (
 )
 from pupil_labs.neon_player.settings import GeneralSettings, RecordingSettings
 from pupil_labs.neon_player.ui.main_window import MainWindow
+from pupil_labs.neon_player.ui.plugin_installation_dialog import (
+    PluginInstallationDialog,
+)
 from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
-from pupil_labs.neon_recording.sample import match_ts
 
 
 class NeonPlayerApp(QApplication):
@@ -92,13 +99,6 @@ class NeonPlayerApp(QApplication):
         parser.add_argument("recording", nargs="?", default=None, help="")
         parser.add_argument("--progress-ipc-name", type=str, default=None)
         parser.add_argument(
-            "--plugin-action",
-            action="append",
-            nargs="+",
-            default=[],
-            help="Run a named action with arguments",
-        )
-        parser.add_argument(
             "--job",
             nargs="+",
             default=None,
@@ -114,6 +114,12 @@ class NeonPlayerApp(QApplication):
         logging.info(
             f"{self.applicationName()} v{self.applicationVersion()} starting up"
         )
+
+        if self.args.job and self.args.job[0] == "install_packages":
+            packages = self.args.job[1:]
+            self.job_manager.work_job(install_dependencies(packages))
+            self.quit()
+            return
 
         # Iterate through all modules within plugins and register them
         plugin_search_path = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"
@@ -213,6 +219,12 @@ class NeonPlayerApp(QApplication):
 
                 if spec is None:
                     continue
+
+                missing_dependencies = check_dependencies_for_plugin(d)
+
+                if missing_dependencies:
+                    dialog = PluginInstallationDialog(missing_dependencies, d.name)
+                    dialog.exec()
 
                 logging.info(f"Importing plugin module {d}")
 

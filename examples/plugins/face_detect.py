@@ -1,3 +1,9 @@
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "mediapipe",
+# ]
+# ///
 import logging
 import typing as T
 from pathlib import Path
