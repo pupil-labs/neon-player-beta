@@ -6,11 +6,14 @@ from pupil_labs.neon_player import GlobalPluginProperties, Plugin
 
 
 def plugin_label_lookup(cls_name: str) -> str:
-    cls = Plugin.get_class_by_name(cls_name)
-    if cls and hasattr(cls, "label"):
-        return cls.label
+    try:
+        cls = Plugin.get_class_by_name(cls_name)
+        if cls and hasattr(cls, "label"):
+            return cls.label
+    except ValueError:
+        pass
 
-    return cls_name
+    return f"{cls_name} (missing?)"
 
 
 class GeneralSettings(PersistentPropertiesMixin, QObject):
