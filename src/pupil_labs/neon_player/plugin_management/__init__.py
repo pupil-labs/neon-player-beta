@@ -9,9 +9,8 @@ from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_player.plugin_management.pep723 import parse_pep723_dependencies
 
-SITE_PACKAGES_DIR = (
-    Path.home() / "Pupil Labs" / "Neon Player" / "plugins" / "site-packages"
-)
+PLUGINS_PACKAGES_DIR = Path.home() / "Pupil Labs" / "Neon Player" / "plugins"
+SITE_PACKAGES_DIR = PLUGINS_PACKAGES_DIR / "site-packages"
 
 SITE_PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
 
