@@ -78,29 +78,31 @@ class GazeDataPlugin(neon_player.Plugin):
             viz.on_recording_loaded(recording)
 
         try:
-            self.worn_data = self.recording.worn[["time", "worn"]]
-        except Exception:
-            logging.warning("Failed to load worn data")
-            self.worn_data = np.ndarray(
-                shape=(len(self.recording.eye.time), 2), dtype=np.int64
+            self.worn_data = self.recording.worn
+
+            worn_on = self.worn_data.worn // 255
+            worn_on = np.concatenate([[0], worn_on])
+            state_diff = np.diff(worn_on.astype(int))
+
+            start_times = self.worn_data.time[state_diff == 1].tolist()
+            stop_times = self.worn_data.time[state_diff == -1].tolist()
+
+            if len(stop_times) < len(start_times):
+                stop_times.append(self.worn_data[-1][0])
+
+            self.get_timeline().add_timeline_broken_bar(
+                "Worn",
+                list(zip(start_times, stop_times, strict=False)),
             )
-            self.worn_data[:, 0] = self.recording.eye.time
-            self.worn_data[:, 1] = 255
 
-        worn_on = self.worn_data[:, 1] // 255
-        worn_on = np.concatenate([[0], worn_on])
-        state_diff = np.diff(worn_on.astype(int))
+        except Exception:
+            self.worn_data = None
+            logging.warning("Failed to load worn data")
 
-        start_times = self.worn_data[state_diff == 1][:, 0].tolist()
-        stop_times = self.worn_data[state_diff == -1][:, 0].tolist()
-
-        if len(stop_times) < len(start_times):
-            stop_times.append(self.worn_data[-1][0])
-
-        self.get_timeline().add_timeline_broken_bar(
-            "Worn",
-            list(zip(start_times, stop_times, strict=False)),
-        )
+    def unload(self) -> None:
+        if self.worn_data:
+            self.get_timeline().remove_timeline_broken_bar("Worn")
+            self.worn_data = None
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         if self.recording is None:
@@ -117,7 +119,11 @@ class GazeDataPlugin(neon_player.Plugin):
             self._offset_y * self.recording.scene.height,
         ])
 
-        worns = self.worn_data[np.isin(self.worn_data[:, 0], samples.time)][:, 1]
+        try:
+            worns = self.worn_data.sample(samples.time).worn
+        except Exception:
+            worns = np.array([255])
+
         aggregations = {}
         offset_aggregations = {}
         worn_aggregations = {}
@@ -176,28 +182,9 @@ class GazeDataPlugin(neon_player.Plugin):
         stop_mask = self.recording.gaze.time <= stop_time
 
         export_gazes = self.recording.gaze[start_mask & stop_mask]
-        export_worn = self.worn_data[start_mask & stop_mask]
 
         scene_camera_matrix, scene_distortion_coefficients = get_scene_intrinsics(
             self.recording
-        )
-
-        matched_fixation_ids = (
-            find_ranged_index(
-                export_gazes.time,
-                self.recording.fixations.start_time,
-                self.recording.fixations.stop_time,
-            )
-            + 1
-        )
-
-        matched_blink_ids = (
-            find_ranged_index(
-                export_gazes.time,
-                self.recording.blinks.start_time,
-                self.recording.blinks.stop_time,
-            )
-            + 1
         )
 
         spherical_coords = cart_to_spherical(
@@ -213,15 +200,40 @@ class GazeDataPlugin(neon_player.Plugin):
             "timestamp [ns]": export_gazes.time,
             "gaze x [px]": export_gazes.point[:, 0],
             "gaze y [px]": export_gazes.point[:, 1],
-            "worn": export_worn.worn,
-            "fixation id": matched_fixation_ids,
-            "blink id": matched_blink_ids,
             "azimuth [deg]": spherical_coords[2],
             "elevation [deg]": spherical_coords[1],
         })
+        if self.worn_data:
+            export_worn = self.worn_data[start_mask & stop_mask]
+            gaze["worn"] = export_worn.worn
 
-        gaze["fixation id"] = gaze["fixation id"].replace(0, None)
-        gaze["blink id"] = gaze["blink id"].replace(0, None)
+        try:
+            matched_fixation_ids = (
+                find_ranged_index(
+                    export_gazes.time,
+                    self.recording.fixations.start_time,
+                    self.recording.fixations.stop_time,
+                )
+                + 1
+            )
+            gaze["fixation id"] = matched_fixation_ids
+            gaze["fixation id"] = gaze["fixation id"].replace(0, None)
+        except Exception:
+            logging.warning("Failed to match fixations")
+
+        try:
+            matched_blink_ids = (
+                find_ranged_index(
+                    export_gazes.time,
+                    self.recording.blinks.start_time,
+                    self.recording.blinks.stop_time,
+                )
+                + 1
+            )
+            gaze["blink id"] = matched_blink_ids
+            gaze["blink id"] = gaze["blink id"].replace(0, None)
+        except Exception:
+            logging.warning("Failed to match blinks")
 
         export_file = destination / "gaze.csv"
         gaze.to_csv(export_file, index=False)
