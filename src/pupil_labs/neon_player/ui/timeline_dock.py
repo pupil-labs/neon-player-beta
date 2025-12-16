@@ -67,6 +67,7 @@ class TimeLineDock(QWidget):
         self.play_button = QToolButton()
         self.play_button.setToolTip("Play/Pause")
         self.play_button.setIconSize(QSize(32, 32))
+        self.play_button.setFixedSize(QSize(36, 36))
         self.play_button.setIcon(QIcon(str(neon_player.asset_path("play.svg"))))
         self.play_button.clicked.connect(
             lambda: app.get_action("Playback/Play\\Pause").trigger()

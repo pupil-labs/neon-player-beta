@@ -1,13 +1,13 @@
 import av
 import numpy as np
 from PySide6.QtCore import QSize, Qt, QTimer, QUrl
+from PySide6.QtGui import QPixmap
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QFrame,
     QPushButton,
     QSizePolicy,
     QSlider,
-    QStyle,
     QVBoxLayout,
 )
 
@@ -34,6 +34,7 @@ class AudioPlugin(neon_player.Plugin):
 
         self.volume_button = VolumeButton(self.audio_output)
         self.volume_button.setIconSize(QSize(32, 32))
+        self.volume_button.setFixedSize(QSize(36, 36))
         self.get_timeline().toolbar_layout.insertWidget(1, self.volume_button)
 
     def on_disabled(self) -> None:
@@ -149,8 +150,7 @@ class VolumeButton(QPushButton):
         super().__init__()
         self.audio_output = audio_output
 
-        self.setIcon(self.style().standardIcon(QStyle.SP_MediaVolume))
-        self.setFixedSize(36, 36)
+        self.setIcon(QPixmap(neon_player.asset_path("volume-3.svg")))
         self.popup = None
         self.clicked.connect(self.toggle_popup)
 
@@ -181,3 +181,5 @@ class VolumeButton(QPushButton):
 
     def on_slider_moved(self, value):
         self.audio_output.setVolume(value / 100)
+        self.setIcon(QPixmap(neon_player.asset_path(f"volume-{value//25}.svg")))
+
