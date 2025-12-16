@@ -74,20 +74,27 @@ class PluginManagerWidget(QWidget):
         self.button.clicked.connect(self.show_dialog)
         self.button.setCursor(Qt.CursorShape.PointingHandCursor)
 
+        self.dialog = None
+
     def show_dialog(self) -> None:
         app = neon_player.instance()
         form = PropertyWidget.from_property("enabled_plugins", app.recording_settings)
-        dialog = QWidget(self, Qt.WindowType.Dialog)
-        dialog.setContentsMargins(10, 10, 10, 10)
-        dialog.setWindowTitle("Plugin Manager")
-        dialog_layout = QVBoxLayout(dialog)
-        dialog.setLayout(dialog_layout)
+
+        if self.dialog is not None:
+            self.dialog.close()
+            self.dialog.deleteLater()
+
+        self.dialog = QWidget(self, Qt.WindowType.Dialog)
+        self.dialog.setContentsMargins(10, 10, 10, 10)
+        self.dialog.setWindowTitle("Plugin Manager")
+        dialog_layout = QVBoxLayout(self.dialog)
+        self.dialog.setLayout(dialog_layout)
 
         dialog_layout.addWidget(form)
 
-        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        dialog.resize(300, 300)
-        dialog.show()
+        self.dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        self.dialog.resize(300, 300)
+        self.dialog.show()
 
 
 class SettingsPanel(QScrollArea):
