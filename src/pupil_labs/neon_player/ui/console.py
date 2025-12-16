@@ -48,7 +48,7 @@ class QTextEditLogger(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         """Emit a log record to the text edit."""
         msg = self.format(record)
-        color = LOG_COLORS[record.levelname]
+        color = LOG_COLORS.get(record.levelname, Qt.GlobalColor.white).name
         self._append_text(msg, color)
 
     def _append_text(self, text: str, color: Qt.GlobalColor | None = None) -> None:

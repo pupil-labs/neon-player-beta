@@ -586,6 +586,6 @@ class StatusBarLogHandler(logging.Handler):
         elif msg == "Settings saved":
             msg = f"💾 {msg}"
 
-        color = LOG_COLORS[record.levelname].name
+        color = LOG_COLORS.get(record.levelname, Qt.GlobalColor.white).name
         self.label.setStyleSheet(f"color: {color}")
         self.label.setText(msg)
