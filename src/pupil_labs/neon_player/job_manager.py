@@ -149,10 +149,16 @@ class JobManager(QObject):
 
         neon_player.instance().save_settings()
 
+        recording = neon_player.instance().recording
+        if recording is None:
+            rec_dir = None
+        else:
+            rec_dir = neon_player.instance().recording._rec_dir
+
         job = BackgroundJob(
             name,
             self.job_counter,
-            neon_player.instance().recording._rec_dir,
+            rec_dir,
             action_name,
             *args,
         )

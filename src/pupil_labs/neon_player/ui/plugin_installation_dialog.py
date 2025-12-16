@@ -3,12 +3,12 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QLabel,
-    QListWidget,
     QProgressBar,
+    QSizePolicy,
     QVBoxLayout,
 )
 
-from ..plugin_management.installation import InstallationWorker
+from pupil_labs import neon_player
 
 
 class PluginInstallationDialog(QDialog):
@@ -21,22 +21,27 @@ class PluginInstallationDialog(QDialog):
         self.setWindowTitle("Plugin Dependency Installation")
         self.setMinimumWidth(400)
 
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
+        layout = QVBoxLayout()
+        self.setLayout(layout)
 
         self.label = QLabel(
-            f"{len(dependencies_to_install)} new package(s) are required by one or more of your plugins: \n {plugin_req}."  # noqa: E501
+            f"<b>{plugin_req}</b> requires {len(dependencies_to_install)} new package(s) and dependencies"  # noqa: E501
         )
+        self.label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         self.label.setWordWrap(True)
-        self.layout.addWidget(self.label)
+        layout.addWidget(self.label)
 
-        self.list_widget = QListWidget()
-        self.list_widget.addItems(dependencies_to_install)
-        self.layout.addWidget(self.list_widget)
+        self.dependency_bullets = QLabel(
+            "<html><ul>" +
+            "\n".join([f"<li>{dep}</li>"
+            for dep in dependencies_to_install]) + "</ul></html>"
+        )
+        layout.addWidget(self.dependency_bullets)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
-        self.layout.addWidget(self.progress_bar)
+        layout.addWidget(self.progress_bar)
+        layout.addStretch()
 
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -44,39 +49,13 @@ class PluginInstallationDialog(QDialog):
         self.button_box.button(QDialogButtonBox.StandardButton.Ok).setText("Install")
         self.button_box.accepted.connect(self.start_installation)
         self.button_box.rejected.connect(self.reject)
-        self.layout.addWidget(self.button_box)
-
-        self.worker = None
-        self.thread = None
+        layout.addWidget(self.button_box)
 
     def start_installation(self):
-        self.button_box.setEnabled(False)
-        self.list_widget.setVisible(False)
         self.progress_bar.setVisible(True)
-
-        self.thread = QThread()
-        self.worker = InstallationWorker(self.dependencies_to_install)
-        self.worker.moveToThread(self.thread)
-
-        self.worker.progress.connect(self.on_progress)
-        self.worker.finished.connect(self.on_finished)
-
-        self.thread.started.connect(self.worker.run)
-        self.thread.start()
-
-    def on_progress(self, value: float, message: str):
-        self.progress_bar.setValue(int(value * 100))
-        self.label.setText(message)
-
-    def on_finished(self, success: bool):
-        if self.thread is not None:
-            self.thread.quit()
-            self.thread.wait()
-        if success:
-            self.accept()
-        else:
-            self.label.setText(
-                "An error occurred during installation. See logs for details."
-            )
-            self.button_box.setStandardButtons(QDialogButtonBox.StandardButton.Cancel)
-            self.button_box.setEnabled(True)
+        self.progress_bar.setRange(0, 0)
+        self.button_box.setEnabled(False)
+        self.job = neon_player.instance().job_manager.run_background_action(
+            "Install dependencies", "install_packages", *self.dependencies_to_install
+        )
+        self.job.finished.connect(self.close)

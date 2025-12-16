@@ -1,22 +1,23 @@
+import sys
 import importlib.metadata
 import logging
 import re
-import typing as T
+import subprocess
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication, QDialog
-
-from ..ui.plugin_installation_dialog import PluginInstallationDialog
-from .pep723 import parse_pep723_dependencies
+from pupil_labs import neon_player
+from pupil_labs.neon_player.job_manager import ProgressUpdate
+from pupil_labs.neon_player.plugin_management.pep723 import parse_pep723_dependencies
 
 SITE_PACKAGES_DIR = (
     Path.home() / "Pupil Labs" / "Neon Player" / "plugins" / "site-packages"
 )
 
+SITE_PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
+
 
 def get_installed_packages() -> set[str]:
     """Get a set of installed package names in the shared site-packages."""
-    SITE_PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
     try:
         return {
             dist.metadata["name"].lower()
@@ -27,8 +28,8 @@ def get_installed_packages() -> set[str]:
         return set()
 
 
-def check_and_install_dependencies_for_plugins(plugin_path: Path) -> None:
-    """Scan a plugin, find their dependencies, and install missing ones."""
+def check_dependencies_for_plugin(plugin_path: Path) -> tuple[str, list[str]] | None:
+    """Scan a plugin, find their dependencies, return missing ones."""
     all_deps_to_install = set()
     all_dep_names = set()
 
@@ -48,6 +49,7 @@ def check_and_install_dependencies_for_plugins(plugin_path: Path) -> None:
                 match = re.match(r"^[a-zA-Z0-9-_]+", dep_string)
                 if match:
                     all_dep_names.add(match.group(0).lower())
+
     except Exception:
         logging.exception(f"Could not parse dependencies for {plugin_path.name}")
 
@@ -68,16 +70,43 @@ def check_and_install_dependencies_for_plugins(plugin_path: Path) -> None:
 
     logging.info(f"Found missing plugin dependencies: {deps_to_install_filtered}")
 
-    if not QApplication.instance():
-        logging.error("QApplication not running, cannot show installation dialog.")
+    return deps_to_install_filtered
+
+
+def install_dependencies(dependencies: list[str]):
+    """Install dependencies into the shared site-packages directory using uv."""
+    if not dependencies:
+        logging.info("No new dependencies to install.")
         return
 
-    dialog = PluginInstallationDialog(
-        deps_to_install_filtered, plugin_req=plugin_path.name
-    )
-    result = dialog.exec()
-
-    if result == QDialog.Accepted:
-        logging.info("Plugin dependencies installed successfully.")
+    if neon_player.is_frozen():
+        uv_cmd = Path(sys.argv[0]).parent / "uv"
     else:
-        logging.warning("Plugin dependency installation was cancelled or failed.")
+        uv_cmd = "uv"
+
+    command = [
+        uv_cmd,
+        "pip",
+        "install",
+        f"--target={SITE_PACKAGES_DIR}",
+        *dependencies,
+    ]
+
+    try:
+        proc = subprocess.run(
+            command,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if proc.stdout:
+            logging.info(proc.stdout.rstrip())
+        if proc.stderr:
+            logging.warning(proc.stderr.rstrip())
+
+        yield ProgressUpdate(1.0)
+        logging.info("Successfully installed dependencies.")
+
+    except subprocess.CalledProcessError as e:
+        logging.exception(f"Failed to install dependencies. Error: {e.stderr}")
+        raise

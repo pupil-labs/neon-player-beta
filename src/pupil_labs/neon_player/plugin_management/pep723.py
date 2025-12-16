@@ -1,8 +1,7 @@
 import logging
 import re
-import typing as T
-
 import tomllib
+import typing as T
 
 logger = logging.getLogger(__name__)
 

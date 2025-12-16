@@ -24,6 +24,7 @@ dependencies = [
     "numpyencoder>=0.3.2",
     "opencv-python>=4.11.0.86",
     "pandas>=2.2.3",
+    "protobuf<6",
     "pupil-apriltags>=1.0.4.post11",
     "pupil-labs-neon-recording>=2.0.0",
     "pyobjc; sys_platform == 'darwin'",
