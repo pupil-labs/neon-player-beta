@@ -1,4 +1,4 @@
-from PySide6.QtCore import QThread
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -18,14 +18,15 @@ class PluginInstallationDialog(QDialog):
         super().__init__(parent)
         self.dependencies_to_install = dependencies_to_install
 
-        self.setWindowTitle("Plugin Dependency Installation")
-        self.setMinimumWidth(400)
+        self.setWindowTitle("Neon Player - Plugin Requirements")
+        self.setMinimumWidth(450)
 
         layout = QVBoxLayout()
+        layout.setSpacing(10)
         self.setLayout(layout)
 
         self.label = QLabel(
-            f"<b>{plugin_req}</b> requires {len(dependencies_to_install)} new package(s) and dependencies"  # noqa: E501
+            f"The <b>{plugin_req}</b> plugin file requires the following {len(dependencies_to_install)} package(s) to be installed. Additional dependencies may be installed as well."  # noqa: E501
         )
         self.label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         self.label.setWordWrap(True)
@@ -39,9 +40,12 @@ class PluginInstallationDialog(QDialog):
         layout.addWidget(self.dependency_bullets)
 
         self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        layout.addWidget(self.progress_bar)
+        self.progress_bar.setStyleSheet("""
+            background: transparent;
+            border: none;
+        """)
         layout.addStretch()
+        layout.addWidget(self.progress_bar)
 
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
