@@ -205,7 +205,7 @@ class GazeDataPlugin(neon_player.Plugin):
         })
         if self.worn_data:
             export_worn = self.worn_data[start_mask & stop_mask]
-            gaze["worn"] = export_worn.worn
+            gaze["worn"] = export_worn.worn / 255
 
         try:
             matched_fixation_ids = (
