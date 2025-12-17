@@ -49,7 +49,7 @@ class MarkerEditWidget(QPushButton):
     def set_surface(self, surface: "TrackedSurface") -> None:
         self.surface = surface
         self.setChecked(
-            self.marker_uid in surface.tracker_surface.registered_marker_uids
+            self.marker_uid in surface.tracker_surface.markers.keys()
         )
         self._update_tooltip(self.isChecked())
 
@@ -70,7 +70,7 @@ class MarkerEditWidget(QPushButton):
 class SurfaceHandle(QWidget):
     position_changed = Signal(QPointF)
 
-    def __init__(self, surface, corner_id: CornerId):
+    def __init__(self, surface, corner_id):
         super().__init__()
         self.surface = surface
         self.corner_id = corner_id
@@ -85,10 +85,10 @@ class SurfaceHandle(QWidget):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.starting_angles = {
-            CornerId.TOP_LEFT: 0,
-            CornerId.TOP_RIGHT: 270,
-            CornerId.BOTTOM_RIGHT: 180,
-            CornerId.BOTTOM_LEFT: 90,
+            (0, 0): 0,
+            (1, 0): 270,
+            (1, 1): 180,
+            (0, 1): 90,
         }
 
     def paintEvent(self, event: QPaintEvent):

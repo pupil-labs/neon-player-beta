@@ -1,5 +1,5 @@
 import logging
-import typing as T
+import typing as T  # noqa: N812
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 import pandas as pd
+from pupil_labs.marker_mapper import fix, utils
+from pupil_labs.marker_mapper.surface import normalized_corners
 from PySide6.QtCore import QObject, QPointF, QSize, Signal
 from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog
@@ -14,11 +16,6 @@ from qt_property_widgets.utilities import (
     PersistentPropertiesMixin,
     action_params,
     property_params,
-)
-from surface_tracker import (
-    CornerId,
-    SurfaceLocation,
-    SurfaceTracker,
 )
 
 from pupil_labs import neon_player
@@ -68,7 +65,7 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         self._visualizations: list[GazeVisualization] = [
             CircleViz(),
         ]
-        self.render_size = [512, 512]
+        self.render_size = [500, 500]
 
     @property
     @property_params(
@@ -204,21 +201,17 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def add_marker(self, marker_uid: str) -> None:
         frame_idx = self.tracker_plugin.get_scene_idx_for_time()
         markers = self.tracker_plugin.markers_by_frame[frame_idx]
-        marker = next((m for m in markers if m.uid == marker_uid), None)
+        marker = next((m for m in markers if m.tag_id == marker_uid), None)
 
-        self.tracker.add_markers_to_surface(
-            self.tracker_surface,
-            self.location,
-            [marker],
+        self.tracker_surface.add_marker(
+            marker,
+            self.tracker_plugin.camera,
+            self.location[0]
         )
         self.locations_invalidated.emit()
 
     def remove_marker(self, marker_uid: str) -> None:
-        self.tracker.remove_markers_from_surface(
-            self.tracker_surface,
-            self.location,
-            [marker_uid],
-        )
+        self.tracker_surface.remove_marker(marker_uid)
         self.locations_invalidated.emit()
 
     @property
@@ -232,22 +225,22 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     @property
     @property_params(dont_encode=True, widget=None)
-    def location(self) -> SurfaceLocation | None:
+    def location(self):# -> SurfaceLocation | None:
         return self._location
 
     @location.setter
-    def location(self, value: SurfaceLocation | None) -> None:
+    def location(self, value):#: SurfaceLocation | None) -> None:
         if self._location is not None and value is not None:
-            t1 = value.transform_matrix_from_image_to_surface_undistorted
-            t2 = self._location.transform_matrix_from_image_to_surface_undistorted
-            if np.all(t1 == t2):
+            i2sA, s2iA = self._location
+            i2sB, s2iB = value
+            if np.all(i2sA == i2sB) and np.all(s2iA == s2iB):
                 return
 
         self._location = value
         self.surface_location_changed.emit()
         self.update_handle_positions()
 
-    def update_handle_positions(self):
+    def update_handle_positions(self) -> None:
         if self._location is None:
             for w in self.handle_widgets.values():
                 w.hide()
@@ -258,29 +251,25 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
         tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
         camera = tracker_plugin.camera
-        tracker = tracker_plugin.tracker
 
-        undistorted_corners = np.array(
-            tracker.surface_points_in_image_space(
-                self.tracker_surface,
-                self._location,
-                np.array([c.value for c in CornerId.all_corners()], dtype=np.float32),
-            )
+
+        undistorted_corners = fix.perspectiveTransform(
+            normalized_corners(),
+            self._location[1]
         )
-
         distorted_corners = camera.distort_points(undistorted_corners)
 
         for w, undistorted_corner, distorted_corner, corner_id in zip(
             self.handle_widgets.values(),
             undistorted_corners,
             distorted_corners,
-            CornerId.all_corners(),
+            normalized_corners(),
             strict=False,
         ):
-            self.corner_positions[corner_id] = undistorted_corner
+            self.corner_positions[tuple(corner_id)] = undistorted_corner
             w.set_scene_pos(distorted_corner)
 
-    def recalculate_heatmap(self):
+    def recalculate_heatmap(self) -> None:
         Plugin.get_instance_by_name("SurfaceTrackingPlugin").recalculate_heatmap(
             self.uid
         )
@@ -293,17 +282,18 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def name(self, name: str) -> None:
         self._name = name
 
-    def on_corner_changed(self, corner_id: CornerId, pos: QPointF) -> None:
+    def on_corner_changed(self, corner_id, pos) -> None:
         camera = Plugin.get_instance_by_name("SurfaceTrackingPlugin").camera
 
+        corners = [tuple(v) for v in normalized_corners().tolist()]
         pos = np.array([pos.x(), pos.y()])
         undistorted_corner = camera.undistort_points(pos)
         self.corner_positions[corner_id] = undistorted_corner.flatten()
-        tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
-        tracker = tracker_plugin.tracker
-
-        tracker.move_surface_corner_positions_in_image_space(
-            self.tracker_surface, self.location, self.corner_positions
+        self.tracker_surface.move_corner(
+            corners.index(corner_id),
+            pos,
+            self.location[0],
+            camera
         )
         self.locations_invalidated.emit()
 
@@ -323,9 +313,11 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             app = neon_player.instance()
             vrw = app.main_window.video_widget
 
-            self.handle_widgets = {
-                corner: SurfaceHandle(self, corner) for corner in CornerId.all_corners()
-            }
+            corners = normalized_corners()
+            self.handle_widgets = {}
+            for corner in corners.tolist():
+                corner_tup = tuple(corner)
+                self.handle_widgets[corner_tup] = SurfaceHandle(self, corner_tup)
 
             for corner_id, w in self.handle_widgets.items():
                 w.setFixedSize(20, 20)
@@ -386,11 +378,6 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         return Plugin.get_instance_by_name("SurfaceTrackingPlugin")
 
     @property
-    @property_params(widget=None, dont_encode=True)
-    def tracker(self) -> SurfaceTracker:
-        return self.tracker_plugin.tracker
-
-    @property
     @property_params(widget=None)
     def preview_options(self) -> SurfaceViewDisplayOptions:
         return self._preview_options
@@ -400,11 +387,10 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         self._preview_options = value
 
     def image_points_to_surface(self, points):
-        undistorted_points = self.tracker_plugin.camera.undistort_points(points)
-        return cv2.perspectiveTransform(
-            undistorted_points.reshape(-1, 1, 2),
-            self.location.transform_matrix_from_image_to_surface_undistorted,
-        ).reshape(-1, 2)
+        if len(points) == 0:
+            return np.array([]).reshape(-1, 2)
+
+        return fix.perspectiveTransform(points, self.location[0])
 
     def apply_offset_and_map_gazes(self, gazes):
         try:
@@ -513,17 +499,14 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         scene_idx = gaze_plugin.get_scene_idx_for_time(time_in_recording)
         scene_frame = app.recording.scene[scene_idx]
         undistorted_image = camera.undistort_image(scene_frame.bgr)
+        surface_image = utils.crop_image(
+            undistorted_image,
+            self.location[1],
+            width=self.preview_options.render_size[0],
+            height=None,
+        )
 
-        dst_size = np.array(self.preview_options.render_size).astype(int)
-        S = np.float64([
-            [dst_size[0], 0.0, 0.0],
-            [0.0, dst_size[1], 0.0],
-            [0.0, 0.0, 1.0],
-        ])
-        h_scaled = S @ self.location.transform_matrix_from_image_to_surface_undistorted
-
-        surface_image = cv2.warpPerspective(undistorted_image, h_scaled, dst_size)
-
+        surface_image = surface_image[:self.preview_options.render_size[1], :self.preview_options.render_size[0]]
         painter.drawImage(0, 0, qimage_from_frame(surface_image))
 
         gazes = gaze_plugin.get_gazes_for_scene(scene_idx).point
@@ -531,6 +514,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         mapped_gazes = self.image_points_to_surface(gazes)
         mapped_gazes[:, 0] *= self.preview_options.render_size[0]
         mapped_gazes[:, 1] *= self.preview_options.render_size[1]
+
         offset_gazes = None
 
         aggregations = {}
@@ -565,11 +549,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def view_surface(self) -> None:
         self.preview_window = SurfaceViewWindow(self)
         self.preview_window.show()
-
-        render_size = self.preview_options.render_size
-        width = min(1024, max(render_size[0], 400))
-        aspect = render_size[0] / render_size[1]
-        self.preview_window.resize(width + 300, width / aspect)
+        self.preview_window.resize(800, 400)
 
     @action
     @action_params(
@@ -577,10 +557,5 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         icon=QIcon.fromTheme("object-rotate-right"),
     )
     def rotate(self) -> None:
-        markers = self.tracker_surface._registered_markers_by_uid_undistorted.values()
-        for marker in markers:
-            for pos in marker._Marker__vertices_by_corner_id.values():
-                x, y = pos
-                pos[:] = np.array([y, 1.0 - x], dtype=np.float32)
-
+        self.tracker_surface.rotate()
         self.locations_invalidated.emit()
