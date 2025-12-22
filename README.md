@@ -11,6 +11,7 @@
 
 ```bash
 uv venv .venv --python=3.11
+source .venv/bin/activate # on Windows use .venv/Scripts/activate
 uv sync
 python -m pupil_labs.neon_player [path/to/my/recording]
 ```
@@ -24,14 +25,10 @@ python -m pupil_labs.neon_player [path/to/my/recording]
 # Plugin development
 
 - Drop your plugin python file into `$HOME/Pupil Labs/Neon Player/plugins` (you may need to create the directory)
-- If your plugin has multiple files, put them in a folder that as a `__init__.py` file that either defines your `Plugin` class or imports a module which does
-- If your plugin needs python dependencies, they can be installed to `plugins/site-packages`. E.g.,
+- If your plugin has multiple files, put them in a folder with a `__init__.py` file that either defines your `Plugin` class or imports a module which does. Do not create an instance of your plugin - just define the class which inherits from `pupil_labs.neon_player.Plugin`.
+- If your plugin needs python dependencies, list them as [inline script metadata (aka PEP 723)](https://packaging.python.org/en/latest/specifications/inline-script-metadata/#inline-script-metadata). Neon Player will detect these and install them to `$HOME/Pupil Labs/Neon Player/plugins/site-packages` automatically.
 
-```bash
-pip install --target "$HOME/Pupil Labs/Neon Player/plugins/site-packages" my-python-package
-```
-
-To expose a variable from a plugin to the GUI, define a property with getter/setter functions and appropriate type hints. You can control some options of the parameter GUI widget using the`@property_params` decorator.
+To expose a plugin setting to the GUI, define a property with getter/setter functions and appropriate type hints. You can control some options of the parameter GUI widget using th `@property_params` decorator. For example, by defining a `min` and `max`  for `int` or `float` properties, the UI will present a slider.
 
 You can also expose a function to the GUI by using the `@action` decorator. It will appear as a button, with each of its arguments as an input field
 
@@ -71,16 +68,16 @@ from PySide6.QtWidgets import QMessageBox
 
 
 class MyPlugin(Plugin):
-    def bg_task(self, zcount_to: int) -> T.Generator[ProgressUpdate, None, None]:
-        for i in range(zcount_to):
+    def bg_task(self, count_to: int) -> T.Generator[ProgressUpdate, None, None]:
+        for i in range(count_to):
             time.sleep(0.5)
             logging.info(i)
-            yield ProgressUpdate(i / zcount_to)
+            yield ProgressUpdate(i / count_to)
 
     @action
-    def start_slow_job(self, zcount_to: int = 5) -> None:
+    def start_slow_job(self, count_to: int = 5) -> None:
         job = self.job_manager.run_background_action(
-            "Slow Job Test", "MyPlugin.bg_task", zcount_to
+            "Slow Job Test", "MyPlugin.bg_task", count_to
         )
 
         job.finished.connect(lambda: QMessageBox.information(
