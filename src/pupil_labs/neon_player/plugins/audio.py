@@ -182,4 +182,3 @@ class VolumeButton(QPushButton):
     def on_slider_moved(self, value):
         self.audio_output.setVolume(value / 100)
         self.setIcon(QPixmap(neon_player.asset_path(f"volume-{value//25}.svg")))
-

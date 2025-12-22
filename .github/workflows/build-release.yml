@@ -7,27 +7,27 @@ on:
   workflow_dispatch:
     inputs:
       Windows:
-        description: 'Build for Windows'
+        description: "Build for Windows"
         required: true
         type: boolean
         default: true
       macOS:
-        description: 'Build for macOS'
+        description: "Build for macOS"
         required: true
         type: boolean
         default: true
       Linux:
-        description: 'Build for Linux'
+        description: "Build for Linux"
         required: true
         type: boolean
         default: true
       draft_release:
-        description: 'Create a release draft'
+        description: "Create a release draft"
         required: true
         type: boolean
         default: true
       deploy_docs:
-        description: 'Build and deploy documentation'
+        description: "Build and deploy documentation"
         required: true
         type: boolean
         default: true
