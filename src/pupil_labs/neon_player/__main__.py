@@ -1,12 +1,4 @@
-import sys
-
-from pupil_labs.neon_player.app import NeonPlayerApp
-
-
-def main() -> None:
-    app = NeonPlayerApp(sys.argv)
-    sys.exit(app.run())
-
+from pupil_labs.neon_player.main import main
 
 if __name__ == "__main__":
     main()

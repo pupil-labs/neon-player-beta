@@ -20,7 +20,7 @@ classifiers = [
 dependencies = [
     "av>=16.0.0",
     "nuitka<2.8",
-    "numpy",
+    "numpy<2.4.0",
     "numpyencoder>=0.3.2",
     "opencv-python>=4.11.0.86",
     "pandas>=2.2.3",
@@ -45,6 +45,9 @@ Homepage = "https://pupil-labs.github.io/pl-neon-player"
 Documentation = "https://pupil-labs.github.io/pl-neon-player"
 Repository = "https://github.com/pupil-labs/pl-neon-player"
 Issues = "https://github.com/pupil-labs/pl-neon-player/issues"
+
+[project.scripts]
+neon-player = "pupil_labs.neon_player.main:main"
 
 
 [tool.uv]
