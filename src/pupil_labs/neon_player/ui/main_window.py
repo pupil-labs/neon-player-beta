@@ -157,10 +157,11 @@ class MainWindow(QMainWindow):
             }
 
             QToolButton#HeaderAction {
-                background-color: #6d7be0;
+                background-color: #2e2f33;
+                padding: 3px;
                 border: none;
                 border-radius: 4px;
-                color: #fff;
+                color: #9e9da1;
             }
 
             ConsoleWindow>QTextEdit {

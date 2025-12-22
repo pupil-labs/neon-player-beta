@@ -70,6 +70,7 @@ class PluginManagerWidget(QWidget):
         layout.addWidget(self.label, 1)
 
         self.button = QToolButton()
+        self.button.setStyleSheet("background-color: #6d7be0; color: #fff;")
         self.button.setText("Add/Remove")
         self.button.setObjectName("HeaderAction")
         layout.addWidget(self.button)
