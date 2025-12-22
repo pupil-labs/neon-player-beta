@@ -10,8 +10,8 @@ import numpy as np
 import numpy.typing as npt
 import pupil_apriltags
 import pupil_labs.video as plv
-from pupil_labs.camera import Camera
-from pupil_labs.marker_mapper import Surface, fix, utils
+from pupil_labs.camera import Camera, perspective_transform
+from pupil_labs.marker_mapper import Surface, utils
 from pupil_labs.marker_mapper.surface import normalized_corners
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPointF, Qt
@@ -233,7 +233,7 @@ class SurfaceTrackingPlugin(Plugin):
             if anchors is None:
                 if not surface.location:
                     return
-                anchors = fix.perspectiveTransform(
+                anchors = perspective_transform(
                     normalized_corners(),
                     surface.location[1],
                 )
