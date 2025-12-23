@@ -234,6 +234,8 @@ class TimestampLabel(QLabel):
 class SmartSizePlotItem(pg.PlotItem):
     def __init__(self, legend, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+
+        self.setDownsampling(auto=True, mode='subsample')
         self.legend_handle = legend
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
