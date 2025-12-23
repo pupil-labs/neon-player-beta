@@ -205,6 +205,15 @@ class TimeLineDock(QWidget):
         if app.recording is None:
             return
 
+        if app.is_playing:
+            view_range = self.timestamps_plot.viewRange()[0]
+            playhead_adjust = t - self.playhead.t
+            self.timestamps_plot.setXRange(
+                view_range[0] + playhead_adjust,
+                view_range[1] + playhead_adjust,
+                padding=0
+            )
+
         self.timestamp_label.set_time(t - app.recording.start_time)
         self.playhead.set_time(t)
 
@@ -416,7 +425,7 @@ class TimeLineDock(QWidget):
         self.timeline_plots[timeline_row_name] = plot_item
 
         if not is_timestamps_row and self.timestamps_plot:
-            plot_item.setXRange(*self.timestamps_plot.viewRange()[0])
+            plot_item.setXRange(*self.timestamps_plot.viewRange()[0], padding=0)
             plot_item.setXLink(self.timestamps_plot)
 
         return plot_item

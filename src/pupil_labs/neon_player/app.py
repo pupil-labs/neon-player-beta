@@ -463,6 +463,10 @@ class NeonPlayerApp(QApplication):
         if self.recording is None:
             return
 
+        restart_playback = self.is_playing
+        if restart_playback:
+            self.set_playback_state(False)
+
         ts = min(max(int(ts), self.recording.start_time), self.recording.stop_time)
 
         now = time.time_ns()
@@ -472,6 +476,8 @@ class NeonPlayerApp(QApplication):
 
         self.position_changed.emit(self.current_ts)
         self.seeked.emit(self.current_ts)
+
+        self.set_playback_state(restart_playback)
 
     def seek_by(self, ns: int) -> None:
         self.seek_to(self.current_ts + ns)
