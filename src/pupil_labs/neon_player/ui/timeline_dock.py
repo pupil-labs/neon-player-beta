@@ -257,6 +257,7 @@ class TimeLineDock(QWidget):
         self.dragging.time = max(
             min(data_pos.x(), app.recording.stop_time), app.recording.start_time
         )
+        app.seek_to(self.dragging.time)
         app.recording_settings.export_window = self.get_export_window()
 
     def on_trim_area_drag_end(self, event: MouseDragEvent):

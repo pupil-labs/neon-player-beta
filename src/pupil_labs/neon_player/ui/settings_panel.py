@@ -2,13 +2,14 @@ from datetime import datetime
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QDialog,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QScrollArea,
     QToolButton,
     QVBoxLayout,
     QWidget,
+    QWidgetAction,
 )
 from qt_property_widgets.expander import Expander, ExpanderList
 from qt_property_widgets.widgets import PropertyForm, PropertyWidget
@@ -69,6 +70,7 @@ class PluginManagerWidget(QWidget):
         layout.addWidget(self.label, 1)
 
         self.button = QToolButton()
+        self.button.setStyleSheet("background-color: #6d7be0; color: #fff;")
         self.button.setText("Add/Remove")
         self.button.setObjectName("HeaderAction")
         layout.addWidget(self.button)
@@ -80,21 +82,17 @@ class PluginManagerWidget(QWidget):
     def show_dialog(self) -> None:
         app = neon_player.instance()
         form = PropertyWidget.from_property("enabled_plugins", app.recording_settings)
+        form.layout().setContentsMargins(10, 10, 10, 10)
+        form.layout().setSpacing(5)
 
-        dialog = QDialog()
-        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        dialog.setContentsMargins(10, 10, 10, 10)
-        dialog.setWindowTitle("Plugin Manager")
+        menu = QMenu(self.button)
+        menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
 
-        layout = QVBoxLayout(dialog)
-        layout.addWidget(form)
-        layout.activate()
+        action = QWidgetAction(menu)
+        action.setDefaultWidget(form)
+        menu.addAction(action)
 
-        dialog.adjustSize()
-        dialog.setFixedSize(dialog.size())
-        dialog.setMinimumWidth(300)
-
-        dialog.exec()
+        menu.exec(self.button.mapToGlobal(self.button.rect().bottomLeft()))
 
 
 class SettingsPanel(QScrollArea):
