@@ -652,7 +652,8 @@ class TimeLineDock(QWidget):
             return
 
         for plot_item in self.timeline_plots.values():
-            plot_item.getViewBox().autoRange()
+            padding = 0.7 if plot_item.has_bar else None
+            plot_item.getViewBox().autoRange(padding=padding)
 
         self.timestamps_plot.getViewBox().setRange(
             xRange=[app.recording.start_time, app.recording.stop_time]
