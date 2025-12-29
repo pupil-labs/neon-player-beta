@@ -184,7 +184,7 @@ class MainWindow(QMainWindow):
             }
 
             BoolWidget>QToolButton {
-                width: 24px;
+                width: 22px;
                 height: 20px;
                 border-radius: 5px;
                 border: 1px solid #555;
