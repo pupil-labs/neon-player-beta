@@ -99,7 +99,7 @@ class IMUPlugin(neon_player.Plugin):
             timeline.remove_timeline_plot("IMU - Acceleration")
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
         if self.imu_data is None:
             return

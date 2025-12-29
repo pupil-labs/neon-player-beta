@@ -320,7 +320,7 @@ class EventsPlugin(neon_player.Plugin):
             self.add_event(event_type, row["timestamp [ns]"])
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()):
         start_time, stop_time = neon_player.instance().recording_settings.export_window
         event_names = []

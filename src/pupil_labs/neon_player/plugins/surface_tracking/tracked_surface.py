@@ -85,7 +85,7 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
             viz.changed.connect(self.changed.emit)
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_video(self, destination: Path = Path()):
         tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
         self.export_job = tracker_plugin.job_manager.run_background_action(
@@ -98,7 +98,7 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         return self.export_job
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export_current_frame(self):
         file_path_str, _ = QFileDialog.getSaveFileName(
             None, "Export surface frame", "", "PNG Images (*.png)"
@@ -113,7 +113,7 @@ class SurfaceViewDisplayOptions(PersistentPropertiesMixin, QObject):
         image.save(file_path_str)
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("edit-copy"))
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("duplicate.svg"))))
     def copy_frame_to_clipboard(self) -> None:
         clipboard = neon_player.instance().clipboard()
         clipboard.setPixmap(QPixmap.fromImage(self._frame_image()))

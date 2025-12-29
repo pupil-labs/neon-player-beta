@@ -25,7 +25,7 @@ class BlinksPlugin(neon_player.Plugin):
         self.get_timeline().remove_timeline_plot("Blinks")
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
         blink_ids = 1 + np.arange(len(self.recording.blinks))
         blinks = self.recording.blinks

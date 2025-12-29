@@ -222,7 +222,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
                 timeline.remove_timeline_series(group_display_title, legend_label)
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
         if self.eyestate_data is None:
             return
