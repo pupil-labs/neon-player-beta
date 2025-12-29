@@ -164,6 +164,14 @@ class MainWindow(QMainWindow):
                 color: #9e9da1;
             }
 
+            QToolButton#PluginManagerHeaderAction {
+                background-color: #6d7be0;
+                padding: 3px;
+                border: none;
+                border-radius: 4px;
+                color: #fff;
+            }
+
             ConsoleWindow>QTextEdit {
                 font-family: 'Menlo', 'Monico', 'Consolas', 'Lucida Console',
                     'monospace', 'Courier New', 'Courier';
