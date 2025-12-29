@@ -165,6 +165,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         neon_player.instance().recording_settings.export_window_changed.connect(
             self.heatmap_invalidated.emit
         )
+        self.locations_invalidated.connect(self.heatmap_invalidated.emit)
         Plugin.get_instance_by_name("GazeDataPlugin").offset_changed.connect(
             self.heatmap_invalidated.emit
         )
