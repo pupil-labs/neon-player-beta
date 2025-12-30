@@ -15,6 +15,7 @@ from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPolygonF
 from qt_property_widgets.utilities import action_params, property_params
 
+from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, ProgressUpdate, action, utilities
 from pupil_labs.neon_recording import NeonRecording
 
@@ -233,7 +234,7 @@ class FaceDetection(Plugin):
         np.save(destination, np.array(results_by_frame, dtype=object))
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
         gaze_plugin = Plugin.get_instance_by_name("GazeDataPlugin")
 

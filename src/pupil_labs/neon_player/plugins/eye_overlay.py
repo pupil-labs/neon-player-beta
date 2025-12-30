@@ -22,6 +22,8 @@ class EyeOverlayPlugin(neon_player.Plugin):
     def __init__(self) -> None:
         super().__init__()
 
+        self.render_layer = 9
+
         self._offset_x = 0.02
         self._offset_y = 0.02
         self._scale = 1.0

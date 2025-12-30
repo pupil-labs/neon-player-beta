@@ -761,7 +761,7 @@ class SurfaceTrackingPlugin(Plugin):
                 yield ProgressUpdate((output_idx + 1) / len(scene_frames))
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
         start_time, stop_time = neon_player.instance().recording_settings.export_window
         start_mask = self.recording.gaze.time >= start_time

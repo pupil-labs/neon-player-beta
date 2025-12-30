@@ -200,7 +200,7 @@ class FixationsPlugin(neon_player.Plugin):
         return export_data
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
         export_data = self.get_export_data()
 

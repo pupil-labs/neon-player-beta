@@ -172,7 +172,7 @@ class GazeDataPlugin(neon_player.Plugin):
         return self.recording.gaze[time_mask]
 
     @action
-    @action_params(compact=True, icon=QIcon.fromTheme("document-save"))
+    @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
         if self.recording is None:
             return

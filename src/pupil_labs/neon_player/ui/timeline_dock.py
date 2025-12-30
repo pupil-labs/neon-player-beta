@@ -205,6 +205,15 @@ class TimeLineDock(QWidget):
         if app.recording is None:
             return
 
+        if app.is_playing:
+            view_range = self.timestamps_plot.viewRange()[0]
+            playhead_adjust = t - self.playhead.t
+            self.timestamps_plot.setXRange(
+                view_range[0] + playhead_adjust,
+                view_range[1] + playhead_adjust,
+                padding=0
+            )
+
         self.timestamp_label.set_time(t - app.recording.start_time)
         self.playhead.set_time(t)
 
@@ -381,7 +390,7 @@ class TimeLineDock(QWidget):
         legend_container = pg.GraphicsLayout()
         legend_container.setSpacing(0)
         legend_container.setContentsMargins(0, 0, 0, 0)
-        legend_label = pg.LabelItem(f"<b>{timeline_row_name}</b>", justify="left")
+        legend_label = pg.LabelItem(timeline_row_name, justify="left")
 
         legend_container.addItem(legend_label)
         legend_container.addItem(legend, row=1, col=0)
@@ -416,7 +425,7 @@ class TimeLineDock(QWidget):
         self.timeline_plots[timeline_row_name] = plot_item
 
         if not is_timestamps_row and self.timestamps_plot:
-            plot_item.setXRange(*self.timestamps_plot.viewRange()[0])
+            plot_item.setXRange(*self.timestamps_plot.viewRange()[0], padding=0)
             plot_item.setXLink(self.timestamps_plot)
 
         return plot_item
@@ -541,25 +550,47 @@ class TimeLineDock(QWidget):
         )
 
     def add_timeline_broken_bar(
-        self, timeline_row_name: str, start_and_stop_times, item_name: str = ""
+        self,
+        timeline_row_name: str,
+        data: list[tuple[float, float, float]] | list[tuple[float, float]],
+        item_name: str = "",
+        color: str = "white",
     ) -> None:
+        """Adds a broken bar plot to the timeline where bars are colored based on a Z-value.
+
+        Args:
+            timeline: The instance of TimeLineDock.
+            timeline_row_name: The name of the row (y-axis label).
+            data: A list of tuples (start, stop, value) or (start, stop).
+                  'value' is used for the colormap.
+            item_name: Name for the legend.
+            color: Name of the pyqtgraph colormap or color(e.g., 'viridis', 'white', ...)
+        """
         plot_widget = self.get_timeline_plot(timeline_row_name, True)
         plot_widget.getViewBox().allow_y_panning = False
+        # plot_widget.getViewBox().setMouseEnabled(y=False)
+        # plot_widget.setMenuEnabled(False)
 
-        pen = pg.mkPen("white")
-        brush = pg.mkBrush("white")
+        columns = list(zip(*data, strict=False))
+        starts_raw, stops_raw = (
+            np.array(columns[0], dtype=np.float64),
+            np.array(columns[1], dtype=np.float64),
+        )
 
-        # data is a list of (start, end) tuples
-        starts = [t[0] for t in start_and_stop_times]
-        stops = [t[1] for t in start_and_stop_times]
+        valid_mask = stops_raw >= starts_raw
+        if not np.all(valid_mask):
+            stops_raw = np.maximum(starts_raw, stops_raw)
+
+        values = (
+            np.array(columns[2], dtype=np.float64)
+            if len(columns) > 2
+            else np.full(len(starts_raw), np.nan)
+        )
+        color_values = values if not np.all(np.isnan(values)) else np.array([])
+        pens, brushes = _resolve_bar_colors(color_values, color, len(starts_raw))
 
         bars = pg.BarGraphItem(
-            x0=starts,
-            x1=stops,
-            y0=-0.4,
-            y1=0.4,
-            pen=pen,
-            brush=brush,
+            x0=starts_raw, x1=stops_raw, y0=-0.4, y1=0.4, pens=pens, brushes=brushes
         )
         plot_widget.addItem(bars)
 
@@ -621,7 +652,8 @@ class TimeLineDock(QWidget):
             return
 
         for plot_item in self.timeline_plots.values():
-            plot_item.getViewBox().autoRange()
+            padding = 0.7 if plot_item.has_bar else None
+            plot_item.getViewBox().autoRange(padding=padding)
 
         self.timestamps_plot.getViewBox().setRange(
             xRange=[app.recording.start_time, app.recording.stop_time]
@@ -637,3 +669,28 @@ class TimeLineDock(QWidget):
     def set_export_window(self, times: list[int]) -> None:
         self.trim_markers[0].time = times[0]
         self.trim_markers[1].time = times[1]
+
+
+def _resolve_bar_colors(
+    values: np.ndarray, color_arg: str = "white", count: int = 1
+) -> tuple[list, list]:
+    """Determine pen and brush colors for bars based on values and color arg."""
+    if values.size == 0 or np.all(np.isnan(values)):
+        c = pg.mkColor(color_arg)
+        pen = pg.mkPen(c)
+        brush = pg.mkBrush(c)
+        return [pen] * count, [brush] * count
+
+    min_v, max_v = np.min(values), np.max(values)
+    if max_v == min_v:
+        norm_values = np.full_like(values, 0.5)
+    else:
+        norm_values = (values - min_v) / (max_v - min_v)
+
+    try:
+        cmap = pg.colormap.get(color_arg)
+    except Exception:
+        cmap = pg.colormap.get("viridis")
+
+    colors = cmap.map(norm_values, mode="qcolor")
+    return [pg.mkPen(c) for c in colors], [pg.mkBrush(c) for c in colors]

@@ -70,9 +70,8 @@ class PluginManagerWidget(QWidget):
         layout.addWidget(self.label, 1)
 
         self.button = QToolButton()
-        self.button.setStyleSheet("background-color: #6d7be0; color: #fff;")
         self.button.setText("Add/Remove")
-        self.button.setObjectName("HeaderAction")
+        self.button.setObjectName("PluginManagerHeaderAction")
         layout.addWidget(self.button)
         self.button.clicked.connect(self.show_dialog)
         self.button.setCursor(Qt.CursorShape.PointingHandCursor)
