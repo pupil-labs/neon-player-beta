@@ -571,28 +571,33 @@ class TimeLineDock(QWidget):
         # plot_widget.getViewBox().setMouseEnabled(y=False)
         # plot_widget.setMenuEnabled(False)
 
-        columns = list(zip(*data, strict=False))
-        starts_raw, stops_raw = (
-            np.array(columns[0], dtype=np.float64),
-            np.array(columns[1], dtype=np.float64),
-        )
+        if len(data) > 0:
+            columns = list(zip(*data, strict=False))
+            starts_raw, stops_raw = (
+                np.array(columns[0], dtype=np.float64),
+                np.array(columns[1], dtype=np.float64),
+            )
 
-        valid_mask = stops_raw >= starts_raw
-        if not np.all(valid_mask):
-            stops_raw = np.maximum(starts_raw, stops_raw)
+            valid_mask = stops_raw >= starts_raw
+            if not np.all(valid_mask):
+                stops_raw = np.maximum(starts_raw, stops_raw)
 
-        values = (
-            np.array(columns[2], dtype=np.float64)
-            if len(columns) > 2
-            else np.full(len(starts_raw), np.nan)
-        )
-        color_values = values if not np.all(np.isnan(values)) else np.array([])
-        pens, brushes = _resolve_bar_colors(color_values, color, len(starts_raw))
+            values = (
+                np.array(columns[2], dtype=np.float64)
+                if len(columns) > 2
+                else np.full(len(starts_raw), np.nan)
+            )
+            color_values = values if not np.all(np.isnan(values)) else np.array([])
+            pens, brushes = _resolve_bar_colors(color_values, color, len(starts_raw))
 
-        bars = pg.BarGraphItem(
-            x0=starts_raw, x1=stops_raw, y0=-0.4, y1=0.4, pens=pens, brushes=brushes
-        )
-        plot_widget.addItem(bars)
+            bars = pg.BarGraphItem(
+                x0=starts_raw, x1=stops_raw, y0=-0.4, y1=0.4, pens=pens, brushes=brushes
+            )
+            plot_widget.addItem(bars)
+        else:
+            bars = []
+
+        plot_widget.getViewBox().autoRange(padding=0.7)
 
         if item_name and timeline_row_name in self.timeline_legends:
             legend = self.timeline_legends[timeline_row_name]

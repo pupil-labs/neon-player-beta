@@ -281,7 +281,24 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     @name.setter
     def name(self, name: str) -> None:
+        if self.tracker_plugin:
+            other_surfaces = [
+                s for s in self.tracker_plugin.surfaces
+                if s.uid != self.uid and s.name == name
+            ]
+            if len(other_surfaces) > 0:
+                logging.error(f"There is already a surface named {name}")
+                return
+
+            timeline = self.tracker_plugin.get_timeline()
+            timeline.remove_timeline_plot(f"Surface: {self._name}")
+            timeline.remove_timeline_plot(f"Surface Gaze: {self._name}")
+
         self._name = name
+
+        if self.tracker_plugin:
+            self.tracker_plugin.add_visibility_timeline(self)
+            self.tracker_plugin.add_surface_gaze_timeline(self)
 
     def on_corner_changed(self, corner_id, pos) -> None:
         camera = Plugin.get_instance_by_name("SurfaceTrackingPlugin").camera
