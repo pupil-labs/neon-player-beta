@@ -422,6 +422,13 @@ class TimeLineDock(QWidget):
         plot_item.hideAxis("bottom")
         plot_item.showGrid(x=True, y=False, alpha=0.3)
 
+        if app.recording:
+            duration = app.recording.stop_time - app.recording.start_time
+            plot_item.getViewBox().setLimits(
+                xMin=app.recording.start_time - duration * 0.05,
+                xMax=app.recording.stop_time + duration * 0.05,
+            )
+
         self.timeline_plots[timeline_row_name] = plot_item
 
         if not is_timestamps_row and self.timestamps_plot:
