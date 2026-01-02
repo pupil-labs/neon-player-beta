@@ -232,10 +232,21 @@ class EventsPlugin(neon_player.Plugin):
         self._update_timeline_data(event_type)
 
     def delete_event_instance(self, timeline_name, data_point, event_type) -> None:
-        self.events[event_type.uid].remove(data_point[0])
+        if event_type.uid not in self.events:
+            return
 
-        self.save_cached_json("events.json", self.events)
-        self._update_timeline_data(event_type)
+        events_list = self.events[event_type.uid]
+        target_ts = data_point[0]
+
+        if not events_list:
+            return
+
+        closest_event = min(events_list, key=lambda x: abs(x - target_ts))
+
+        if abs(closest_event - target_ts) < 5:
+            events_list.remove(closest_event)
+            self.save_cached_json("events.json", self.events)
+            self._update_timeline_data(event_type)
 
     def seek_to_event_instance(self, data_point) -> None:
         self.app.seek_to(data_point[0])
