@@ -8,7 +8,7 @@ from pyqtgraph.GraphicsScene.mouseEvents import (
     MouseDragEvent,
 )
 from PySide6.QtCore import QPoint, QPointF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QKeyEvent
+from PySide6.QtGui import QColor, QCursor, QIcon, QKeyEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QGraphicsSceneMouseEvent,
@@ -211,7 +211,7 @@ class TimeLineDock(QWidget):
             self.timestamps_plot.setXRange(
                 view_range[0] + playhead_adjust,
                 view_range[1] + playhead_adjust,
-                padding=0
+                padding=0,
             )
 
         self.timestamp_label.set_time(t - app.recording.start_time)
@@ -238,7 +238,33 @@ class TimeLineDock(QWidget):
             self.on_chart_area_clicked(event)
 
         elif event.button() == Qt.RightButton:
-            self.show_context_menu(event.globalPos())
+            view_pos = self.graphics_view.mapFrom(
+                self.graphics_view_container, event.pos()
+            )
+            scene_pos = self.graphics_view.mapToScene(view_pos)
+
+            class SyntheticEvent:
+                def __init__(self, scene_pos, screen_pos):
+                    self._scene_pos = scene_pos
+                    self._screen_pos = screen_pos
+
+                def scenePos(self):
+                    return self._scene_pos
+
+                def screenPos(self):
+                    return self._screen_pos
+
+                def globalPos(self):
+                    return self._screen_pos
+
+                def isAccepted(self):
+                    return False
+
+                def accept(self):
+                    pass
+
+            synth_event = SyntheticEvent(scene_pos, event.globalPos())
+            self.check_for_data_item_click(synth_event)
 
     def on_trim_area_drag_start(self, event: MouseDragEvent):
         app = neon_player.instance()
@@ -326,17 +352,50 @@ class TimeLineDock(QWidget):
         for item in nearby_items:
             if isinstance(item, pg.PlotItem):
                 clicked_plot_item = item
-            elif isinstance(item, pg.ScatterPlotItem):
-                p = item.mapFromScene(event.scenePos())
-                points_at = item.pointsAt(p)
-                if len(points_at) == 0:
-                    continue
+                break
+            if isinstance(item, pg.ViewBox) and isinstance(
+                item.parentItem(), pg.PlotItem
+            ):
+                clicked_plot_item = item.parentItem()
+                break
 
-                spot_item = points_at[0].pos()
-                clicked_data_point = (spot_item.x(), spot_item.y())
+        if clicked_plot_item:
+            for item in clicked_plot_item.items:
+                target_item = item
+                if (
+                    isinstance(item, pg.PlotDataItem)
+                    and hasattr(item, "scatter")
+                    and isinstance(item.scatter, pg.ScatterPlotItem)
+                ):
+                    target_item = item.scatter
+
+                if isinstance(target_item, pg.ScatterPlotItem):
+                    p = target_item.mapFromScene(event.scenePos())
+                    points_at = target_item.pointsAt(p)
+                    if len(points_at) > 0:
+                        spot_item = points_at[0].pos()
+                        clicked_data_point = (spot_item.x(), spot_item.y())
+                        break
+
+                    min_dist = 10  # pixels
+                    closest_spot = None
+
+                    for point in target_item.points():
+                        point_scene_pos = target_item.mapToScene(point.pos())
+                        diff = point_scene_pos - event.scenePos()
+                        dist = (diff.x() ** 2 + diff.y() ** 2) ** 0.5
+
+                        if dist < min_dist:
+                            min_dist = dist
+                            closest_spot = point
+
+                    if closest_spot:
+                        spot_pos = closest_spot.pos()
+                        clicked_data_point = (spot_pos.x(), spot_pos.y())
+                        break
 
         if clicked_plot_item is None or clicked_data_point is None:
-            self.show_context_menu(event.screenPos().toPoint())
+            self.show_context_menu(QCursor.pos())
             event.accept()
             return
 
@@ -533,7 +592,7 @@ class TimeLineDock(QWidget):
             action = context_menu.addAction(action_name)
             action.triggered.connect(lambda _, cb=callback: cb(data_point))
 
-        context_menu.exec(QPoint(event.screenPos().toQPoint()))
+        context_menu.exec(QCursor.pos())
 
     def add_timeline_line(
         self,
