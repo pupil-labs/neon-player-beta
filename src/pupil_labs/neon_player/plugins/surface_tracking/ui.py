@@ -5,7 +5,6 @@ from PySide6.QtCore import QPointF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QMouseEvent, QPainter, QPaintEvent, QPixmap
 from PySide6.QtWidgets import QPushButton, QSplitter, QVBoxLayout, QWidget
 from qt_property_widgets.widgets import PropertyForm
-from surface_tracker import CornerId
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin

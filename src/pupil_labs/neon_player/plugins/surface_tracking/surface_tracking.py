@@ -10,8 +10,8 @@ import numpy as np
 import numpy.typing as npt
 import pupil_apriltags
 import pupil_labs.video as plv
-from pupil_labs.camera import Camera
-from pupil_labs.marker_mapper import Surface, fix, utils
+from pupil_labs.camera import Camera, perspective_transform
+from pupil_labs.marker_mapper import Surface, utils
 from pupil_labs.marker_mapper.surface import normalized_corners
 from pupil_labs.neon_recording import NeonRecording
 from PySide6.QtCore import QPointF, Qt
@@ -62,6 +62,10 @@ class SurfaceTrackingPlugin(Plugin):
 
     def on_disabled(self) -> None:
         self.get_timeline().remove_timeline_plot("Marker visibility")
+        for surface in self.surfaces:
+            self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
+            self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
+
 
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
@@ -233,7 +237,7 @@ class SurfaceTrackingPlugin(Plugin):
             if anchors is None:
                 if not surface.location:
                     return
-                anchors = fix.perspectiveTransform(
+                anchors = perspective_transform(
                     normalized_corners(),
                     surface.location[1],
                 )
@@ -399,13 +403,42 @@ class SurfaceTrackingPlugin(Plugin):
                 w -= 1
             if h % 2 != 0:
                 h -= 1
+
             surface.preview_options.render_size = [w, h]
             surface.changed.emit()
+
+            self.add_visibility_timeline(surface)
 
             # refresh
             self.trigger_scene_update()
 
         self.attempt_load_surface_heatmap(surface_uid)
+
+    def add_visibility_timeline(self, surface):
+        surf_viz_path = self.get_cache_path() / f"{surface.uid}_surface_visibility.pkl"
+        if not surf_viz_path.exists():
+            return
+
+        with surf_viz_path.open("rb") as f:
+            visibilities = pickle.load(f)
+
+        self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
+        self.get_timeline().add_timeline_broken_bar(
+            f"Surface: {surface.name}",
+            visibilities,
+        )
+
+    def add_surface_gaze_timeline(self, surface):
+        gaze_upon_file = self.get_cache_path() / f"{surface.uid}_gazes.pkl"
+        if not gaze_upon_file.exists():
+            return
+
+        self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
+        with open(gaze_upon_file, "rb") as f:
+            self.get_timeline().add_timeline_broken_bar(
+                f"Surface Gaze: {surface.name}",
+                pickle.load(f),
+            )
 
     def attempt_load_surface_heatmap(self, surface_uid):
         cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
@@ -440,6 +473,8 @@ class SurfaceTrackingPlugin(Plugin):
         scene_frames = self.recording.scene[start_mask & stop_mask]
 
         mapped_gazes = np.empty((0, 2), dtype=np.float32)
+        gaze_ons = np.zeros([len(self.recording.scene)], dtype=np.uint8)
+
         for idx, frame in enumerate(scene_frames):
             location = self.surface_locations[surface_uid][frame.index]
             if not location:
@@ -458,9 +493,11 @@ class SurfaceTrackingPlugin(Plugin):
 
             gazes = self.recording.gaze[start_mask & stop_mask]
             if len(gazes) > 0:
-                mapped_gazes = np.append(
-                    mapped_gazes, surface.apply_offset_and_map_gazes(gazes), axis=0
-                )
+                frame_gazes = surface.apply_offset_and_map_gazes(gazes)
+                mapped_gazes = np.append(mapped_gazes, frame_gazes, axis=0)
+
+                valid_rows = np.all((frame_gazes >= 0) & (frame_gazes <= 1), axis=1)
+                gaze_ons[idx] = np.any(valid_rows)
 
             yield ProgressUpdate((1 + idx) / len(scene_frames))
 
@@ -499,11 +536,25 @@ class SurfaceTrackingPlugin(Plugin):
         cache_file = self.get_cache_path() / f"{surface.uid}_heatmap.png"
         cv2.imwrite(str(cache_file), hist)
 
+        # gaze on cache for timeline
+        gaze_ons = np.concatenate([[0], gaze_ons])
+        gaze_diff = np.diff(gaze_ons)
+        start_times = self.recording.scene.time[gaze_diff == 1].tolist()
+        stop_times = self.recording.scene.time[gaze_diff == -1].tolist()
+        if len(stop_times) < len(start_times):
+            stop_times.append(self.recording.scene[-1].time)
+
+        gaze_upon_cache_data = list(zip(start_times, stop_times, strict=False))
+        gaze_upon_file = self.get_cache_path() / f"{surface.uid}_gazes.pkl"
+        with open(gaze_upon_file, "wb") as f:
+            pickle.dump(gaze_upon_cache_data, f)
+
     def _load_surface_heatmap(self, surface_uid: str) -> None:
         surface = self.get_surface(surface_uid)
         cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
         surface._heatmap = cv2.imread(str(cache_file))
         self.trigger_scene_update()
+        self.add_surface_gaze_timeline(surface)
 
     def recalculate_heatmap(self, surface_uid: str) -> None:
         cache_file = self.get_cache_path() / f"{surface_uid}_heatmap.png"
@@ -621,6 +672,9 @@ class SurfaceTrackingPlugin(Plugin):
             if heatmap_path.exists():
                 heatmap_path.unlink()
 
+            self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
+            self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
+
         self.changed.emit()
 
     def on_marker_edit_changed(self, surface: "TrackedSurface") -> None:
@@ -722,6 +776,19 @@ class SurfaceTrackingPlugin(Plugin):
         surf_path = self.get_cache_path() / f"{uid}_surface.pkl"
         with surf_path.open("wb") as f:
             pickle.dump(tracker_surf, f)
+
+        visibility = np.array([1 if val else 0 for val in locations])
+        visibility = np.concatenate([[0], visibility])
+        viz_diff = np.diff(visibility)
+        start_times = self.recording.scene.time[viz_diff == 1].tolist()
+        stop_times = self.recording.scene.time[viz_diff == -1].tolist()
+        if len(stop_times) < len(start_times):
+            stop_times.append(self.recording.scene[-1].time)
+
+        visibilities = list(zip(start_times, stop_times, strict=False))
+        surf_viz_path = self.get_cache_path() / f"{uid}_surface_visibility.pkl"
+        with surf_viz_path.open("wb") as f:
+            pickle.dump(visibilities, f)
 
     def bg_export_surface_video(
         self, destination: Path, uid: str

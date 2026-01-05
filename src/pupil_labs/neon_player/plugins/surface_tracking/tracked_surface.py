@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 import pandas as pd
-from pupil_labs.marker_mapper import fix, utils
+from pupil_labs.camera import perspective_transform
+from pupil_labs.marker_mapper import utils
 from pupil_labs.marker_mapper.surface import normalized_corners
-from PySide6.QtCore import QObject, QPointF, QSize, Signal
+from PySide6.QtCore import QObject, QSize, Signal
 from PySide6.QtGui import QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QFileDialog
 from qt_property_widgets.utilities import (
@@ -253,8 +254,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
         tracker_plugin = Plugin.get_instance_by_name("SurfaceTrackingPlugin")
         camera = tracker_plugin.camera
 
-
-        undistorted_corners = fix.perspectiveTransform(
+        undistorted_corners = perspective_transform(
             normalized_corners(),
             self._location[1]
         )
@@ -281,7 +281,24 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
 
     @name.setter
     def name(self, name: str) -> None:
+        if self.tracker_plugin:
+            other_surfaces = [
+                s for s in self.tracker_plugin.surfaces
+                if s.uid != self.uid and s.name == name
+            ]
+            if len(other_surfaces) > 0:
+                logging.error(f"There is already a surface named {name}")
+                return
+
+            timeline = self.tracker_plugin.get_timeline()
+            timeline.remove_timeline_plot(f"Surface: {self._name}")
+            timeline.remove_timeline_plot(f"Surface Gaze: {self._name}")
+
         self._name = name
+
+        if self.tracker_plugin:
+            self.tracker_plugin.add_visibility_timeline(self)
+            self.tracker_plugin.add_surface_gaze_timeline(self)
 
     def on_corner_changed(self, corner_id, pos) -> None:
         camera = Plugin.get_instance_by_name("SurfaceTrackingPlugin").camera
@@ -390,8 +407,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
     def image_points_to_surface(self, points):
         if len(points) == 0:
             return np.array([]).reshape(-1, 2)
-
-        return fix.perspectiveTransform(points, self.location[0])
+        return perspective_transform(points, self.location[0])
 
     def apply_offset_and_map_gazes(self, gazes):
         try:
