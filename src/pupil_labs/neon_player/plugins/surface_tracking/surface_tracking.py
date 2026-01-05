@@ -1,7 +1,8 @@
 import logging
 import pickle
-import typing as T  # noqa: N812
+import typing as T
 import uuid
+from itertools import starmap
 from pathlib import Path
 
 import av
@@ -36,7 +37,7 @@ from pupil_labs.neon_player.utilities import (
     qimage_from_frame,
 )
 
-from .tracked_surface import TrackedSurface  # noqa: TC001
+from .tracked_surface import TrackedSurface
 from .ui import MarkerEditWidget
 
 
@@ -65,7 +66,6 @@ class SurfaceTrackingPlugin(Plugin):
         for surface in self.surfaces:
             self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
             self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
-
 
     def _update_displays(self) -> None:
         frame_idx = self.get_scene_idx_for_time()
@@ -286,7 +286,7 @@ class SurfaceTrackingPlugin(Plugin):
         pen.setCapStyle(Qt.PenCapStyle.FlatCap)
         painter.setPen(pen)
 
-        qpoints = [QPointF(*point) for point in points]
+        qpoints = list(starmap(QPointF, points))
         for seg_idx in [1, 2, 3, 0]:
             if seg_idx == 0:
                 pen.setColor("#ff0000")
@@ -322,7 +322,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         color.setAlpha(200)
         painter.setBrush(color)
-        painter.drawPolygon([QPointF(*point) for point in points])
+        painter.drawPolygon(list(starmap(QPointF, points)))
 
         if self._draw_marker_ids:
             old_pen = painter.pen()
@@ -363,17 +363,27 @@ class SurfaceTrackingPlugin(Plugin):
 
         # marker visibility plot
         marker_count_by_frame = np.array(
-            [0] + [len(v) > 0 for v in self.markers_by_frame], dtype=np.int8
+            [len(v) for v in self.markers_by_frame], dtype=np.int32
         )
-        state_diff = np.diff(marker_count_by_frame.astype(int))
-        start_times = self.recording.scene.time[state_diff == 1].tolist()
-        stop_times = self.recording.scene.time[state_diff == -1].tolist()
-        if len(stop_times) < len(start_times):
-            stop_times.append(self.recording.scene.time[-1])
+        change_indices = np.where(np.diff(marker_count_by_frame) != 0)[0]
+        start_indices = np.concatenate(([0], change_indices + 1))
+        stop_indices = np.concatenate((
+            change_indices,
+            [len(marker_count_by_frame) - 1],
+        ))
+
+        start_times = self.recording.scene.time[start_indices].tolist()
+        stop_times = self.recording.scene.time[stop_indices].tolist()
+
+        n_markers = marker_count_by_frame[start_indices].tolist()
 
         self.get_timeline().add_timeline_broken_bar(
             "Marker visibility",
-            list(zip(start_times, stop_times, strict=False)),
+            [
+                (start, stop, n)
+                for start, stop, n in zip(start_times, stop_times, n_markers)
+                if n > 0
+            ],
         )
 
     def _load_surface_locations_cache(self, surface_uid: str) -> None:
@@ -424,8 +434,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         self.get_timeline().remove_timeline_plot(f"Surface: {surface.name}")
         self.get_timeline().add_timeline_broken_bar(
-            f"Surface: {surface.name}",
-            visibilities,
+            f"Surface: {surface.name}", visibilities, color="#3273FF"
         )
 
     def add_surface_gaze_timeline(self, surface):
@@ -436,8 +445,7 @@ class SurfaceTrackingPlugin(Plugin):
         self.get_timeline().remove_timeline_plot(f"Surface Gaze: {surface.name}")
         with open(gaze_upon_file, "rb") as f:
             self.get_timeline().add_timeline_broken_bar(
-                f"Surface Gaze: {surface.name}",
-                pickle.load(f),
+                f"Surface Gaze: {surface.name}", pickle.load(f), color="#73F7FF"
             )
 
     def attempt_load_surface_heatmap(self, surface_uid):
@@ -755,11 +763,7 @@ class SurfaceTrackingPlugin(Plugin):
 
         else:
             markers = self.markers_by_frame[starting_frame_idx]
-            tracker_surf = Surface.from_apriltag_detections(
-                uid,
-                markers,
-                self.camera
-            )
+            tracker_surf = Surface.from_apriltag_detections(uid, markers, self.camera)
 
         locations = []
         for frame_idx, markers in enumerate(self.markers_by_frame):
