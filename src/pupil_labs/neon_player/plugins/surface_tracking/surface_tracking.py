@@ -814,12 +814,10 @@ class SurfaceTrackingPlugin(Plugin):
                     )
                     painter = QPainter(frame)
                     surface.location = self.surface_locations[uid][scene_frame.index]
-                    if not surface.location:
-                        painter.fillRect(
-                            0, 0, frame.width(), frame.height(), QColorConstants.Gray
-                        )
-                    else:
-                        surface.render(painter, scene_frame.time)
+                    painter.fillRect(
+                        0, 0, frame.width(), frame.height(), QColorConstants.Gray
+                    )
+                    surface.render(painter, scene_frame.time)
 
                     painter.end()
 

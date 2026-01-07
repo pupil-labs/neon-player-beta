@@ -106,6 +106,13 @@ class VideoExporter(neon_player.Plugin):
 
                 frame = QImage(frame_size, QImage.Format.Format_BGR888)
                 painter = QPainter(frame)
+                painter.fillRect(
+                    0,
+                    0,
+                    frame_size.width(),
+                    frame_size.height(),
+                    QColorConstants.Gray
+                )
                 self.app.render_to(painter, int(ts))
                 painter.end()
 
