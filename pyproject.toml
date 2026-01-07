@@ -26,7 +26,7 @@ dependencies = [
     "pandas>=2.2.3",
     "protobuf<6",
     "pupil-apriltags>=1.0.4.post11",
-    "pupil-labs-marker-mapper",
+    "pupil-labs-marker-mapper>=1.0.0",
     "pupil-labs-neon-recording>=2.0.0",
     "pyobjc; sys_platform == 'darwin'",
     "pyqtgraph>=0.13.7",
@@ -82,7 +82,6 @@ dev-dependencies = [
 
 [tool.uv.sources]
 qt-property-widgets = { git = "https://github.com/domstoppable/qt-property-widgets" }
-pupil-labs-marker-mapper = { git = "https://github.com/pupil-labs/marker-mapper" }
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning"]
