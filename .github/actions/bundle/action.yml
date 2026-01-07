@@ -22,7 +22,7 @@ runs:
       with:
         name: bundle-${{ runner.os }}
         path: |
-          dist/*.exe
+          dist/windows/Output/*.exe
           dist/*.dmg
           dist/*.deb
         if-no-files-found: ignore
