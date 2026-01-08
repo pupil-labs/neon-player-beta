@@ -10,9 +10,9 @@
 # Run from source
 
 ```bash
-uv venv .venv --python=3.11
-source .venv/bin/activate # on Windows use .venv/Scripts/activate
-uv sync
+uv venv .venv
+source .venv/bin/activate # on Windows use `.venv/Scripts/activate`
+uv sync --active
 python -m pupil_labs.neon_player [path/to/my/recording]
 ```
 
