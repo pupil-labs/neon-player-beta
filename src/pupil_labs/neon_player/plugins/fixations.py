@@ -37,7 +37,7 @@ class FixationsPlugin(neon_player.Plugin):
         self._visualizations: list[FixationVisualization] = [FixationCircleViz()]
 
         self.gaze_plugin: GazeDataPlugin | None = None
-        self.optic_flow: OpticFlow | None = None
+        self.optic_flow_offsets: np.ndarray | None = None
         self.header_action = ListPropertyAppenderAction("visualizations", "+ Add viz")
 
     def seek_by_fixation(self, direction: int) -> None:
@@ -60,7 +60,7 @@ class FixationsPlugin(neon_player.Plugin):
             return
 
         self._load_optic_flow()
-        if not self.optic_flow and not self.app.headless:
+        if self.optic_flow_offsets is None and not self.app.headless:
             job = self.job_manager.run_background_action(
                 "Calculate optic flow", "FixationsPlugin.bg_optic_flow"
             )
@@ -87,14 +87,9 @@ class FixationsPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        optic_flow_file = self.get_cache_path() / "optic_flow_vectors.npz"
+        optic_flow_file = self.get_cache_path() / "optic_flow_offsets.npz"
         if optic_flow_file.exists():
-            data = np.load(optic_flow_file)
-            self.optic_flow = OpticFlow(
-                ts=data["timestamps"],
-                x=data["optic_flow_x"],
-                y=data["optic_flow_y"],
-            )
+            self.optic_flow_offsets = np.load(optic_flow_file)["offsets"]
 
     def render(self, painter: QPainter, time_in_recording: int) -> None:
         if self.recording is None:
@@ -110,38 +105,17 @@ class FixationsPlugin(neon_player.Plugin):
         fixations = self.fixations[filter_mask]
         fixation_ids = 1 + np.where(filter_mask)[0]
 
-        optic_flow_offsets = []
-        for fixation in fixations:
-            optic_flow_offset = [0, 0]
+        scene_idx = self.get_scene_idx_for_time(time_in_recording)
 
-            if self.optic_flow is not None:
-                start_frame_idx = self.recording.scene.time.searchsorted(
-                    fixation.start_time
-                )
-                current_frame_idx = self.recording.scene.time.searchsorted(
-                    time_in_recording
-                )
-                for frame_idx in range(start_frame_idx, current_frame_idx):
-                    optic_flow_idx = frame_idx - 1
-                    optic_frame_duration = (
-                        self.optic_flow.ts[optic_flow_idx]
-                        - self.optic_flow.ts[optic_flow_idx - 1]
-                    )
-                    optic_flow_offset[0] += (
-                        self.optic_flow.x[optic_flow_idx] * optic_frame_duration
-                    )
-                    optic_flow_offset[1] += (
-                        self.optic_flow.y[optic_flow_idx] * optic_frame_duration
-                    )
-
-            optic_flow_offsets.append(optic_flow_offset)
+        offset = np.array([0, 0]) if self.optic_flow_offsets is None else self.optic_flow_offsets[scene_idx]
+        painter.drawText(20, 20, f"{offset[0]}, {offset[1]}")
 
         for viz in self._visualizations:
             viz.render(
                 painter,
                 fixations,
                 fixation_ids,
-                np.array(optic_flow_offsets),
+                offset,
                 self.get_gaze_offset(),
             )
 
@@ -230,60 +204,85 @@ class FixationsPlugin(neon_player.Plugin):
     def bg_optic_flow(self) -> T.Generator[ProgressUpdate, None, None]:
         recording = self.app.recording
 
-        previous_frame = None
-        list_delta_vec = []
-        timestamps = []
-        delta_time = []
+        offsets_by_frame_idx = {}
+        gaze = recording.gaze
 
-        progress_total = len(recording.scene) + 10
+        fidx = 0
+        for fixation in recording.fixations:
+            fidx += 1
+            gaze_samples = gaze[
+                (fixation.start_time <= gaze.time) & (gaze.time <= fixation.stop_time)
+            ]
 
-        for frame_idx, frame in enumerate(recording.scene):
-            if previous_frame is not None:
-                # get optic flow vectors on a grid
-                delta_vec, _, _ = calc_grid_optic_flow_LK(
-                    previous_frame.gray, frame.gray
+            # Pick the gaze at the temporal center of the fixation as the reference
+            ref_gaze = gaze_samples[len(gaze_samples) // 2]
+
+            # Now calculate how that reference points moves throughout the fixation
+            start_scene_idx, stop_scene_idx = np.searchsorted(
+                recording.scene.time, [fixation.start_time, fixation.stop_time]
+            )
+            scene_frames = recording.scene[start_scene_idx:stop_scene_idx]
+
+            if len(scene_frames) == 0:
+                continue
+
+            scene_frames_ts = [f.time for f in scene_frames]
+            diff = np.abs(np.array(scene_frames_ts) - ref_gaze.time)
+            if np.min(diff) > 100 * 1e6:
+                continue
+
+            idx = int(np.argmin(diff))
+            ref_scene_img = scene_frames[idx].gray
+
+            if ref_scene_img is None:
+                continue
+
+            # First work backwards for the first half of gaze points
+            point = ref_gaze.copy().point
+            scene_image = ref_scene_img.copy()
+            for next_scene_frame in reversed(scene_frames[:idx]):
+                next_scene_img = next_scene_frame.gray
+                next_point = calc_optic_flow(
+                    scene_image,
+                    next_scene_img,
+                    point,
                 )
+                offsets_by_frame_idx[next_scene_frame.index] = ref_gaze.point - next_point
 
-                # average optic flow vectors over the whole image
-                delta_vec = np.nanmean(delta_vec, axis=(0, 1))
+                point = next_point
+                scene_image = next_scene_img
 
-                # keep results
-                list_delta_vec.append(delta_vec)
-                timestamps.append(frame.time)
-                delta_time.append((frame.time - previous_frame.time) / 1e9)
+            # Now work forwards for the second half of gaze points
+            point = ref_gaze.copy().point
+            scene_image = ref_scene_img.copy()
+            for next_scene_frame in scene_frames[idx + 1:]:
+                next_scene_img = next_scene_frame.gray
+                next_point = calc_optic_flow(
+                    scene_image,
+                    next_scene_img,
+                    point,
+                )
+                offsets_by_frame_idx[next_scene_frame.index] = point - next_point
 
-            previous_frame = frame
-            yield ProgressUpdate(frame_idx / progress_total)
+                point = next_point
+                scene_image = next_scene_img
 
-        # reshape data so that first axis is time axis
-        if not len(list_delta_vec):
-            time_axis: np.ndarray = np.array([])
-            optic_flow_x: np.ndarray = np.array([])
-            optic_flow_y: np.ndarray = np.array([])
+            yield ProgressUpdate(next_scene_frame.index / len(recording.scene))
 
-        else:
-            optic_flow_LK = np.stack(list_delta_vec, 0)
-            optic_flow_x = optic_flow_LK[:, 0]
-            optic_flow_y = optic_flow_LK[:, 1]
-            delta_time_array = np.array(delta_time).reshape(-1)
+        offsets_by_frame_idx_arr = []
+        for frame_idx in range(len(recording.scene)):
+            if frame_idx in offsets_by_frame_idx:
+                offsets_by_frame_idx_arr.append(offsets_by_frame_idx[frame_idx])
+            else:
+                offsets_by_frame_idx_arr.append(np.array([0, 0]))
 
-            # convert to pixels/sec
-            optic_flow_x = optic_flow_x / delta_time_array
-            optic_flow_y = optic_flow_y / delta_time_array
-
-            # get time axis
-            ts_array = np.array(timestamps, dtype=np.uint64)
-            time_axis = (ts_array - recording.scene.time[0]) / 1e9
-
-        save_file = self.get_cache_path() / "optic_flow_vectors.npz"
-        logging.info(f"Saving optic flow vectors to {save_file}")
+        save_file = self.get_cache_path() / "optic_flow_offsets.npz"
+        logging.info(f"Saving optic flow offsets to {save_file}")
         save_file.parent.mkdir(parents=True, exist_ok=True)
         with save_file.open("wb") as file_handle:
             np.savez(
                 file_handle,
-                timestamps=time_axis,
-                optic_flow_x=optic_flow_x,
-                optic_flow_y=optic_flow_y,
+                offsets=offsets_by_frame_idx_arr
             )
 
         yield ProgressUpdate(1.0)
@@ -351,7 +350,7 @@ class FixationCircleViz(FixationVisualization):
         painter: QPainter,
         fixations: FixationTimeseries,
         fixation_ids: np.ndarray,
-        optic_flow_offsets: np.ndarray,
+        optic_flow_offset: np.ndarray,
         gaze_offset: tuple[float, float],
     ) -> None:
         if self.recording is None:
@@ -374,13 +373,13 @@ class FixationCircleViz(FixationVisualization):
             if self.recording.scene.height:
                 offset[1] = gaze_offset[1] * self.recording.scene.height
 
-        for fixation_id, fixation, optic_flow_offset in zip(
-            fixation_ids, fixations, optic_flow_offsets, strict=True
+        for fixation_id, fixation in zip(
+            fixation_ids, fixations, strict=True
         ):
             if self._adjust_for_optic_flow:
                 center = QPointF(
-                    fixation.start_gaze_point[0] + offset[0] + optic_flow_offset[0],
-                    fixation.start_gaze_point[1] + offset[1] + optic_flow_offset[1],
+                    fixation.mean_gaze_point[0] + offset[0] - optic_flow_offset[0],
+                    fixation.mean_gaze_point[1] + offset[1] - optic_flow_offset[1],
                 )
             else:
                 center = QPointF(
@@ -427,73 +426,34 @@ class FixationCircleViz(FixationVisualization):
         self._font_size = value
 
 
-def calc_grid_optic_flow_LK(
+def calc_optic_flow(
     previous_frame: np.ndarray,
     current_frame: np.ndarray,
-    grid_spacing: int = 100,
-    lk_winSize: tuple[int, int] | None = (50, 50),
-    lk_maxLevel: int = 4,
+    points: np.ndarray,
+    lk_winSize: tuple[int, int] | None = (90, 90),
+    lk_maxLevel: int = 3,
     lk_criteria: tuple[int, int, float] = (
         cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
-        100,
-        0.01,
+        20,
+        0.03,
     ),
+    lk_min_eig_threshold: float = 0.005,
 ) -> tuple[np.ndarray, np.ndarray, int]:
-    """Calculate optic flow vector between two frames via Lucas-Kanade grid algorithm
 
-    Args:
-        previous_frame: first frame (gray)
-        current_frame: second frame (gray)
-
-        grid_spacing: spacing of the grid to be used
-        lk_winSize: window size for the Lucas-Kanade algorithm (should be large enough)
-        lk_maxLevel: maximum level of pyramids for the Lucas-Kanade algorithm
-        lk_criteria: openCV-recursive algorithm criteria
-
-    Returns:
-        delta_vec: optic flow vectors, arranged on a grid
-        coords: coordinates of the grid points
-        n_quality_points: number of points for successful optic flow estimations
-
-    """
     # define parameters for Lucas-Kanade algorithm
     lk_params = {
         "winSize": lk_winSize,
         "maxLevel": lk_maxLevel,
         "criteria": lk_criteria,
+        "minEigThreshold": lk_min_eig_threshold,
     }
 
-    # define a grid of points to track
-    X, Y = np.meshgrid(
-        np.arange(grid_spacing // 2, previous_frame.shape[0], grid_spacing),
-        np.arange(grid_spacing // 2, previous_frame.shape[1], grid_spacing),
-    )
-    p_0 = (
-        np.vstack((X.flatten(), Y.flatten())).T.reshape(-1, 1, 2).astype(np.float32)
-    )  # format coordinates as required for openCV
-    coords = np.dstack([X, Y])  # format coordinates as (NxMx2)-matrix
-
     # trace points using the Lucas-Kanade algorithm
-    p_1, st, _ = cv2.calcOpticalFlowPyrLK(  # type: ignore
-        previous_frame, current_frame, p_0, None, **lk_params
+    corrected_points, status, err = cv2.calcOpticalFlowPyrLK(  # type: ignore
+        previous_frame, current_frame, points.reshape([-1, 1, 2]), None, **lk_params
     )
+    return corrected_points.reshape(points.shape)
 
-    # set all points which could not be successfully traces to NaN
-    p_1[st == 0] = np.nan  # these are the new locations of the points
-    p_0[st == 0] = np.nan
-
-    # rearrange back to 2D grid
-    p_1 = np.dstack([p_1[:, 0, 0].reshape(X.shape), p_1[:, 0, 1].reshape(X.shape)])
-    p_0b = np.dstack([p_0[:, 0, 0].reshape(X.shape), p_0[:, 0, 1].reshape(X.shape)])
-
-    # get difference vectors for each position
-    delta_vec = p_1 - p_0b
-
-    n_quality_points = st.sum()  # number of points that could be successfully traced
-    if n_quality_points < 1:  # return only zeros if no points could be traced at all
-        delta_vec = np.zeros((*X.shape, 2))
-
-    return delta_vec, coords, n_quality_points
 
 
 class LKParams(T.NamedTuple):
