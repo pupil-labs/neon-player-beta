@@ -10,6 +10,8 @@ def plugin_label_lookup(cls_name: str) -> str:
         cls = Plugin.get_class_by_name(cls_name)
         if cls and hasattr(cls, "label"):
             return cls.label
+        else:
+            return cls_name
     except ValueError:
         pass
 
