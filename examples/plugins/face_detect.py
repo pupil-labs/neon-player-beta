@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
-#     "mediapipe",
+#     "mediapipe<0.10.30",
 # ]
 # ///
 import logging
@@ -21,6 +21,8 @@ from pupil_labs.neon_recording import NeonRecording
 
 
 class FaceDetection(Plugin):
+    label = "Face Detection"
+
     def __init__(self):
         super().__init__()
 
