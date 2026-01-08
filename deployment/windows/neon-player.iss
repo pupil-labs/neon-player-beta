@@ -24,7 +24,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 OutputBaseFilename=neon-player-{#MyAppVersion}
 SolidCompression=yes
 WizardStyle=modern windows11
-OutputDir=.
+OutputDir=../
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
