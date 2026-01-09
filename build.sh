@@ -44,7 +44,9 @@ uv run -m nuitka src/pupil_labs/neon_player \
     --include-package-data=qt_property_widgets \
     --include-package=plistlib \
     --include-package=google.protobuf \
-    --include-module=ctypes.util
+    --include-module=ctypes.util \
+    --include-module=cmath \
+    --include-module=zoneinfo
 
 cp -r deployment/* dist/
 cd dist
