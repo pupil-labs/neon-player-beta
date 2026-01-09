@@ -10,7 +10,7 @@ echo "Build $VERSION ($VERSION_SIMPLE)"
 uv run pyside6-uic src/pupil_labs/neon_player/assets/splash.ui \
     -o src/pupil_labs/neon_player/ui/splash.py
 
-UV_PATH=$(uv run python -c "import uv; print(uv.find_uv_bin())")
+UV_PATH=$(which uv)
 
 uv run -m nuitka src/pupil_labs/neon_player \
     --assume-yes-for-downloads \
