@@ -10,7 +10,11 @@ echo "Build $VERSION ($VERSION_SIMPLE)"
 uv run pyside6-uic src/pupil_labs/neon_player/assets/splash.ui \
     -o src/pupil_labs/neon_player/ui/splash.py
 
-UV_PATH=$(which uv)
+if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    UV_PATH=$(where uv)
+else
+    UV_PATH=$(which uv)
+fi
 
 uv run -m nuitka src/pupil_labs/neon_player \
     --assume-yes-for-downloads \
