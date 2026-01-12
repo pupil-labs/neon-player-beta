@@ -31,6 +31,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
         self._default_plugins = dict.fromkeys(plugin_names, False)
         self._default_plugins.update({
             "GazeDataPlugin": True,
+            "AudioPlugin": True,
             "SceneRendererPlugin": True,
             "EventsPlugin": True,
             "ExportAllPlugin": True,
