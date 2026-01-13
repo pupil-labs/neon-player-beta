@@ -83,10 +83,13 @@ def install_dependencies(dependencies: list[str]):
     else:
         uv_cmd = "uv"
 
+    pyver = sys.version_info
+
     command = [
         uv_cmd,
         "pip",
         "install",
+        f"--python={pyver.major}.{pyver.minor}.{pyver.micro}",
         f"--target={SITE_PACKAGES_DIR}",
         *dependencies,
     ]

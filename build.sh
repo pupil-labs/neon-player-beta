@@ -10,7 +10,11 @@ echo "Build $VERSION ($VERSION_SIMPLE)"
 uv run pyside6-uic src/pupil_labs/neon_player/assets/splash.ui \
     -o src/pupil_labs/neon_player/ui/splash.py
 
-UV_PATH=$(uv run python -c "import uv; print(uv.find_uv_bin())")
+if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+    UV_PATH=$(where uv)
+else
+    UV_PATH=$(which uv)
+fi
 
 uv run -m nuitka src/pupil_labs/neon_player \
     --assume-yes-for-downloads \
@@ -44,7 +48,9 @@ uv run -m nuitka src/pupil_labs/neon_player \
     --include-package-data=qt_property_widgets \
     --include-package=plistlib \
     --include-package=google.protobuf \
-    --include-module=ctypes.util
+    --include-module=ctypes.util \
+    --include-module=cmath \
+    --include-module=zoneinfo
 
 cp -r deployment/* dist/
 cd dist
