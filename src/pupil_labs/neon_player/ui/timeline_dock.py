@@ -331,12 +331,7 @@ class TimeLineDock(QWidget):
 
             time_ns = max(app.recording.start_time, time_ns)
             time_ns = min(app.recording.stop_time, time_ns)
-
-            was_playing = app.is_playing
-            app.set_playback_state(False)
-
             app.seek_to(time_ns)
-            app.set_playback_state(was_playing)
 
             return
 

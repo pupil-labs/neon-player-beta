@@ -477,7 +477,8 @@ class NeonPlayerApp(QApplication):
         self.position_changed.emit(self.current_ts)
         self.seeked.emit(self.current_ts)
 
-        self.set_playback_state(restart_playback)
+        if restart_playback:
+            QTimer.singleShot(5, lambda: self.set_playback_state(True))
 
     def seek_by(self, ns: int) -> None:
         self.seek_to(self.current_ts + ns)
