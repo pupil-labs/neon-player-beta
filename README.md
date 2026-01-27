@@ -7,6 +7,8 @@
 [![pre-commit](https://img.shields.io/badge/pre_commit-black?logo=pre-commit&logoColor=FAB041)](https://github.com/pre-commit/pre-commit)
 [![pypi version](https://img.shields.io/pypi/v/pupil-labs-neon-player.svg)](https://pypi.org/project/pupil-labs-neon-player/)
 
+[![Neon Player banner](https://raw.githubusercontent.com/pupil-labs/neon-player-beta/refs/heads/main/docs/assets/banner.png)](https://pupil-labs.com/)
+
 # Run from source
 
 ```bash
@@ -28,7 +30,7 @@ python -m pupil_labs.neon_player [path/to/my/recording]
 - If your plugin has multiple files, put them in a folder with a `__init__.py` file that either defines your `Plugin` class or imports a module which does. Do not create an instance of your plugin - just define the class which inherits from `pupil_labs.neon_player.Plugin`.
 - If your plugin needs python dependencies, list them as [inline script metadata (aka PEP 723)](https://packaging.python.org/en/latest/specifications/inline-script-metadata/#inline-script-metadata). Neon Player will detect these and install them to `$HOME/Pupil Labs/Neon Player/plugins/site-packages` automatically.
 
-To expose a plugin setting to the GUI, define a property with getter/setter functions and appropriate type hints. You can control some options of the parameter GUI widget using th `@property_params` decorator. For example, by defining a `min` and `max`  for `int` or `float` properties, the UI will present a slider.
+To expose a plugin setting to the GUI, define a property with getter/setter functions and appropriate type hints. You can control some options of the parameter GUI widget using th `@property_params` decorator. For example, by defining a `min` and `max` for `int` or `float` properties, the UI will present a slider.
 
 You can also expose a function to the GUI by using the `@action` decorator. It will appear as a button, with each of its arguments as an input field
 
