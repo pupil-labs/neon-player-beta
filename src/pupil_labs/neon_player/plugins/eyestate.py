@@ -85,7 +85,7 @@ class EyestatePluginGlobalProps(PlotProps, GlobalPluginProperties):
 
 
 class EyestatePlugin(PlotProps, neon_player.Plugin):
-    label = "Eyestate"
+    label = "3D Eye States"
     global_properties = EyestatePluginGlobalProps()
 
     def __init__(self) -> None:
@@ -228,7 +228,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         if self.eyestate_data is None:
             return
 
-        export_file = destination / "eyestate.csv"
+        export_file = destination / "3d_eye_states.csv"
 
         start_time, stop_time = neon_player.instance().recording_settings.export_window
         start_mask = self.eyestate_data["timestamp [ns]"] >= start_time
