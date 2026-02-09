@@ -11,7 +11,7 @@ from pupil_labs.neon_recording import NeonRecording
 
 
 class IMUPlugin(neon_player.Plugin):
-    label = "IMU"
+    label = "IMU Stream"
 
     def __init__(self) -> None:
         super().__init__()

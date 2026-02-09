@@ -29,7 +29,7 @@ from pupil_labs.neon_recording.timeseries import FixationTimeseries
 
 
 class FixationsPlugin(neon_player.Plugin):
-    label = "Fixations"
+    label = "Fixations & Saccades"
 
     def __init__(self) -> None:
         super().__init__()
