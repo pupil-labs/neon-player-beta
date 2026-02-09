@@ -1,5 +1,6 @@
 import logging
 import typing as T
+from csv import DictWriter
 from pathlib import Path
 
 import av
@@ -29,6 +30,7 @@ class VideoExporter(neon_player.Plugin):
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> BackgroundJob | T.Generator:
         app = neon_player.instance()
+
         if not app.headless:
             return self.job_manager.run_background_action(
                 "Video Export", "VideoExporter.export", destination
@@ -70,6 +72,12 @@ class VideoExporter(neon_player.Plugin):
                 gap_timestamps,
                 combined_timestamps[gap + 1 :],
             ))
+
+        with (destination / "world_timestamps.csv").open("w") as ts_file:
+            writer = DictWriter(ts_file, fieldnames=["recording id", "timestamp"])
+            writer.writeheader()
+            for ts in combined_timestamps:
+                writer.writerow({"recording id": recording.id, "timestamp": ts})
 
         frame_size = QSize(
             recording.scene.width or 1600, recording.scene.height or 1200
