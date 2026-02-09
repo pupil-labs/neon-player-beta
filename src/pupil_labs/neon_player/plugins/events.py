@@ -391,6 +391,7 @@ class EventsPlugin(neon_player.Plugin):
         events_df["timestamp [ns]"] = events_df["timestamp [ns]"].astype(
             self.recording.events.time.dtype
         )
+        events_df = events_df.sort_values("timestamp [ns]")
         start_mask = events_df["timestamp [ns]"] >= start_time
         stop_mask = events_df["timestamp [ns]"] <= stop_time
         events_df = events_df[start_mask & stop_mask]
