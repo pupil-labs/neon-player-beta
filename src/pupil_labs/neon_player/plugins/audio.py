@@ -10,10 +10,12 @@ from PySide6.QtWidgets import (
     QSlider,
     QVBoxLayout,
 )
+from scipy.io import wavfile
 
 from pupil_labs import neon_player
 from pupil_labs.neon_player.job_manager import ProgressUpdate
 from pupil_labs.neon_recording import NeonRecording
+from pupil_labs.video.reader import StreamNotFound
 
 
 class AudioPlugin(neon_player.Plugin):
@@ -25,6 +27,7 @@ class AudioPlugin(neon_player.Plugin):
         self.player = QMediaPlayer()
         self.player.setAudioOutput(self.audio_output)
         self.player.mediaStatusChanged.connect(self.on_media_status_changed)
+        self.recording_has_audio = False
 
         self.app.playback_state_changed.connect(self.on_playback_state_changed)
         self.app.seeked.connect(self.on_user_seeked)
@@ -41,16 +44,23 @@ class AudioPlugin(neon_player.Plugin):
         self.player.stop()
         self.player.setSource(QUrl())
         self.get_timeline().toolbar_layout.removeWidget(self.volume_button)
+        self.get_timeline().remove_timeline_plot("Audio")
 
     def on_media_status_changed(self, status: QMediaPlayer.MediaStatus):
         if status == QMediaPlayer.MediaStatus.LoadedMedia:
             self.sync_position()
 
     def sync_position(self):
+        if not self.recording_has_audio:
+            return
+
         position = self.app.current_ts
-        rel_time_ms = round((position - self.recording.audio.time[0]) / 1e6)
-        self.player.setPosition(rel_time_ms)
-        self.player.setPlaybackRate(self.app.playback_speed)
+        try:
+            rel_time_ms = round((position - self.recording.audio.time[0]) / 1e6)
+            self.player.setPosition(rel_time_ms)
+            self.player.setPlaybackRate(self.app.playback_speed)
+        except StreamNotFound:
+            pass
 
     def on_speed_changed(self, speed: float) -> None:
         self.sync_position()
@@ -66,6 +76,7 @@ class AudioPlugin(neon_player.Plugin):
             self.player.stop()
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
+        self.recording_has_audio = False
         if not self.cache_file.exists():
             if self.app.headless:
                 self.extract_audio()
@@ -81,14 +92,33 @@ class AudioPlugin(neon_player.Plugin):
             self.load_audio()
 
     def load_audio(self):
+        if not self.cache_file.exists():
+            return
+
         self.player.setSource(QUrl.fromLocalFile(str(self.cache_file)))
         self.on_playback_state_changed(self.app.is_playing)
+
+        # load the audio data into a numpy array
+        _, audio_data = wavfile.read(str(self.cache_file))
+        timestamps = np.arange(len(audio_data)) / self.recording.audio.rate
+        timestamps *= 1e9
+        timestamps += self.recording.scene.time[0]
+
+        data = np.column_stack((timestamps, audio_data))
+        timeline = self.get_timeline()
+        timeline.add_timeline_line("Audio", data)
+        self.recording_has_audio = True
 
     def extract_audio(self):
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
 
         container = av.open(str(self.cache_file), "w")
-        stream = container.add_stream("pcm_s16le", rate=self.recording.audio.rate)
+        try:
+            stream = container.add_stream("pcm_s16le", rate=self.recording.audio.rate)
+        except StreamNotFound:
+            yield ProgressUpdate(1.0)
+            return
+
         stream.layout = self.recording.audio[0].av_frame.layout
 
         next_expected_frame_time = None
