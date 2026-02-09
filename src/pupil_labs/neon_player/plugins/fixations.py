@@ -133,7 +133,7 @@ class FixationsPlugin(neon_player.Plugin):
         self.unregister_action("Playback/Next Fixation")
         self.unregister_action("Playback/Previous Fixation")
 
-    def get_export_data(self) -> pd.DataFrame:
+    def get_export_fixations(self) -> pd.DataFrame:
         start_time, stop_time = neon_player.instance().recording_settings.export_window
         start_mask = self.recording.fixations.stop_time > start_time
         stop_mask = self.recording.fixations.start_time < stop_time
@@ -173,14 +173,43 @@ class FixationsPlugin(neon_player.Plugin):
 
         return export_data
 
+    def get_export_saccades(self) -> pd.DataFrame:
+        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_mask = self.recording.saccades.stop_time > start_time
+        stop_mask = self.recording.saccades.start_time < stop_time
+
+        saccades_ids = np.arange(len(self.recording.saccades)) + 1
+
+        saccades = self.recording.saccades[start_mask & stop_mask]
+        saccade_ids = saccades_ids[start_mask & stop_mask]
+
+        export_data = pd.DataFrame({
+            "recording id": self.recording.info["recording_id"],
+            "saccade id": saccade_ids,
+            "start timestamp [ns]": saccades.start_time,
+            "end timestamp [ns]": saccades.stop_time,
+            "duration [ms]": (saccades.stop_time - saccades.start_time) / 1e6,
+            "amplitude [deg]": saccades.amplitude,
+            "mean velocity [px/s]": saccades.mean_velocity,
+            "peak velocity [px/s]": saccades.max_velocity,
+        })
+
+        return export_data
+
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()) -> None:
-        export_data = self.get_export_data()
+        export_fixations = self.get_export_fixations()
 
         export_file = destination / "fixations.csv"
-        export_data.to_csv(export_file, index=False)
+        export_fixations.to_csv(export_file, index=False)
         logging.info(f"Exported fixations to '{export_file}'")
+
+        export_saccades = self.get_export_saccades()
+
+        export_file = destination / "saccades.csv"
+        export_saccades.to_csv(export_file, index=False)
+        logging.info(f"Exported saccades to '{export_file}'")
 
     @property
     @property_params(

@@ -457,7 +457,7 @@ class TrackedSurface(PersistentPropertiesMixin, QObject):
             )
             return
 
-        fixation_data = fixations_plugin.get_export_data()
+        fixation_data = fixations_plugin.get_export_fixations()
         fixation_data["fixation detected on surface"] = 0
 
         fixation_points = fixation_data[["fixation x [px]", "fixation y [px]"]]
