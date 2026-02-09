@@ -238,7 +238,7 @@ class FixationsPlugin(neon_player.Plugin):
                 continue
 
             # First work backwards for the first half of gaze points
-            point = ref_gaze.copy().point
+            point = ref_gaze.point
             scene_image = ref_scene_img.copy()
             for next_scene_frame in reversed(scene_frames[:idx]):
                 next_scene_img = next_scene_frame.gray
@@ -253,7 +253,7 @@ class FixationsPlugin(neon_player.Plugin):
                 scene_image = next_scene_img
 
             # Now work forwards for the second half of gaze points
-            point = ref_gaze.copy().point
+            point = ref_gaze.point
             scene_image = ref_scene_img.copy()
             for next_scene_frame in scene_frames[idx + 1:]:
                 next_scene_img = next_scene_frame.gray
@@ -453,20 +453,6 @@ def calc_optic_flow(
         previous_frame, current_frame, points.reshape([-1, 1, 2]), None, **lk_params
     )
     return corrected_points.reshape(points.shape)
-
-
-
-class LKParams(T.NamedTuple):
-    """Params for cv2.calcOpticalFlowPyrLK"""
-
-    grid_spacing: int = 100  # spacing of the grid to be used
-    win_size: tuple[int, int] = (50, 50)  # window size for the Lucas-Kanade algorithm
-    max_level: int = 4  # maximum level of pyramids for the Lucas-Kanade algorithm
-    criteria: tuple[int, int, float] = (  # openCV-recursive algorithm criteria
-        cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
-        100,
-        0.01,
-    )
 
 
 class OpticFlow(T.NamedTuple):
