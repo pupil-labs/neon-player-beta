@@ -134,6 +134,7 @@ class EyestatePlugin(PlotProps, neon_player.Plugin):
         eyeball = recording.eyeball
         pupil = recording.pupil
         eyestate_data_dict = {
+            "recording id": recording.id,
             "timestamp [ns]": eyeball.time,
             "pupil diameter left [mm]": pupil.diameter_left,
             "pupil diameter right [mm]": pupil.diameter_right,
