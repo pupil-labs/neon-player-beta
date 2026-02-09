@@ -108,7 +108,6 @@ class FixationsPlugin(neon_player.Plugin):
         scene_idx = self.get_scene_idx_for_time(time_in_recording)
 
         offset = np.array([0, 0]) if self.optic_flow_offsets is None else self.optic_flow_offsets[scene_idx]
-        painter.drawText(20, 20, f"{offset[0]}, {offset[1]}")
 
         for viz in self._visualizations:
             viz.render(
