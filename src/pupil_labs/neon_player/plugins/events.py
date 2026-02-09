@@ -396,6 +396,12 @@ class EventsPlugin(neon_player.Plugin):
         stop_mask = events_df["timestamp [ns]"] <= stop_time
         events_df = events_df[start_mask & stop_mask]
 
+        events_df["type"] = "player"
+        for index, row in events_df.iterrows():
+            matching = self.recording.events.sample([row["timestamp [ns]"]])
+            if any(row["name"] == matching.event):
+                events_df.loc[index, "type"] = "recording"
+
         destination_file = destination / "events.csv"
         events_df.to_csv(destination_file, index=False)
 
