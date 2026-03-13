@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QToolButton,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
@@ -46,6 +47,7 @@ class TimeLineDock(QWidget):
 
         self.timeline_plots: dict[str, pg.PlotItem] = {}
         self.timeline_legends: dict[str, pg.LegendItem] = {}
+        self.hover_lines: dict[str, pg.InfiniteLine] = {}
         self.plot_colors = [
             QColor("#1f77b4"),
             QColor("#ff7f0e"),
@@ -228,6 +230,135 @@ class TimeLineDock(QWidget):
         data_pos = self.timestamps_plot.getViewBox().mapSceneToView(pos)
         for tm in self.trim_markers:
             tm.set_highlighted(self.dragging == tm or tm.nearby(data_pos))
+
+        self._update_tooltip(pos, data_pos.x())
+
+    def _update_tooltip(self, pos: QPointF, x: float):
+        tooltip_text = ""
+        hovered_plot_name = None
+        for name, plot_item in self.timeline_plots.items():
+            if plot_item.sceneBoundingRect().contains(pos):
+                hovered_plot_name = name
+                break
+
+        if hovered_plot_name and hovered_plot_name != "Export window":
+            plot_item = self.timeline_plots[hovered_plot_name]
+            lines = []
+
+            view_box = plot_item.getViewBox()
+            pixel_width = view_box.viewPixelSize()[0]
+            x_threshold = 20 * pixel_width
+
+            for item in plot_item.items:
+                if isinstance(item, pg.PlotDataItem):
+                    self._add_plot_data_item_tooltip(item, x, x_threshold, lines)
+                elif isinstance(item, pg.BarGraphItem):
+                    self._add_bar_graph_item_tooltip(item, x, lines, hovered_plot_name)
+
+            if lines:
+                tooltip_html = "<br>".join(lines)
+                tooltip_text = (
+                    f"<html><head><style>p, body {{ "
+                    f"margin: 0; padding: 0; line-height: 1.0; }}</style></head>"
+                    f"<body>{tooltip_html}</body></html>"
+                )
+
+        if tooltip_text:
+            QToolTip.showText(QCursor.pos(), tooltip_text)
+
+            for line in self.hover_lines.values():
+                line.setPos(x)
+                line.setVisible(True)
+        else:
+            QToolTip.hideText()
+            for line in self.hover_lines.values():
+                line.setVisible(False)
+
+    def _add_plot_data_item_tooltip(self, item, x, x_threshold, lines):
+        x_data, y_data = item.getData()
+        if x_data is not None and len(x_data) > 0 and y_data is not None:
+            idx = np.searchsorted(x_data, x)
+            if 0 < idx < len(x_data):
+                if abs(x_data[idx] - x) < abs(x_data[idx - 1] - x):
+                    closest_idx = idx
+                else:
+                    closest_idx = idx - 1
+            elif idx == 0:
+                closest_idx = 0
+            else:
+                closest_idx = len(x_data) - 1
+
+            if abs(x_data[closest_idx] - x) <= x_threshold:
+                y_val = y_data[closest_idx]
+
+                name_attr = getattr(item, "name", "")
+                name = name_attr() if callable(name_attr) else name_attr
+                if not name:
+                    name = item.opts.get("name", "")
+
+                if isinstance(y_val, (float, np.floating)):
+                    val_str = f"{y_val:.4g}"
+                else:
+                    val_str = f"{y_val}"
+
+                if name:
+                    lines.append(f"<b>{name}:</b> {val_str}")
+                else:
+                    lines.append(val_str)
+
+    def _add_bar_graph_item_tooltip(self, item, x, lines, plot_name=""):
+        opts = item.opts
+        x0 = opts.get("x0")
+        x1 = opts.get("x1")
+        if x0 is not None and x1 is not None:
+            for i in range(len(x0)):
+                if x0[i] <= x <= x1[i]:
+                    name_attr = getattr(item, "name", "")
+                    name = name_attr() if callable(name_attr) else name_attr
+                    if not name:
+                        name = opts.get("name", "Value")
+
+                    val_str = "Active"
+                    if hasattr(item, "bar_values") and item.bar_values is not None:
+                        val = item.bar_values[i]
+                        if not np.isnan(val):
+                            if isinstance(val, (float, np.floating)):
+                                val_str = f"{val:.4g}"
+                            else:
+                                val_str = str(val)
+                        else:
+                            val_str = self._format_duration(
+                                x0[i], x1[i], plot_name, name, i
+                            )
+                    else:
+                        val_str = self._format_duration(
+                            x0[i], x1[i], plot_name, name, i
+                        )
+
+                    display_name = (
+                        name if name and name != "Value" else plot_name or name
+                    )
+                    if display_name:
+                        lines.append(f"<b>{display_name}:</b> {val_str}")
+                    else:
+                        lines.append(val_str)
+                    break
+
+    def _format_duration(self, start, stop, plot_name, name, index):
+        ms = (stop - start) / 1_000_000
+        if ms >= 60_000:
+            mins = int(ms // 60_000)
+            secs = (ms % 60_000) / 1000
+            dur_str = f"{mins}m {secs:.1f}s"
+        elif ms >= 1_000:
+            secs = ms / 1000
+            dur_str = f"{secs:.1f} s"
+        else:
+            dur_str = f"{ms:.1f} ms"
+
+        is_blink_or_fix = plot_name in ["Blinks", "Fixations"]
+        is_blink_or_fix = is_blink_or_fix or name in ["Blinks", "Fixations"]
+        return f"ID: {index + 1} | {dur_str}" if is_blink_or_fix else dur_str
 
     def on_whitespace_mouse_moved(self, event):
         if event.buttons() == Qt.LeftButton:
@@ -476,6 +607,20 @@ class TimeLineDock(QWidget):
         plot_item.hideAxis("bottom")
         plot_item.showGrid(x=True, y=False, alpha=0.3)
 
+        hover_line = pg.InfiniteLine(
+            angle=90,
+            movable=False,
+            pen=pg.mkPen(
+                color=QColor(255, 255, 255, 128),
+                width=1,
+                style=Qt.PenStyle.DashLine,
+            ),
+        )
+        hover_line.setZValue(1000)
+        hover_line.setVisible(False)
+        plot_item.addItem(hover_line)
+        self.hover_lines[timeline_row_name] = hover_line
+
         if app.recording:
             duration = app.recording.stop_time - app.recording.start_time
             plot_item.getViewBox().setLimits(
@@ -549,6 +694,9 @@ class TimeLineDock(QWidget):
 
         self.graphics_layout.removeItem(plot)
         del self.timeline_plots[plot_name]
+
+        if plot_name in self.hover_lines:
+            del self.hover_lines[plot_name]
 
         if plot_name in self.timeline_legends:
             legend = self.timeline_legends[plot_name]
@@ -652,8 +800,15 @@ class TimeLineDock(QWidget):
             pens, brushes = _resolve_bar_colors(color_values, color, len(starts_raw))
 
             bars = pg.BarGraphItem(
-                x0=starts_raw, x1=stops_raw, y0=-0.4, y1=0.4, pens=pens, brushes=brushes
+                x0=starts_raw,
+                x1=stops_raw,
+                y0=-0.4,
+                y1=0.4,
+                pens=pens,
+                brushes=brushes,
+                name=item_name,
             )
+            bars.bar_values = values
             plot_widget.addItem(bars)
         else:
             bars = []

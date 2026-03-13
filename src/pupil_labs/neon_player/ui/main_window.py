@@ -102,6 +102,15 @@ class MainWindow(QMainWindow):
         app.setPalette(QPalette(QColor("#1c2021")))
 
         app.setStyleSheet("""
+            QToolTip {
+                background-color: rgba(34, 34, 34, 204);
+                color: #fff;
+                border: 0px;
+                border-radius: 8px;
+                padding: 1px 4px;
+                margin: 0px;
+            }
+
             QWidget {
                 font-family: arial;
                 font-size: 11pt;
