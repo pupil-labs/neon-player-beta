@@ -1,8 +1,8 @@
-import sys
 import importlib.metadata
 import logging
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 from pupil_labs import neon_player
@@ -19,7 +19,7 @@ def get_installed_packages() -> set[str]:
     """Get a set of installed package names in the shared site-packages."""
     try:
         return {
-            dist.metadata["name"].lower()
+            dist.metadata["name"].lower().replace("_", "-")
             for dist in importlib.metadata.distributions(path=[str(SITE_PACKAGES_DIR)])
         }
     except Exception:
@@ -47,7 +47,7 @@ def check_dependencies_for_plugin(plugin_path: Path) -> tuple[str, list[str]] | 
                 all_deps_to_install.add(dep_string)
                 match = re.match(r"^[a-zA-Z0-9-_]+", dep_string)
                 if match:
-                    all_dep_names.add(match.group(0).lower())
+                    all_dep_names.add(match.group(0).lower().replace("_", "-"))
 
     except Exception:
         logging.exception(f"Could not parse dependencies for {plugin_path.name}")
@@ -64,7 +64,8 @@ def check_dependencies_for_plugin(plugin_path: Path) -> tuple[str, list[str]] | 
     deps_to_install_filtered = sorted([
         full_dep
         for full_dep in all_deps_to_install
-        if re.match(r"^[a-zA-Z0-9-_]+", full_dep).group(0).lower() in missing_dep_names
+        if re.match(r"^[a-zA-Z0-9-_]+", full_dep).group(0).lower().replace("_", "-")
+        in missing_dep_names
     ])
 
     logging.info(f"Found missing plugin dependencies: {deps_to_install_filtered}")
