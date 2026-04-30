@@ -15,6 +15,7 @@ from pupil_labs.neon_recording import NeonRecording
 if T.TYPE_CHECKING:
     from pupil_labs.neon_player.app import NeonPlayerApp
     from pupil_labs.neon_player.job_manager import JobManager
+    from pupil_labs.neon_player.workspace import Workspace
 
 
 class GlobalPluginProperties(PersistentPropertiesMixin):
@@ -152,6 +153,11 @@ class Plugin(PersistentPropertiesMixin, QObject):
     @property_params(widget=None, dont_encode=True)
     def app(self) -> "NeonPlayerApp":
         return neon_player.instance()
+
+    @property
+    @property_params(widget=None, dont_encode=True)
+    def workspace(self) -> "Workspace":
+        return neon_player.instance().workspace
 
     @property
     @property_params(widget=None, dont_encode=True)

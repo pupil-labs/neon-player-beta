@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import (
     QKeyCombination,
     Qt,
+    QSize,
     QTimer,
     QUrl,
 )
@@ -46,10 +47,12 @@ from qt_property_widgets.widgets import PropertyForm
 from pupil_labs import neon_player
 from pupil_labs.neon_player import Plugin, asset_path
 from pupil_labs.neon_player.ui import QtShortcutType
+from pupil_labs.neon_player.ui.components import HoverRowTable
 from pupil_labs.neon_player.ui.console import LOG_COLORS, ConsoleWindow
 from pupil_labs.neon_player.ui.settings_panel import SettingsPanel
 from pupil_labs.neon_player.ui.timeline_dock import TimeLineDock
 from pupil_labs.neon_player.ui.video_render_widget import VideoRenderWidget
+from pupil_labs.neon_player.ui.workspace_sidebar import WorkspaceSidebar
 from pupil_labs.neon_player.utilities import SlotDebouncer
 from pupil_labs.neon_recording import NeonRecording
 
@@ -68,6 +71,7 @@ class SplashWidget(Ui_Class, QtBaseClass):
         self.setupUi(self)
         self.logo.setPixmap(QPixmap(asset_path("Primary-White-76px.png")))
         self.recent_button.setIcon(QIcon(str(asset_path("recent.svg"))))
+        self.recent_button.setIconSize(QSize(24, 24))
         self.recent_button.setObjectName("RecentButton")
         self.recent_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAcceptDrops(True)
@@ -98,32 +102,6 @@ class SplashWidget(Ui_Class, QtBaseClass):
                 return
 
         event.ignore()
-
-
-class HoverRowTable(QTableWidget):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.setMouseTracking(True)
-
-    def update_hovered_row(self, cursor_position):
-        idx = self.indexAt(cursor_position)
-        if idx.isValid():
-            self.setCurrentCell(idx.row(), 0)
-            self.setCursor(Qt.CursorShape.PointingHandCursor)
-
-    def mouseMoveEvent(self, event):
-        self.update_hovered_row(event.pos())
-        super().mouseMoveEvent(event)
-
-    def wheelEvent(self, event):
-        self.update_hovered_row(event.position().toPoint())
-        super().wheelEvent(event)
-
-    def leaveEvent(self, event):
-        self.clearSelection()
-        self.setCurrentCell(-1, -1)
-        self.setCursor(Qt.CursorShape.ArrowCursor)
-        super().leaveEvent(event)
 
 
 class RecentWidget(QWidget):
@@ -274,33 +252,6 @@ class MainWindow(QMainWindow):
                 background: #1c2021;
             }
 
-            QTableWidget, QHeaderView {
-                background: transparent;
-                border: none;
-            }
-
-            QTableWidget::item {
-                border-bottom: 1px solid #292d2d;
-                padding: 20px;
-                padding-left: 0px;
-            }
-
-            QTableWidget::item:selected {
-                background: #292d2d;
-            }
-
-            QHeaderView::section {
-                background-color: transparent;
-                border: none;
-                color: #a09fa6;
-                font-size: 10pt;
-                font-weight: normal;
-            }
-
-            QHeaderView::section:hover {
-                background-color: #292d2d;
-            }
-
             QMenuBar::item:selected,
             QMenu::item:selected {
                 color: #fff;
@@ -344,7 +295,7 @@ class MainWindow(QMainWindow):
                 padding-bottom: 5px;
             }
 
-            SettingsPanel QLabel#ExpanderName {
+            SettingsPanel QLabel#ExpanderName, WorkspaceSidebar QLabel {
                 color: #fff;
                 font-size: 12pt;
                 font-weight: bold;
@@ -440,8 +391,9 @@ class MainWindow(QMainWindow):
         self.greeting_switcher.addWidget(self.recent_widget)
         self.setCentralWidget(central_widget)
 
+        app.workspace_loaded.connect(self.on_workspace_opened)
         app.recording_loaded.connect(self.on_recording_opened)
-        app.recording_unloaded.connect(self.on_recording_closed)
+        app.workspace_unloaded.connect(self.on_workspace_closed)
 
         self.status_label = QPushButton()
         self.status_label.setFlat(True)
@@ -466,6 +418,14 @@ class MainWindow(QMainWindow):
         self.timeline = TimeLineDock()
         self.timeline_dock = self.add_dock(
             self.timeline, "", Qt.DockWidgetArea.BottomDockWidgetArea
+        )
+
+        self.workspace_sidebar = WorkspaceSidebar()
+        self.workspace_dock = self.add_dock(
+            self.workspace_sidebar, "", Qt.DockWidgetArea.LeftDockWidgetArea
+        )
+        app.workspace.recording_list_loaded.connect(
+            self.workspace_sidebar.update_recording_table
         )
 
         self.register_action(
@@ -520,13 +480,14 @@ class MainWindow(QMainWindow):
         )
         self.setCorner(Qt.Corner.BottomLeftCorner, Qt.DockWidgetArea.LeftDockWidgetArea)
 
-        self.on_recording_closed()
+        self.on_workspace_closed()
         self.status_label.clicked.connect(self.console_window.show)
 
     def reset_docks(self):
         docks_and_areas = {
             self.timeline_dock: Qt.DockWidgetArea.BottomDockWidgetArea,
             self.settings_dock: Qt.DockWidgetArea.RightDockWidgetArea,
+            self.workspace_dock: Qt.DockWidgetArea.LeftDockWidgetArea,
         }
 
         for dock, area in docks_and_areas.items():
@@ -534,18 +495,25 @@ class MainWindow(QMainWindow):
             dock.setFloating(False)
             dock.show()
 
-    def on_recording_opened(self):
+    def on_workspace_opened(self):
+        app = neon_player.instance()
+
         self.greeting_switcher.setCurrentIndex(1)
         self.timeline_dock.show()
         self.settings_dock.show()
+        if app.batch_mode_enabled:
+            self.workspace_dock.show()
         self.menuBar().show()
         self.statusBar().show()
+
+    def on_recording_opened(self):
         QTimer.singleShot(1, self.timeline.reset_view)
 
-    def on_recording_closed(self):
+    def on_workspace_closed(self):
         self.greeting_switcher.setCurrentIndex(0)
         self.timeline_dock.hide()
         self.settings_dock.hide()
+        self.workspace_dock.hide()
         self.menuBar().hide()
         self.statusBar().hide()
 
@@ -731,6 +699,7 @@ class MainWindow(QMainWindow):
         self.video_widget.set_time_in_recording(ts)
 
     def on_recording_loaded(self, recording: NeonRecording) -> None:
+        self.workspace_sidebar.on_recording_loaded(recording)
         self.video_widget.on_recording_loaded(recording)
 
 

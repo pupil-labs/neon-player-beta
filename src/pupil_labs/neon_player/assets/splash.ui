@@ -182,10 +182,6 @@ border-radius: 5px;
           <property name="text">
            <string> Show recently opened recordings</string>
           </property>
-          <property name="icon">
-           <iconset>
-            <normaloff>recent.svg</normaloff>recent.svg</iconset>
-          </property>
           <property name="iconSize">
            <size>
             <width>24</width>
