@@ -190,8 +190,8 @@ class TimeLineDock(QWidget):
 
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=True)
         self.trim_markers = [
-            TrimEndMarker(app.recording_settings.export_window[0], plot=trim_plot),
-            TrimEndMarker(app.recording_settings.export_window[1], plot=trim_plot),
+            TrimEndMarker(app.plugin_settings.export_window[0], plot=trim_plot),
+            TrimEndMarker(app.plugin_settings.export_window[1], plot=trim_plot),
         ]
         self.duration_marker = TrimDurationMarker(*self.trim_markers)
         for tm in [*self.trim_markers, self.duration_marker]:
@@ -300,7 +300,7 @@ class TimeLineDock(QWidget):
             min(data_pos.x(), app.recording.stop_time), app.recording.start_time
         )
         app.seek_to(self.dragging.time)
-        app.recording_settings.export_window = self.get_export_window()
+        app.plugin_settings.export_window = self.get_export_window()
 
     def on_trim_area_drag_end(self, event: MouseDragEvent):
         self.dragging = None

@@ -80,7 +80,7 @@ class PluginManagerWidget(QWidget):
 
     def show_dialog(self) -> None:
         app = neon_player.instance()
-        form = PropertyWidget.from_property("enabled_plugins", app.recording_settings)
+        form = PropertyWidget.from_property("enabled_plugins", app.plugin_settings)
         form.layout().setContentsMargins(10, 10, 10, 10)
         form.layout().setSpacing(5)
 
