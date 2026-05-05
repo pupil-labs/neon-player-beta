@@ -151,7 +151,7 @@ class TimeLineDock(QWidget):
         )
 
         self.playhead = PlayHead(
-            self.timestamps_plot, parent=self.graphics_view_container
+            self.timestamps_plot, parent=self.graphics_view
         )
         self.playhead.hide()
 
@@ -201,6 +201,7 @@ class TimeLineDock(QWidget):
         trim_plot = self.get_timeline_plot("Export window", create_if_missing=False)
         if trim_plot is not None:
             trim_plot.clear()
+        self.playhead.hide()
 
     def on_playback_state_changed(self, is_playing: bool):
         icon_name = "pause.svg" if is_playing else "play.svg"
