@@ -177,7 +177,7 @@ class GazeDataPlugin(neon_player.Plugin):
         if self.recording is None:
             return
 
-        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_time, stop_time = self.export_window
         start_mask = self.recording.gaze.time >= start_time
         stop_mask = self.recording.gaze.time <= stop_time
 

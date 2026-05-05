@@ -388,7 +388,7 @@ class EventsPlugin(neon_player.Plugin):
     @action
     @action_params(compact=True, icon=QIcon(str(neon_player.asset_path("export.svg"))))
     def export(self, destination: Path = Path()):
-        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_time, stop_time = self.export_window
         event_names = []
         for uid in self.events:
             name = uid if uid in IMMUTABLE_EVENTS else self.get_event_type(uid).name

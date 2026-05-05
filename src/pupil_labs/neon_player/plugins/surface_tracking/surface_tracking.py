@@ -266,8 +266,7 @@ class SurfaceTrackingPlugin(Plugin):
 
             show_heatmap = surface.show_heatmap and surface.heatmap_alpha > 0.0
             if show_heatmap and surface._heatmap is not None:
-                export_window = self.app.recording_settings.export_window
-                if export_window[0] <= time_in_recording <= export_window[1]:
+                if self.export_window[0] <= time_in_recording <= self.export_window[1]:
                     scalar = np.float64([
                         [1 / surface._heatmap.shape[1], 0.0, 0.0],
                         [0.0, 1 / surface._heatmap.shape[0], 0.0],
@@ -572,7 +571,7 @@ class SurfaceTrackingPlugin(Plugin):
     ) -> T.Generator[ProgressUpdate, None, None]:
         surface = self.get_surface(surface_uid)
 
-        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_time, stop_time = self.export_window
         start_mask = self.recording.scene.time >= start_time
         stop_mask = self.recording.scene.time <= stop_time
         scene_frames = self.recording.scene[start_mask & stop_mask]
@@ -902,7 +901,7 @@ class SurfaceTrackingPlugin(Plugin):
     ) -> T.Generator[ProgressUpdate, None, None]:
         surface = self.get_surface(uid)
 
-        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_time, stop_time = self.export_window
         start_mask = self.recording.scene.time >= start_time
         stop_mask = self.recording.scene.time <= stop_time
         scene_frames = self.recording.scene[start_mask & stop_mask]
@@ -1005,7 +1004,7 @@ class SurfaceTrackingPlugin(Plugin):
             )
 
     def _get_gazes_in_export_window(self):
-        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_time, stop_time = self.export_window
         start_mask = self.recording.gaze.time >= start_time
         stop_mask = self.recording.gaze.time <= stop_time
 

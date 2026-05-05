@@ -30,7 +30,7 @@ class BlinksPlugin(neon_player.Plugin):
         blink_ids = 1 + np.arange(len(self.recording.blinks))
         blinks = self.recording.blinks
 
-        start_time, stop_time = neon_player.instance().recording_settings.export_window
+        start_time, stop_time = self.export_window
         start_mask = blinks.stop_time > start_time
         stop_mask = blinks.start_time < stop_time
 
