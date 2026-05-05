@@ -63,6 +63,13 @@ class Plugin(PersistentPropertiesMixin, QObject):
             event_name, action_name, callback
         )
 
+    def unregister_data_point_action(
+        self, event_name: str, action_name: str
+    ):
+        self.app.main_window.timeline.unregister_data_point_action(
+            event_name, action_name
+        )
+
     def add_dynamic_action(self, name: str, func: T.Callable) -> None:
         my_prop_form = self.app.main_window.settings_panel.plugin_class_expanders[
             self.__class__.__name__

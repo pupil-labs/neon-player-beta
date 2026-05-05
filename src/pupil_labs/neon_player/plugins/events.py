@@ -175,10 +175,7 @@ class EventsPlugin(neon_player.Plugin):
         timeline = self.get_timeline()
         timeline.remove_timeline_plot("Events")
         for et in self._event_types:
-            timeline.remove_timeline_plot(f"Events - {et.name}")
-
-        for plot_name in IMMUTABLE_EVENTS:
-            timeline.remove_timeline_plot(f"Events - {plot_name}")
+            self._remove_gui_for_event_name(et.name)
 
     def _setup_gui_for_event_type(self, event_type: EventType) -> None:
         timeline = self.get_timeline()
@@ -216,6 +213,27 @@ class EventsPlugin(neon_player.Plugin):
 
         register_data_actions()
         event_type.name_changed.connect(lambda _, _2: register_data_actions())
+
+    def _remove_gui_for_event_name(
+        self,
+        event_name: str,
+        remove_add_action: bool = True
+    ) -> None:
+        timeline = self.get_timeline()
+        timeline.remove_timeline_plot(f"Events - {event_name}")
+        timeline.unregister_data_point_action(
+            f"Events - {event_name}", f"Seek to this {event_name}"
+        )
+
+        if event_name in IMMUTABLE_EVENTS:
+            return
+
+        timeline.unregister_data_point_action(
+            f"Events - {event_name}", f"Delete {event_name} instance"
+        )
+        if remove_add_action:
+            self.unregister_timeline_action(f"Add Event/{event_name}")
+            self.app.main_window.remove_menu_if_empty("Timeline/Add Event")
 
     def add_event(self, event_type: EventType, ts: int | None = None) -> None:
         if self.recording is None:
@@ -313,18 +331,13 @@ class EventsPlugin(neon_player.Plugin):
             if removed_event_type.uid in self.events:
                 del self.events[removed_event_type.uid]
 
-            self.get_timeline().remove_timeline_plot(
-                f"Events - {removed_event_type.name}"
-            )
+            self._remove_gui_for_event_name(removed_event_type.name)
             self.save_cached_json("events.json", self.events)
-            self.app.main_window.unregister_action(
-                f"Timeline/Add Event/{removed_event_type.name}"
-            )
 
         self._event_types = value
 
     def _on_event_name_changed(self, old_name, new_name, event_type) -> None:
-        self.get_timeline().remove_timeline_plot(f"Events - {old_name}")
+        self._remove_gui_for_event_name(old_name, remove_add_action=False)
         self._update_timeline_data(event_type)
 
     def create_event_type(self, event_name: str) -> None:

@@ -666,6 +666,21 @@ class MainWindow(QMainWindow):
 
         return menu
 
+    def remove_menu_if_empty(self, menu_path: str) -> None:
+        menu = self.get_menu(menu_path, auto_create=False)
+        if menu is None or len(menu.actions()) > 0:
+            return
+
+        parent_menu_path, _, action_name = menu_path.rpartition("/")
+        parent_menu = self.get_menu(parent_menu_path, auto_create=False)
+        if parent_menu is None:
+            return
+
+        for action in parent_menu.actions():
+            if action.text().replace("&", "") == action_name.replace("&", ""):
+                parent_menu.removeAction(action)
+                break
+
     def get_action(self, action_path: str) -> QAction:
         menu_path, action_name = action_path.rsplit("/", 1)
         menu = self.get_menu(menu_path)
