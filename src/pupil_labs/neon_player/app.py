@@ -15,6 +15,7 @@ from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QAction, QIcon, QPainter
 from PySide6.QtWidgets import (
     QApplication,
+    QMessageBox,
     QSystemTrayIcon,
 )
 from qt_property_widgets.utilities import ComplexEncoder, create_action_object
@@ -49,6 +50,7 @@ from pupil_labs.neon_player.ui.plugin_installation_dialog import (
     PluginInstallationDialog,
 )
 from pupil_labs.neon_player.utilities import SlotDebouncer, clone_menu
+from pupil_labs.neon_player.workspace import Workspace, check_if_neon_recording
 
 
 class NeonPlayerApp(QApplication):
@@ -58,6 +60,8 @@ class NeonPlayerApp(QApplication):
     speed_changed = Signal(float)
     recording_loaded = Signal(object)
     recording_unloaded = Signal()
+    workspace_loaded = Signal()
+    workspace_unloaded = Signal()
 
     def __init__(self, argv: list[str]) -> None:
         self._initializing = True
@@ -80,6 +84,8 @@ class NeonPlayerApp(QApplication):
         self.plugins_by_class: dict[str, Plugin] = {}
         self.plugins: list[Plugin] = []
         self.recording: nr.NeonRecording | None = None
+        self.workspace: Workspace = Workspace()
+        self.batch_mode_enabled: bool = False
         self.playback_start_anchor = 0
         self.current_ts = 0
         self.playback_speed = 1.0
@@ -346,6 +352,13 @@ class NeonPlayerApp(QApplication):
         return self.args.job is not None
 
     def unload(self) -> None:
+        if self.recording:
+            self.unload_recording()
+
+        self.workspace.clear()
+        self.workspace_unloaded.emit()
+
+    def unload_recording(self) -> None:
         self.set_playback_state(False)
         class_names = list(self.plugins_by_class.keys())
         for plugin_class_name in class_names:
@@ -355,10 +368,41 @@ class NeonPlayerApp(QApplication):
         self.recording_unloaded.emit()
 
     def load(self, path: Path) -> None:
+        """
+        Opens the Neon recording in the provided folder (if native data
+        format is detected) or opens the folder as a workplace, detecting
+        recordings in subfolders automatically and loading the first one.
+        """
+        self.unload()
+        is_neon_recording = check_if_neon_recording(path)
+        self.batch_mode_enabled = not is_neon_recording
+
+        if is_neon_recording:
+            # Only include this recording in the workspace
+            recording_path = path
+            self.workspace.add_recording(recording_path)
+        else:
+            # Load all recordings that appear as first-level subfolders
+            self.workspace.load_recording_list(path)
+            if not self.workspace.num_recordings:
+                QMessageBox.critical(
+                    self.main_window,
+                    "No recordings found!",
+                    "Found no recordings in the provided folder. "
+                    "Please ensure that Native Recording Data is used or "
+                    "select a different folder."
+                )
+                return
+            recording_path = self.workspace.recordings[0]._rec_dir
+
+        self.workspace_loaded.emit()
+        self.load_recording(recording_path)
+
+    def load_recording(self, path: Path) -> None:
         """Load a recording from the given path."""
         self.loading_recording = True
         self._initializing = True
-        self.unload()
+        self.unload_recording()
         logging.info("Opening recording at path: %s", path)
         self.recording = nr.load(path)
         self.recording_history.add_recording(path, self.recording)
