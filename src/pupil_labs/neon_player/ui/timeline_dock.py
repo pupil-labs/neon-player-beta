@@ -589,7 +589,7 @@ class TimeLineDock(QWidget):
 
         context_menu = QMenu()
 
-        for action_name, callback in self.data_point_actions[timeline_name]:
+        for action_name, callback in self.data_point_actions[timeline_name].items():
             action = context_menu.addAction(action_name)
             action.triggered.connect(lambda _, cb=callback: cb(data_point))
 
@@ -714,9 +714,20 @@ class TimeLineDock(QWidget):
         self, row_name: str, action_name: str, callback: T.Callable
     ) -> None:
         if row_name not in self.data_point_actions:
-            self.data_point_actions[row_name] = []
+            self.data_point_actions[row_name] = {}
 
-        self.data_point_actions[row_name].append((action_name, callback))
+        self.data_point_actions[row_name][action_name] = callback
+
+    def unregister_data_point_action(
+        self, row_name: str, action_name: str
+    ) -> None:
+        if row_name not in self.data_point_actions:
+            return
+
+        if action_name not in self.data_point_actions[row_name]:
+            return
+
+        del self.data_point_actions[row_name][action_name]
 
     def reset_view(self):
         app = neon_player.instance()
