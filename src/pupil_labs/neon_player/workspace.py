@@ -71,6 +71,7 @@ class Workspace(QObject):
 
         self._recording_metadata : dict[str, RecordingMetadata] = {}
         self._recordings : list[NeonRecording] = []
+        self.path : Path | None = None
         self.initialized : bool = False
 
     @property
@@ -97,6 +98,7 @@ class Workspace(QObject):
     def clear(self):
         self._recording_metadata = {}
         self._recordings = []
+        self.path = None
         self.initialized = False
 
     def add_recording(self, path: Path):
@@ -105,6 +107,7 @@ class Workspace(QObject):
         if desc:
             self._recordings.append(nr.load(path))
             self._recording_metadata[desc.name] = desc
+            self.path = path.parent
             self.initialized = True
             self.recording_list_loaded.emit(self.recording_metadata)
 
@@ -114,6 +117,7 @@ class Workspace(QObject):
         recording_list = get_recording_list(path)
         self._recording_metadata = {rec.name: rec for rec in recording_list}
         self._recordings = [nr.load(rec.path) for rec in recording_list]
+        self.path = path
 
         logging.info(
             f"Found {self.num_recordings} recordings in the provided folder"

@@ -159,10 +159,12 @@ class PluginSettingsDispatcher(QObject):
         super().__init__()
         self.recording_settings = RecordingSettings()
         self.workspace_settings = RecordingSettings()
-        self.batch_mode_enabled = False
-        self.default_source = self.recording_settings
+        self.batch_mode_enabled: bool = False
+        self.default_source: RecordingSettings = self.recording_settings
 
-    def load_recording_settings(self, settings_path: Path, recording: NeonRecording) -> None:
+    def load_recording_settings(
+        self, settings_path: Path, recording: NeonRecording
+    ) -> None:
         try:
             if settings_path.exists():
                 logging.info(f"Loading recording settings from {settings_path}")
@@ -178,6 +180,7 @@ class PluginSettingsDispatcher(QObject):
                     ]
 
             else:
+                logging.info(f"Recording settings file not found, using defaults")
                 self.recording_settings = RecordingSettings()
                 self.recording_settings.export_window = [
                     recording.start_time,
@@ -185,18 +188,44 @@ class PluginSettingsDispatcher(QObject):
                 ]
 
         except Exception:
-            logging.exception("Failed to load settings")
+            logging.exception("Failed to load recording settings")
             self.recording_settings = RecordingSettings()
 
-        logging.info(
-            "Recording settings loaded", self.recording_settings.enabled_plugins
-        )
+        logging.info("Recording settings loaded")
 
-    def save_recording_settings(self, settings_path: Path) -> None:
+    def load_workspace_settings(self, settings_path: Path) -> None:
+        try:
+            if settings_path.exists():
+                logging.info(f"Loading workspace settings from {settings_path}")
+                self.workspace_settings = RecordingSettings.from_dict(
+                    json.loads(settings_path.read_text())
+                )
+            else:
+                logging.info(f"Workspace settings file not found, using defaults")
+                self.workspace_settings = RecordingSettings()
+
+        except Exception:
+            logging.exception("Failed to load workspace settings")
+            self.workspace_settings = RecordingSettings()
+
+        logging.info("Workspace settings loaded")
+
+    @staticmethod
+    def _save_settings_data(data: dict, settings_path: Path) -> None:
         settings_path.parent.mkdir(parents=True, exist_ok=True)
-        data = self.recording_settings.to_dict()
         with settings_path.open("w") as f:
             json.dump(data, f, cls=ComplexEncoder)
+
+    def save_recording_settings(self, settings_path: Path) -> None:
+        data = self.recording_settings.to_dict()
+        self._save_settings_data(data, settings_path)
+
+    def save_workspace_settings(self, settings_path: Path) -> None:
+        if not self.batch_mode_enabled:
+            return
+
+        data = self.workspace_settings.to_dict()
+        self._save_settings_data(data, settings_path)
 
     def set_batch_mode(self, batch_mode_enabled: bool) -> None:
         self.batch_mode_enabled = batch_mode_enabled

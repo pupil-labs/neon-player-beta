@@ -185,37 +185,58 @@ class NeonPlayerApp(QApplication):
 
         self.quit()
 
-    def load_global_settings(self) -> T.Any:
-        settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
-        logging.info(f"Loading settings from {settings_path}")
-        return json.loads(settings_path.read_text())
+    @property
+    def history_path(self) -> Path:
+        return Path.home() / "Pupil Labs" / "Neon Player" / "history.json"
 
-    def load_recording_history(self) -> T.Any:
-        history_path = Path.home() / "Pupil Labs" / "Neon Player" / "history.json"
-        logging.info(f"Loading recording history from {history_path}")
-        return json.loads(history_path.read_text())
+    @property
+    def settings_path(self) -> Path:
+        return Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
 
     @property
     def recording_settings_path(self) -> Path | None:
         if self.recording is None:
             return None
 
-        return self.recording._rec_dir / ".neon_player" / "settings.json"
+        if not self.batch_mode_enabled:
+            return self.recording._rec_dir / ".neon_player" / "settings.json"
+
+        recording_name = self.recording._rec_dir.name
+        return self.workspace.path / ".neon_player" / "cache" / recording_name / "settings.json"
+
+    @property
+    def workspace_settings_path(self) -> Path | None:
+        if self.workspace.path is None:
+            return None
+
+        return self.workspace.path / ".neon_player" / "settings.json"
+
+    def load_global_settings(self) -> T.Any:
+        logging.info(f"Loading settings from {self.settings_path}")
+        return json.loads(self.settings_path.read_text())
+
+    def load_recording_history(self) -> T.Any:
+        logging.info(f"Loading recording history from {self.history_path}")
+        return json.loads(self.history_path.read_text())
 
     def save_settings(self) -> None:
         if self._initializing:
             return
 
         try:
-            settings_path = Path.home() / "Pupil Labs" / "Neon Player" / "settings.json"
-            settings_path.parent.mkdir(parents=True, exist_ok=True)
+            self.settings_path.parent.mkdir(parents=True, exist_ok=True)
             data = self.settings.to_dict()
-            with settings_path.open("w") as f:
+            with self.settings_path.open("w") as f:
                 json.dump(data, f, cls=ComplexEncoder)
 
             if self.recording:
                 self.plugin_settings.save_recording_settings(
                     self.recording_settings_path
+                )
+
+            if self.batch_mode_enabled:
+                self.plugin_settings.save_workspace_settings(
+                    self.workspace_settings_path
                 )
 
             logging.info("Settings saved")
@@ -225,10 +246,9 @@ class NeonPlayerApp(QApplication):
 
     def save_history(self) -> None:
         try:
-            history_path = Path.home() / "Pupil Labs" / "Neon Player" / "history.json"
-            history_path.parent.mkdir(parents=True, exist_ok=True)
+            self.history_path.parent.mkdir(parents=True, exist_ok=True)
             data = self.recording_history.recent_recordings
-            with history_path.open("w") as f:
+            with self.history_path.open("w") as f:
                 json.dump(data, f, cls=ComplexEncoder)
 
             logging.info("History saved")
@@ -386,6 +406,7 @@ class NeonPlayerApp(QApplication):
             # Only include this recording in the workspace
             recording_path = path
             self.workspace.add_recording(recording_path)
+            self.plugin_settings.set_batch_mode(False)
         else:
             # Load all recordings that appear as first-level subfolders
             self.workspace.load_recording_list(path)
@@ -398,7 +419,12 @@ class NeonPlayerApp(QApplication):
                     "select a different folder."
                 )
                 return
+
             recording_path = self.workspace.recordings[0]._rec_dir
+            self.plugin_settings.set_batch_mode(True)
+            self.plugin_settings.load_workspace_settings(
+                self.workspace_settings_path
+            )
 
         self.workspace_loaded.emit()
         self.load_recording(recording_path)
@@ -436,6 +462,10 @@ class NeonPlayerApp(QApplication):
         logging.info(f"Loaded `{self.recording._rec_dir}`")
 
     def toggle_plugins_by_settings(self) -> None:
+        print(f"Recording settings: {self.plugin_settings.recording_settings.enabled_plugins}")
+        print(f"Workspace settings: {self.plugin_settings.workspace_settings.enabled_plugins}")
+        print(f"Plugin settings: {self.plugin_settings.enabled_plugins}")
+
         for cls_name, enabled in self.plugin_settings.enabled_plugins.items():
             state = self.plugin_settings.plugin_states.get(cls_name, {})
             self.toggle_plugin(cls_name, enabled, state)
