@@ -129,7 +129,7 @@ class RecordingSettings(PersistentPropertiesMixin):
 
         condition = None
         if app.batch_mode_enabled:
-            shared = not attached_to_workspace
+            shared = True if attached_to_workspace else False
             condition = lambda params: params.get("shared", True) == shared
 
         current_states = {
