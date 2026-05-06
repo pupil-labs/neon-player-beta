@@ -401,12 +401,12 @@ class NeonPlayerApp(QApplication):
         self.unload()
         is_neon_recording = check_if_neon_recording(path)
         self.batch_mode_enabled = not is_neon_recording
+        self.plugin_settings.batch_mode_enabled = self.batch_mode_enabled
 
         if is_neon_recording:
             # Only include this recording in the workspace
             recording_path = path
             self.workspace.add_recording(recording_path)
-            self.plugin_settings.set_batch_mode(False)
         else:
             # Load all recordings that appear as first-level subfolders
             self.workspace.load_recording_list(path)
@@ -421,7 +421,6 @@ class NeonPlayerApp(QApplication):
                 return
 
             recording_path = self.workspace.recordings[0]._rec_dir
-            self.plugin_settings.set_batch_mode(True)
             self.plugin_settings.load_workspace_settings(
                 self.workspace_settings_path
             )

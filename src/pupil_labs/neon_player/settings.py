@@ -90,10 +90,7 @@ class GeneralSettings(PersistentPropertiesMixin, QObject):
                     cls.global_properties = v
 
 
-class RecordingSettings(PersistentPropertiesMixin, QObject):
-    changed = Signal()
-    export_window_changed = Signal()
-
+class RecordingSettings(PersistentPropertiesMixin):
     def __init__(self) -> None:
         super().__init__()
         self._enabled_plugins = neon_player.instance().settings.default_plugins.copy()
@@ -108,8 +105,6 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
     @export_window.setter
     def export_window(self, value: list[int]) -> None:
         self._export_window = value.copy()
-        self.export_window_changed.emit()
-        self.changed.emit()
 
     @property
     @property_params(label_lookup=plugin_label_lookup)
@@ -124,19 +119,32 @@ class RecordingSettings(PersistentPropertiesMixin, QObject):
     def enabled_plugins(self, value: dict[str, bool]) -> None:
         self._enabled_plugins = value.copy()
 
+    def _update_plugin_states(self) -> None:
+        app = neon_player.instance()
+
+        attached_to_recording = app.plugin_settings.recording_settings == self
+        attached_to_workspace = app.plugin_settings.workspace_settings == self
+        if not attached_to_recording and not attached_to_workspace:
+            return
+
+        condition = None
+        if app.batch_mode_enabled:
+            shared = not attached_to_workspace
+            condition = lambda params: params.get("shared", True) == shared
+
+        current_states = {
+            class_name: p.to_dict(condition=condition)
+            for class_name, p in app.plugins_by_class.items()
+        }
+
+        plugin_states = {**self._plugin_states, **current_states}
+
+        self._plugin_states = {k: v for k, v in plugin_states.items() if v}
+
     @property
     @property_params(widget=None)
     def plugin_states(self) -> dict[str, dict]:
-        app = neon_player.instance()
-        # XXX: double-check
-        if app.plugin_settings.recording_settings == self:
-            current_states = {
-                class_name: p.to_dict() for class_name, p in app.plugins_by_class.items()
-            }
-
-            plugin_states = {**self._plugin_states, **current_states}
-
-            self._plugin_states = {k: v for k, v in plugin_states.items() if v}
+        self._update_plugin_states()
 
         return self._plugin_states
 
@@ -159,8 +167,7 @@ class PluginSettingsDispatcher(QObject):
         super().__init__()
         self.recording_settings = RecordingSettings()
         self.workspace_settings = RecordingSettings()
-        self.batch_mode_enabled: bool = False
-        self.default_source: RecordingSettings = self.recording_settings
+        self._batch_mode_enabled: bool = False
 
     def load_recording_settings(
         self, settings_path: Path, recording: NeonRecording
@@ -221,18 +228,23 @@ class PluginSettingsDispatcher(QObject):
         self._save_settings_data(data, settings_path)
 
     def save_workspace_settings(self, settings_path: Path) -> None:
-        if not self.batch_mode_enabled:
-            return
-
         data = self.workspace_settings.to_dict()
         self._save_settings_data(data, settings_path)
 
-    def set_batch_mode(self, batch_mode_enabled: bool) -> None:
-        self.batch_mode_enabled = batch_mode_enabled
-        self.default_source = (
-            self.recording_settings
-            if not batch_mode_enabled else self.workspace_settings
-        )
+    @property
+    def batch_mode_enabled(self) -> bool:
+        return self._batch_mode_enabled
+
+    @batch_mode_enabled.setter
+    def batch_mode_enabled(self, batch_mode_enabled: bool) -> None:
+        self._batch_mode_enabled = batch_mode_enabled
+
+    @property
+    def default_source(self) -> RecordingSettings:
+        if not self.batch_mode_enabled:
+            return self.recording_settings
+
+        return self.workspace_settings
 
     @property
     def export_window(self) -> list[int]:
@@ -242,6 +254,7 @@ class PluginSettingsDispatcher(QObject):
     def export_window(self, value: list[int]) -> None:
         self.recording_settings.export_window = value
         self.export_window_changed.emit()
+        self.changed.emit()
 
     @property
     @property_params(label_lookup=plugin_label_lookup)
@@ -257,4 +270,11 @@ class PluginSettingsDispatcher(QObject):
         if not self.batch_mode_enabled:
             return self.recording_settings.plugin_states
 
-        # TODO: merge workspace and recording settings
+        workspace_states = self.workspace_settings.plugin_states
+        recording_states = self.recording_settings.plugin_states
+        combined_states = {}
+        for class_name in set(workspace_states) | set(recording_states):
+            combined_states[class_name] = workspace_states.get(class_name, {})
+            combined_states[class_name].update(recording_states.get(class_name, {}))
+
+        return combined_states

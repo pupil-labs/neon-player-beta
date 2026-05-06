@@ -241,7 +241,7 @@ class GazeDataPlugin(neon_player.Plugin):
         logging.info(f"Wrote {export_file}")
 
     @property
-    @property_params(min=-1, max=1, step=0.01, decimals=3)
+    @property_params(min=-1, max=1, step=0.01, decimals=3, shared=False)
     def offset_x(self) -> float:
         return self._offset_x
 
@@ -251,7 +251,7 @@ class GazeDataPlugin(neon_player.Plugin):
         self.offset_changed.emit()
 
     @property
-    @property_params(min=-1, max=1, step=0.01, decimals=3)
+    @property_params(min=-1, max=1, step=0.01, decimals=3, shared=False)
     def offset_y(self) -> float:
         return self._offset_y
 
