@@ -229,7 +229,3 @@ class PluginSettingsDispatcher(QObject):
             return self.recording_settings.plugin_states
 
         # TODO: merge workspace and recording settings
-
-    @plugin_states.setter
-    def plugin_states(self, value: dict[str, dict]) -> None:
-        pass
