@@ -68,7 +68,7 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
         self.changed.emit()
 
     @property
-    @property_params(min=0, max=100, shared=False)
+    @property_params(min=0, max=100, scope="recording")
     def brightness(self) -> int:
         return self._brightness
 
@@ -77,7 +77,7 @@ class SceneRendererPlugin(Plugin, BackgroundVideoExportMixin):
         self._brightness = value
 
     @property
-    @property_params(min=0.0, max=3.0, shared=False)
+    @property_params(min=0.0, max=3.0, scope="recording")
     def contrast(self) -> float:
         return self._contrast
 

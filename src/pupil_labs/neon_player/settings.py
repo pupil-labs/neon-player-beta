@@ -129,8 +129,10 @@ class RecordingSettings(PersistentPropertiesMixin):
 
         condition = None
         if app.batch_mode_enabled:
-            shared = True if attached_to_workspace else False
-            condition = lambda params: params.get("shared", True) == shared
+            target_scope = "workspace" if attached_to_workspace else "recording"
+            condition = lambda params: (
+                params.get("scope", "workspace") == target_scope
+            )
 
         current_states = {
             class_name: p.to_dict(condition=condition)
